@@ -25,19 +25,19 @@ make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 defconfig sm8550.config
 make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1
 _kernel_version="$(make kernelrelease -s)"
 
-sed -i "s/Version:.*/Version: ${_kernel_version}/" $1/linux-xiaomi-sheng/DEBIAN/control
+sed -i "s/Version:.*/Version: ${_kernel_version}/" ../linux-xiaomi-sheng/DEBIAN/control
 
-chmod +x $2/mkbootimg
+chmod +x ../mkbootimg
 
-cat $2/linux/arch/arm64/boot/Image.gz $2/linux/arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb > $2/linux/Image.gz-dtb_sheng
-mv $2/linux/Image.gz-dtb_sheng $2/linux/zImage_sheng
-$2/mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=linux" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o $2/boot_sheng.img
+cat arch/arm64/boot/Image.gz arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb > Image.gz-dtb_sheng
+mv Image.gz-dtb_sheng zImage_sheng
+../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=linux" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng.img
 
 #rm $1/linux-xiaomi-sheng/usr/dummy
-make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- INSTALL_MOD_PATH=$1/linux-xiaomi-sheng/usr modules_install
-rm $2/linux-xiaomi-sheng/usr/lib/modules/**/build
-cd $2
-rm -rf linux
+
+make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=../linux-xiaomi-sheng modules_install
+rm ../linux-xiaomi-sheng/lib/modules/**/build
+
 cd ..
 
 dpkg-deb --build --root-owner-group linux-xiaomi-sheng
