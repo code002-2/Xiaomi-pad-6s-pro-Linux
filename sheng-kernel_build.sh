@@ -22,6 +22,7 @@ git clone https://github.com/map220v/sm8550-mainline.git --branch sheng-6.18 --d
 cd linux
 
 git apply ../nanosic_sleepfix_alt.patch
+git diff --stat
 
 make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 defconfig sm8550.config
 make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1
