@@ -21,6 +21,8 @@ export STRIP="llvm-strip"
 git clone https://github.com/map220v/sm8550-mainline.git --branch sheng-6.18 --depth 1 linux
 cd linux
 
+git apply ../nanosic_sleepfix_alt.patch
+
 make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 defconfig sm8550.config
 make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1
 _kernel_version="$(make kernelrelease -s)"
