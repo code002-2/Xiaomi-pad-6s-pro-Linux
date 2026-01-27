@@ -357,7 +357,7 @@ if [ "$distro_variant" = "desktop" ]; then
     
     if [ "$distro_type" = "debian" ]; then
         echo "🎨 安装GNOME桌面环境..."
-        if chroot rootdir apt install -qq -y gdm3 gnome-shell gnome-terminal firefox; then
+        if chroot rootdir apt install -qq -y gdm3 gnome-shell gnome-terminal firefox-esr; then
             echo "✅ GNOME桌面环境安装完成 (Debian)"
             mkdir -p rootdir/var/lib/gdm
             touch rootdir/var/lib/gdm/run-initial-setup
