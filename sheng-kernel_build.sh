@@ -21,7 +21,7 @@ export STRIP="llvm-strip"
 git clone https://github.com/map220v/sm8550-mainline.git --branch sheng-6.18 --depth 1 linux
 cd linux
 
-git apply ../nanosic_auth_test1.patch
+git apply ../nanosic_auth_test2.patch
 git diff --stat
 
 make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 defconfig sm8550.config
