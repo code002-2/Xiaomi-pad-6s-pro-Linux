@@ -18,15 +18,14 @@ export OBJDUMP="llvm-objdump"
 export READELF="llvm-readelf"
 export STRIP="llvm-strip"
 
-git clone https://github.com/map220v/sm8550-mainline.git --branch sheng-6.18 --depth 1 linux
+git clone https://github.com/map220v/sm8550-mainline.git --branch sheng-6.19 --depth 1 linux
 cd linux
 
-git apply ../nanosic_auth_test2.patch
-git diff --stat
+wget https://gitlab.postmarketos.org/alghiffaryfa19/pmaports/-/raw/master/device/testing/linux-postmarketos-qcom-sm8550/config-postmarketos-qcom-sm8550.aarch64 -O .config
 
-make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 defconfig sm8550.config
 make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1
 _kernel_version="$(make kernelrelease -s)"
+
 
 sed -i "s/Version:.*/Version: ${_kernel_version}/" ../linux-xiaomi-sheng/DEBIAN/control
 
@@ -34,7 +33,7 @@ chmod +x ../mkbootimg
 
 cat arch/arm64/boot/Image.gz arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb > Image.gz-dtb_sheng
 mv Image.gz-dtb_sheng zImage_sheng
-../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=userdata" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng.img
+../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=linux" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng.img
 
 #rm $1/linux-xiaomi-sheng/usr/dummy
 
