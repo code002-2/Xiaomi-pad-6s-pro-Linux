@@ -1,0 +1,74 @@
+name: Build sheng-devauth DEB (ARM)
+
+on:
+  push:
+    branches: [ sheng ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential dpkg-dev
+
+      - name: Build binary
+        run: |
+          make
+
+      - name: Prepare deb package
+        run: |
+          # Pastikan folder target ada
+          mkdir -p sheng-devauth/usr/bin
+          mkdir -p sheng-devauth/DEBIAN
+
+          # Copy binary hasil build
+          chmod 0755 xiaomi_devauth
+          cp xiaomi_devauth sheng-devauth/usr/bin/
+
+          # Buat postinst
+          cat << 'EOF' > sheng-devauth/DEBIAN/postinst
+#!/bin/sh
+set -e
+
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload || true
+    systemctl enable sheng-devauth.service || true
+    systemctl start sheng-devauth.service || true
+fi
+
+exit 0
+EOF
+
+          chmod 0755 sheng-devauth/DEBIAN/postinst
+
+          # Buat prerm
+          cat << 'EOF' > sheng-devauth/DEBIAN/prerm
+#!/bin/sh
+set -e
+
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl stop sheng-devauth.service || true
+    systemctl disable sheng-devauth.service || true
+fi
+
+exit 0
+EOF
+
+          chmod 0755 sheng-devauth/DEBIAN/prerm
+
+      - name: Build DEB
+        run: |
+          dpkg-deb --build sheng-devauth
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sheng-devauth-deb
+          path: sheng-devauth.deb
