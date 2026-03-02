@@ -50,9 +50,10 @@ jobs:
 
       - name: Add systemd service
         run: |
+          cd ${PKGNAME}-${PKGVERSION}
           mkdir -p stage/usr/lib/systemd/system
           wget https://raw.githubusercontent.com/alghiffaryfa19/sheng-sensors-patch/refs/heads/main/fastrpc-1.0.2/adsprpcd-sensorspd.service
-          cp adsprpcd-sensorspd.service stage/usr/lib/systemd/system/
+          cp ../adsprpcd-sensorspd.service stage/usr/lib/systemd/system/
 
       - name: Prepare DEB structure
         run: |
