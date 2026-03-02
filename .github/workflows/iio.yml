@@ -77,8 +77,7 @@ jobs:
             --prefix=/usr \
             -Dsystemdsystemunitdir=/usr/lib/systemd/system \
             -Dudevrulesdir=/usr/lib/udev/rules.d \
-            -Dsysconfdir=/usr/share \
-            -Dssc-support=enabled
+            -Dsysconfdir=/usr/share
           meson compile -C build
 
       - name: Install into staging
