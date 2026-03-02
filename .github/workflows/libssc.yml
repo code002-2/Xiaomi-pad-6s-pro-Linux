@@ -27,7 +27,9 @@ jobs:
             libprotobuf-c-dev \
             libqmi-glib-dev \
             libmbim-glib-dev \
-            linux-libc-dev
+            linux-libc-dev \
+            protobuf-compiler \
+            protobuf-c-compiler
 
           pip3 install --upgrade meson
 
