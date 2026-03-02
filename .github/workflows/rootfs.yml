@@ -227,7 +227,7 @@ jobs:
       id: download_sensor
       run: |
 
-        gh release download "fastrpc v20240917" \
+        gh release download "sensors" \
           --pattern "*.deb" \
           --repo "${{ github.repository }}" \
           --clobber
@@ -247,7 +247,7 @@ jobs:
       id: download_fastrpc
       run: |
 
-        gh release download "fastrpc v1.0.2" \
+        gh release download "fastrpc" \
           --pattern "*.deb" \
           --repo "${{ github.repository }}" \
           --clobber

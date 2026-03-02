@@ -63,8 +63,8 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: fastrpc_v${{ env.PKGVERSION }}
-          name: "fastrpc v${{ env.PKGVERSION }}"
+          tag_name: sensors
+          name: "sensors
           draft: false
           prerelease: false
           files: "*.deb"
