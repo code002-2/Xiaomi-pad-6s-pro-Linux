@@ -30,7 +30,6 @@ jobs:
             libpolkit-gobject-1-dev \
             libsystemd-dev \
             libdbus-1-dev \
-            libeudev-dev || true \
             systemd \
             libqmi-glib-dev \
             libmbim-glib-dev \
