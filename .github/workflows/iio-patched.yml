@@ -37,6 +37,8 @@ jobs:
             linux-libc-dev \
             protobuf-compiler \
             protobuf-c-compiler
+            
+          pip3 install --upgrade meson
 
       - name: "Download libssc"
         id: download_libssc
