@@ -25,7 +25,7 @@ jobs:
             pkg-config \
             libglib2.0-dev \
             libprotobuf-c-dev \
-            libqmi-dev \
+            libqmi \
             linux-libc-dev
 
       - name: Clone source repository
