@@ -83,3 +83,15 @@ jobs:
         with:
           name: libssc-deb
           path: libssc_*.deb
+
+      - name: "Release"
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: libssc
+          name: "libssc"
+          draft: false
+          prerelease: false
+          files: "*.deb"
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
