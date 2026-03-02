@@ -19,14 +19,16 @@ jobs:
           sudo apt update
           sudo apt install -y \
             build-essential \
-            meson \
             ninja-build \
             git \
             pkg-config \
+            python3-pip \
             libglib2.0-dev \
             libprotobuf-c-dev \
             libqmi-glib-dev \
             linux-libc-dev
+
+        pip3 install --upgrade meson
 
       - name: Clone source repository
         run: |
