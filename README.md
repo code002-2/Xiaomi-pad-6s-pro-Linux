@@ -134,7 +134,7 @@ Maybe later
 		```
 
 2. From Linux to Android
-	- Bootloader (Requires PC/Termux ADB-Fastboot from another android device)
+	- Bootloader (Requires PC/[Termux ADB-Fastboot from another android device](https://github.com/offici5l/termux-adb-fastboot))
 		- Boot to bootloader
 		- Slot A activation
 		```bash
