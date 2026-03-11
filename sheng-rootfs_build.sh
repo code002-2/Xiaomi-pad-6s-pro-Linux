@@ -42,7 +42,7 @@ distro_variant=$(echo "$1" | cut -d'-' -f2)
 if [ "$distro_type" = "debian" ]; then
     distro_version="trixie"  # Debian 13 (trixie)
 elif [ "$distro_type" = "ubuntu" ]; then
-    distro_version="noble"   # Ubuntu 24.04 (noble)
+    distro_version="questing"   # Ubuntu 25.10 (questing)
 else
     echo "错误: 不支持的发行版类型: $distro_type"
     exit 1
@@ -134,7 +134,9 @@ echo "📥 下载: $distro_type $distro_version"
  elif [ "$distro_type" = "ubuntu" ]; then
          # 使用ubuntu-base镜像替代debootstrap
          echo "🔗 使用ubuntu-base镜像"
-         if [ "$distro_version" = "noble" ]; then
+         if [ "$distro_version" = "questing" ]; then
+              ubuntu_version="25.10"
+         elif [ "$distro_version" = "noble" ]; then
               ubuntu_version="24.04.3"
          elif [ "$distro_version" = "jammy" ]; then
              ubuntu_version="22.04"
@@ -413,8 +415,8 @@ if [ "$distro_variant" = "desktop" ]; then
         fi
     elif [ "$distro_type" = "ubuntu" ]; then
         echo "🎨 安装Ubuntu桌面环境..."
-        echo "执行命令: chroot rootdir apt install -qq -y ubuntu-desktop"
-if chroot rootdir apt install -qq -y ubuntu-desktop; then
+        echo "执行命令: chroot rootdir apt install -qq -y ubuntu-desktop-minimal gnome-console"
+if chroot rootdir apt install -qq -y ubuntu-desktop-minimal gnome-console; then
     echo "✅ Ubuntu桌面环境安装完成"
     mkdir -p rootdir/var/lib/gdm
     touch rootdir/var/lib/gdm/run-initial-setup
@@ -464,9 +466,15 @@ CONF
     if [ "$distro_type" = "debian" ]; then
         chroot rootdir systemctl enable gdm3 2>/dev/null || chroot rootdir systemctl enable gdm 2>/dev/null || echo "⚠️  GDM 启用失败"
         chroot rootdir systemctl enable NetworkManager || echo "⚠️  NetworkManager 启用失败"
+        chroot rootdir systemctl enable sheng-devauth 2>/dev/null || chroot rootdir systemctl enable sheng-devauth 2>/dev/null || echo "⚠️  Sheng DevAuth 启用失败"
+        chroot rootdir systemctl enable iio-sensor-proxy 2>/dev/null || chroot rootdir systemctl enable iio-sensor-proxy 2>/dev/null || echo "⚠️  iio-sensor-proxy 启用失败"
+        chroot rootdir systemctl enable adsprpcd-sensorspd 2>/dev/null || chroot rootdir systemctl enable adsprpcd-sensorspd 2>/dev/null || echo "⚠️  adsprpcd-sensorspd 启用失败"
     elif [ "$distro_type" = "ubuntu" ]; then
         chroot rootdir systemctl enable gdm3 2>/dev/null || chroot rootdir systemctl enable gdm 2>/dev/null || echo "⚠️  GDM 启用失败"
         chroot rootdir systemctl enable NetworkManager || echo "⚠️  NetworkManager 启用失败"
+        chroot rootdir systemctl enable sheng-devauth 2>/dev/null || chroot rootdir systemctl enable sheng-devauth 2>/dev/null || echo "⚠️  Sheng DevAuth 启用失败"
+        chroot rootdir systemctl enable iio-sensor-proxy 2>/dev/null || chroot rootdir systemctl enable iio-sensor-proxy 2>/dev/null || echo "⚠️  iio-sensor-proxy 启用失败"
+        chroot rootdir systemctl enable adsprpcd-sensorspd 2>/dev/null || chroot rootdir systemctl enable adsprpcd-sensorspd 2>/dev/null || echo "⚠️  adsprpcd-sensorspd 启用失败"
     fi
     echo "✅ 服务启用完成"
     
