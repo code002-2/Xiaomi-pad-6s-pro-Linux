@@ -182,72 +182,11 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: "Download ssc"
-      id: download_ssc
-      run: |
-
-        gh release download "libssc" \
-          --pattern "*.deb" \
-          --repo "${{ github.repository }}" \
-          --clobber
-        
-        # 验证下载的文件
-        DEB_COUNT=$(ls -1 *.deb 2>/dev/null | wc -l)
-        if [ $DEB_COUNT -eq 0 ]; then
-          echo "❌ 错误：未下载到任何内核包！"
-          exit 1
-        fi
-        
-        echo "✅ 成功下载 $DEB_COUNT 个内核包"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: "Download iio"
-      id: download_iio
-      run: |
-
-        gh release download "iio_sensor_patched" \
-          --pattern "*.deb" \
-          --repo "${{ github.repository }}" \
-          --clobber
-        
-        # 验证下载的文件
-        DEB_COUNT=$(ls -1 *.deb 2>/dev/null | wc -l)
-        if [ $DEB_COUNT -eq 0 ]; then
-          echo "❌ 错误：未下载到任何内核包！"
-          exit 1
-        fi
-        
-        echo "✅ 成功下载 $DEB_COUNT 个内核包"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
     - name: "Download sensor"
       id: download_sensor
       run: |
 
-        gh release download "sensors" \
-          --pattern "*.deb" \
-          --repo "${{ github.repository }}" \
-          --clobber
-        
-        # 验证下载的文件
-        DEB_COUNT=$(ls -1 *.deb 2>/dev/null | wc -l)
-        if [ $DEB_COUNT -eq 0 ]; then
-          echo "❌ 错误：未下载到任何内核包！"
-          exit 1
-        fi
-        
-        echo "✅ 成功下载 $DEB_COUNT 个内核包"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: "Download fastrpc"
-      id: download_fastrpc
-      run: |
-
-        gh release download "fastrpc" \
+        gh release download "sensor" \
           --pattern "*.deb" \
           --repo "${{ github.repository }}" \
           --clobber
