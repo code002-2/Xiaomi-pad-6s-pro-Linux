@@ -40,7 +40,8 @@ jobs:
         run: |
           cd source
           wget https://raw.githubusercontent.com/alghiffaryfa19/sheng-sensors-patch/refs/heads/main/libssc-git/wait_for_qmi_service.patch
-          patch -Np1 < ../wait_for_qmi_service.patch || true
+          cd source
+          patch -Np1 < wait_for_qmi_service.patch || true
 
       - name: Build project
         run: |
