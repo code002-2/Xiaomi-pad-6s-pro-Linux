@@ -18,37 +18,37 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Download all source releases
-    run: |
-      KERNEL_VER=${{ github.event.inputs.kernel_version }}
+      run: |
+        KERNEL_VER=${{ github.event.inputs.kernel_version }}
 
-      mkdir bundle && cd bundle
+        mkdir bundle && cd bundle
 
-      echo "⬇️ Download kernel packages"
-      gh release download "kernel-$KERNEL_VER" \
-        --pattern "*.deb" \
-        --repo "${{ github.repository }}" \
-        --clobber || true
+        echo "⬇️ Download kernel packages"
+        gh release download "kernel-$KERNEL_VER" \
+          --pattern "*.deb" \
+          --repo "${{ github.repository }}" \
+          --clobber || true
 
-      echo "⬇️ Download sheng_devauth"
-      gh release download "sheng_devauth" \
-        --pattern "*.deb" \
-        --repo "${{ github.repository }}" \
-        --clobber || true
+        echo "⬇️ Download sheng_devauth"
+        gh release download "sheng_devauth" \
+          --pattern "*.deb" \
+          --repo "${{ github.repository }}" \
+          --clobber || true
 
-      echo "⬇️ Download sensor"
-      gh release download "sensor" \
-        --pattern "*.deb" \
-        --repo "${{ github.repository }}" \
-        --clobber || true
+        echo "⬇️ Download sensor"
+        gh release download "sensor" \
+          --pattern "*.deb" \
+          --repo "${{ github.repository }}" \
+          --clobber || true
 
-      echo "📂 Final bundle:"
-      ls -lah
+        echo "📂 Final bundle:"
+        ls -lah
 
-      COUNT=$(ls *.deb 2>/dev/null | wc -l)
-      if [ "$COUNT" -lt 5 ]; then
-        echo "❌ Not enough packages"
-        exit 1
-      fi
+        COUNT=$(ls *.deb 2>/dev/null | wc -l)
+        if [ "$COUNT" -lt 5 ]; then
+          echo "❌ Not enough packages"
+          exit 1
+        fi
 
   env:
     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
