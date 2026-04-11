@@ -138,67 +138,25 @@ jobs:
           curl
         echo "✅ 工具安装完成"
 
-    - name: "📥 下载内核包"
-      id: download_kernel
+    - name: "📥 Download kernel bundle"
       run: |
         KERNEL_VER="${{ needs.prepare-release.outputs.kernel_version }}"
-        echo "从 Release [kernel-$KERNEL_VER] 下载内核包..."
-        
-        # 使用GitHub CLI下载Release文件
-        gh release download "kernel-$KERNEL_VER" \
-          --pattern "*-xiaomi-sheng*.deb" \
-          --repo "${{ github.repository }}" \
-          --clobber
-        
-        # 验证下载的文件
-        DEB_COUNT=$(ls -1 *.deb 2>/dev/null | wc -l)
-        if [ $DEB_COUNT -eq 0 ]; then
-          echo "❌ 错误：未下载到任何内核包！"
-          exit 1
-        fi
-        
-        echo "✅ 成功下载 $DEB_COUNT 个内核包"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: "Download sheng_devauth"
-      id: download_sheng_devauth
-      run: |
-        
-        # 使用GitHub CLI下载Release文件
-        gh release download "sheng_devauth" \
+        echo "⬇️ Download bundle kernel-bundle-$KERNEL_VER"
+
+        gh release download "kernel-bundle-$KERNEL_VER" \
           --pattern "*.deb" \
           --repo "${{ github.repository }}" \
           --clobber
-        
-        # 验证下载的文件
-        DEB_COUNT=$(ls -1 *.deb 2>/dev/null | wc -l)
-        if [ $DEB_COUNT -eq 0 ]; then
-          echo "❌ 错误：未下载到任何内核包！"
+
+        echo "📂 Downloaded files:"
+        ls -lah *.deb
+
+        COUNT=$(ls *.deb | wc -l)
+        if [ "$COUNT" -lt 8 ]; then
+          echo "❌ Package incomplete"
           exit 1
         fi
-        
-        echo "✅ 成功下载 $DEB_COUNT 个内核包"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: "Download sensor"
-      id: download_sensor
-      run: |
-
-        gh release download "sensor" \
-          --pattern "*.deb" \
-          --repo "${{ github.repository }}" \
-          --clobber
-        
-        # 验证下载的文件
-        DEB_COUNT=$(ls -1 *.deb 2>/dev/null | wc -l)
-        if [ $DEB_COUNT -eq 0 ]; then
-          echo "❌ 错误：未下载到任何内核包！"
-          exit 1
-        fi
-        
-        echo "✅ 成功下载 $DEB_COUNT 个内核包"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
