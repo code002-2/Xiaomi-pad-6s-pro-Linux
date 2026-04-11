@@ -50,8 +50,8 @@ jobs:
           exit 1
         fi
 
-  env:
-    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Create bundle release
       uses: softprops/action-gh-release@v1
