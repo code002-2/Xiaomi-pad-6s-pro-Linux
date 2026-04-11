@@ -82,7 +82,7 @@ if [ "$distro_variant" = "desktop" ]; then
     if [ "$FLAVOUR" = "lomiri" ]; then
 
         chroot rootdir apt install -y \
-            lomiri lomiri-session lomiri-system-settings \
+            lomiri lomiri-desktop-session lomiri-system-settings \
             lightdm lightdm-gtk-greeter firefox-esr
 
         chroot rootdir systemctl disable gdm3 2>/dev/null || true
