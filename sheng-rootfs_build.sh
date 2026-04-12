@@ -29,8 +29,8 @@ distro_version="forky"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
 # 🔥 MULTI FLAVOUR
-FLAVOURS=("lomiri" "gnome")
-BOOTMODES=("single" "dual")
+FLAVOURS=("gnome")
+BOOTMODES=("dual")
 
 for FLAVOUR in "${FLAVOURS[@]}"; do
 for MODE in "${BOOTMODES[@]}"; do
