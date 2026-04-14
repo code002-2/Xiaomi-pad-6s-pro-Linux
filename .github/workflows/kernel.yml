@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       kernel_version:
-        description: "内核版本号 (如: 6.19)"
+        description: "内核版本号 (如: 7.0)"
         required: true
-        default: "6.19"
+        default: "7.0"
 
 jobs:
   build:
-    name: "构建内核 v${{ github.event.inputs.kernel_version || '6.19' }}"
+    name: "构建内核 v${{ github.event.inputs.kernel_version || '7.0' }}"
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
@@ -27,9 +27,9 @@ jobs:
         id: cache-ccache
         with:
           path: /home/runner/.ccache
-          key: ${{ runner.os }}-ccache-kernel-${{ github.event.inputs.kernel_version || '6.19' }}-${{ github.ref_name }}
+          key: ${{ runner.os }}-ccache-kernel-${{ github.event.inputs.kernel_version || '7.0' }}-${{ github.ref_name }}
           restore-keys: |
-            ${{ runner.os }}-ccache-kernel-${{ github.event.inputs.kernel_version || '6.19' }}-
+            ${{ runner.os }}-ccache-kernel-${{ github.event.inputs.kernel_version || '7.0' }}-
             ${{ runner.os }}-ccache-kernel-
 
       - name: "🔧 设置构建环境"
@@ -52,7 +52,7 @@ jobs:
       - name: "🔨 编译内核"
         id: build
         run: |
-          echo "🚀 开始编译内核版本 ${{ github.event.inputs.kernel_version || '6.19' }}"
+          echo "🚀 开始编译内核版本 ${{ github.event.inputs.kernel_version || '7.0' }}"
           echo "💾 缓存状态: ${{ steps.cache-ccache.outputs.cache-hit }}"
           
           # 设置ccache环境变量，确保编译过程使用ccache
@@ -62,7 +62,7 @@ jobs:
           
           # 执行编译
           # 传递环境变量给编译脚本
-          bash sheng-kernel_build.sh "${{ github.event.inputs.kernel_version || '6.19' }}" "${{ github.workspace }}"
+          bash sheng-kernel_build.sh "${{ github.event.inputs.kernel_version || '7.0' }}" "${{ github.workspace }}"
           
           echo "✅ 内核编译完成"
           echo "📊 编译后ccache统计:"
@@ -88,7 +88,7 @@ jobs:
       - name: "📤 上传构建产物"
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-${{ github.event.inputs.kernel_version || '6.19' }}
+          name: kernel-${{ github.event.inputs.kernel_version || '7.0' }}
           path: "*.deb"
           retention-days: 7
           if-no-files-found: error
@@ -109,17 +109,17 @@ jobs:
         if: steps.collect_artifacts.outputs.pkg_count > 0 && github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: kernel-${{ github.event.inputs.kernel_version || '6.19' }}
-          name: "Kernel ${{ github.event.inputs.kernel_version || '6.19' }}"
+          tag_name: kernel-${{ github.event.inputs.kernel_version || '7.0' }}
+          name: "Kernel ${{ github.event.inputs.kernel_version || '7.0' }}"
           body: |
-            🧩 Kernel ${{ github.event.inputs.kernel_version || '6.19' }}
+            🧩 Kernel ${{ github.event.inputs.kernel_version || '7.0' }}
             
             --- 
             
             ### 🔧 构建信息
             | 项目 | 详情 |
             |------|------|
-            | 内核版本 | ${{ github.event.inputs.kernel_version || '6.19' }} |
+            | 内核版本 | ${{ github.event.inputs.kernel_version || '7.0' }} |
             | 构建方式 | GitHub Actions 自动构建 |
             
             --- 

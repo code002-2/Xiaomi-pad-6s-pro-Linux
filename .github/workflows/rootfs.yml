@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       kernel_version:
-        description: '内核版本 (对应Release标签，如 6.19)'
+        description: '内核版本 (对应Release标签，如 7.0)'
         required: true
-        default: '6.19'
+        default: '7.0'
       build_type:
         description: '构建类型选择'
         options:
@@ -35,7 +35,7 @@ jobs:
     - name: "📦 获取内核版本"
       id: kernel_version
       run: |
-        KERNEL_VER=${{ github.event.inputs.kernel_version || '6.19' }}
+        KERNEL_VER=${{ github.event.inputs.kernel_version || '7.0' }}
         echo "kernel_version=$KERNEL_VER" >> $GITHUB_OUTPUT
 
     - name: "🏷️ 生成版本标签"
