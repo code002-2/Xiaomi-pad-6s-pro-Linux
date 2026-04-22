@@ -66,6 +66,16 @@ make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=../linux-xi
 rm ../linux-xiaomi-sheng/lib/modules/**/build
 
 cd ..
+git clone https://github.com/map220v/sheng-firmware
+cd sheng-firmware
+rm -rf ath12k
+
+cd ..
+mkdir -p firmware-xiaomi-sheng/usr/lib/firmware
+cp -r sheng-firmware/* firmware-xiaomi-sheng/usr/lib/firmware/
+
+git clone https://github.com/alghiffaryfa19/alsa-sheng
+cp -r alsa-sheng/* alsa-xiaomi-sheng/
 
 dpkg-deb --build --root-owner-group linux-xiaomi-sheng
 dpkg-deb --build --root-owner-group firmware-xiaomi-sheng
