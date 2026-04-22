@@ -1,0 +1,284 @@
+name: Build Mobian RootFS & Boot Image
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            debootstrap \
+            qemu-user-static \
+            binfmt-support \
+            kpartx \
+            dosfstools \
+            e2fsprogs \
+            initramfs-tools \
+            android-sdk-libsparse-utils \
+            python3 mkbootimg
+
+      # =========================
+      # 1. CREATE ROOTFS
+      # =========================
+      - name: Create Debian rootfs
+        run: |
+          sudo debootstrap --arch=arm64 --foreign --variant=minbase --components=main,contrib,non-free-firmware testing rootfs http://deb.debian.org/debian/
+          sudo cp /usr/bin/qemu-aarch64-static rootfs/usr/bin/
+          sudo chroot rootfs /debootstrap/debootstrap --second-stage
+
+      - name: Setup base system
+        run: |
+
+          sudo mount --bind /dev rootfs/dev
+          sudo mount --bind /dev/pts rootfs/dev/pts
+          sudo mount --bind /proc rootfs/proc
+          sudo mount --bind /sys rootfs/sys
+
+          sudo chroot rootfs apt update
+          sudo chroot rootfs apt install -y \
+            systemd \
+            sudo \
+            ssh \
+            net-tools \
+            ifupdown \
+            initramfs-tools ca-certificates mobian-archive-keyring
+
+          sudo umount rootfs/dev/pts || true
+          sudo umount rootfs/dev || true
+          sudo umount rootfs/proc || true
+          sudo umount rootfs/sys || true
+
+      - name: Setup Mobian repository
+        run: |
+          sudo chroot rootfs /bin/bash -c "
+            DEBIAN_SUITE=forky
+            SUITE=forky
+
+            if [ \"\$DEBIAN_SUITE\" = \"bullseye\" ] || \
+              [ \"\$DEBIAN_SUITE\" = \"bookworm\" ] || \
+              [ \"\$DEBIAN_SUITE\" = \"trixie\" ] || \
+              [ \"\$DEBIAN_SUITE\" = \"forky\" ]; then
+                echo \"deb http://security.debian.org/ \${DEBIAN_SUITE}-security main\" >> /etc/apt/sources.list
+            fi
+
+            sed -i \"s/Suites: .*/Suites: \${SUITE}/\" /etc/apt/sources.list.d/mobian.sources
+
+            cat > /etc/apt/preferences.d/00-mobian-priority << 'EOF'
+            Package: *
+            Pin: release o=Mobian
+            Pin-Priority: 700
+            EOF
+          "
+
+      - name: Add packages base
+        run: |
+
+          sudo mount --bind /dev rootfs/dev
+          sudo mount --bind /dev/pts rootfs/dev/pts
+          sudo mount --bind /proc rootfs/proc
+          sudo mount --bind /sys rootfs/sys
+
+          sudo chroot rootfs apt update
+          sudo chroot rootfs apt install -y \
+            mobian-base \
+            openssh-server \
+            systemd-repart \
+            vim \
+            unl0kr \
+            gstreamer1.0-plugins-base-apps \
+            yq \
+            qcom-support-common \
+            openssh-server \
+            gnome-snapshot \
+            firefox-esr-mobile-config \
+            mobian-phosh-phone \
+            ca-certificates \
+            device-tree-compiler \
+            initramfs-tools \
+            plymouth-theme-mobian \
+            squashfs-tools-ng \
+            u-boot-tools
+
+          sudo umount rootfs/dev/pts || true
+          sudo umount rootfs/dev || true
+          sudo umount rootfs/proc || true
+          sudo umount rootfs/sys || true
+
+      - name: Set up default user
+        run: |
+          sudo chroot rootfs /bin/bash -c '
+            USERNAME="mobian"
+            PASSWORD="1234"
+
+            if [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
+              exit 1
+            fi
+
+            adduser --gecos "$USERNAME" --disabled-password --shell /bin/bash "$USERNAME"
+            adduser "$USERNAME" sudo
+
+            # Needed for hardware access rights
+            adduser "$USERNAME" bluetooth
+            adduser "$USERNAME" plugdev
+
+            # Optional group (tidak selalu ada)
+            if getent group feedbackd > /dev/null; then
+              adduser "$USERNAME" feedbackd
+            fi
+
+            echo "$USERNAME:$PASSWORD" | chpasswd
+          '
+
+      - name: Set up system
+        run: |
+          sudo mount --bind /dev/pts rootfs/dev/pts
+          sudo mount --bind /dev rootfs/dev
+          sudo mount --bind /proc rootfs/proc
+          sudo mount --bind /sys rootfs/sys
+          
+          sudo chroot rootfs /bin/bash -c '
+            HOSTNAME="mobian"
+
+            if [ -z "$HOSTNAME" ]; then
+              exit 1
+            fi
+
+            # Setup hostname
+            echo "$HOSTNAME" > /etc/hostname
+
+            # Change plymouth default theme
+            if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+              plymouth-set-default-theme mobian
+            fi
+
+            # Disable systemd-firstboot (biar tidak minta input saat boot)
+            systemctl mask systemd-firstboot.service
+          '
+
+          sudo umount rootfs/dev/pts || true
+          sudo umount rootfs/dev || true
+          sudo umount rootfs/proc || true
+          sudo umount rootfs/sys || true
+
+      - name: Cleanup system (Mobian)
+        run: |
+          sudo chroot rootfs /bin/bash -c '
+            # Remove unused packages & cache
+            apt-get -y autoremove --purge
+            apt-get clean
+
+            # Reset machine-id (biar generate ulang saat first boot)
+            rm -f /var/lib/dbus/machine-id
+            echo uninitialized > /etc/machine-id
+
+            # Hapus service wpa_supplicant yang bikin boot lama
+            rm -f /lib/systemd/system/wpa_supplicant@.service \
+                  /lib/systemd/system/wpa_supplicant-wired@.service \
+                  /lib/systemd/system/wpa_supplicant-nl80211@.service
+          '
+
+      - name: "📥 Download kernel bundle"
+        run: |
+          KERNEL_VER="${{ needs.prepare-release.outputs.kernel_version }}"
+
+          echo "⬇️ Download bundle kernel-bundle-$KERNEL_VER"
+
+          gh release download "kernel-bundle-$KERNEL_VER" \
+            --pattern "*.deb" \
+            --repo "${{ github.repository }}" \
+            --clobber
+
+          echo "📂 Downloaded files:"
+          ls -lah *.deb
+          sudo mkdir -p rootfs/tmp/debs
+          sudo cp *.deb rootfs/tmp/debs/
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Mount pseudo filesystems
+        run: |
+          sudo mount --bind /dev rootfs/dev
+          sudo mount --bind /dev/pts rootfs/dev/pts
+          sudo mount --bind /proc rootfs/proc
+          sudo mount --bind /sys rootfs/sys
+
+      - name: Install kernel & firmware
+        run: |
+          sudo cp /etc/resolv.conf rootfs/etc/
+
+          sudo chroot rootfs bash -c "apt update"
+          sudo chroot rootfs bash -c "apt install -y /tmp/debs/*.deb || apt -f install -y"
+
+      - name: Cleanup mounts
+        run: |
+          sudo umount rootfs/dev/pts || true
+          sudo umount rootfs/dev || true
+          sudo umount rootfs/proc || true
+          sudo umount rootfs/sys || true
+
+      # =========================
+      # 3. GENERATE INITRAMFS
+      # =========================
+      - name: Generate initramfs
+        run: |
+          KVER=$(ls rootfs/lib/modules)
+          sudo mount --bind /proc rootfs/proc
+          sudo chroot rootfs update-initramfs -c -k $KVER
+          sudo umount rootfs/proc
+
+      # =========================
+      # 4. BUILD ROOTFS IMAGE
+      # =========================
+      - name: Create rootfs.img
+        run: |
+          dd if=/dev/zero of=rootfs.img bs=1M count=8192
+          mkfs.ext4 rootfs.img
+
+          mkdir mnt
+          sudo mount rootfs.img mnt
+          sudo cp -a rootfs/* mnt/
+          sudo umount mnt
+
+      # =========================
+      # 5. BUILD BOOT.IMG
+      # =========================
+      - name: Extract kernel & initrd
+        run: |
+          KVER=$(ls rootfs/lib/modules)
+          cp rootfs/boot/Image.gz-dtb_sheng Image.gz-dtb_sheng
+          cp rootfs/boot/sm8550-xiaomi-sheng.dtb sm8550-xiaomi-sheng.dtb
+          cp rootfs/boot/initrd.img-* initrd.img
+
+      - name: Build boot.img
+        run: |
+          mkbootimg \
+            --kernel Image.gz-dtb_sheng \
+            --ramdisk initrd.img \
+            --cmdline "console=ttyMSM0,115200 earlycon loglevel=7 root=/dev/disk/by-partlabel/linux rootwait rw" \
+            --base 0x00000000 \
+            --pagesize 4096 \
+            --kernel_offset 0x00000000 \
+            --ramdisk_offset 0x02000000 \
+            --tags_offset 0x01e00000 \
+            --header_version 4 \
+            -o boot.img
+
+      # =========================
+      # 6. UPLOAD ARTIFACT
+      # =========================
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-port
+          path: |
+            boot.img
+            rootfs.img
+            initrd.img

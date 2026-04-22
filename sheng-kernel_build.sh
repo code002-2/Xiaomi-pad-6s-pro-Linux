@@ -29,9 +29,33 @@ _kernel_version="$(make kernelrelease -s)"
 
 sed -i "s/Version:.*/Version: ${_kernel_version}/" ../linux-xiaomi-sheng/DEBIAN/control
 
+PKGDIR=../linux-xiaomi-sheng
+ARCH=arm64
+
+# =========================
+# Install kernel images
+# =========================
+mkdir -p $PKGDIR/boot
+
+install -Dm644 arch/$ARCH/boot/Image.gz \
+    $PKGDIR/boot/Image.gz
+
+install -Dm644 arch/$ARCH/boot/dts/qcom/sm8550-xiaomi-sheng.dtb \
+    $PKGDIR/boot/sm8550-xiaomi-sheng.dtb
+
+install -Dm644 .config \
+    $PKGDIR/boot/config-${_kernel_version}
+
+install -Dm644 System.map \
+    $PKGDIR/boot/System.map-${_kernel_version}
+    
 chmod +x ../mkbootimg
 
 cat arch/arm64/boot/Image.gz arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb > Image.gz-dtb_sheng
+
+install -Dm644 Image.gz-dtb_sheng \
+    $PKGDIR/boot/Image.gz-dtb_sheng
+
 mv Image.gz-dtb_sheng zImage_sheng
 ../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=linux" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_dualboot.img
 ../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=userdata" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_singleboot.img
