@@ -1,7 +1,10 @@
 name: Build Mobian RootFS & Boot Image
 
 on:
-  workflow_dispatch:
+  workflow_run:
+    workflows: ["Build Kernel Bundle"]   # HARUS sama dengan "name" di build.yml
+    types:
+      - completed
 
 jobs:
   build:

@@ -1,7 +1,10 @@
-name: 📦 Build Kernel Bundle
+name: Build Kernel Bundle
 
 on:
-  workflow_dispatch:
+  workflow_run:
+    workflows: ["Build Kernel"]   # HARUS sama dengan "name" di build.yml
+    types:
+      - completed:
     inputs:
       kernel_version:
         required: true
