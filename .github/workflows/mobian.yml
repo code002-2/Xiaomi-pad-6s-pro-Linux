@@ -265,7 +265,7 @@ jobs:
             --cmdline "console=ttyMSM0,115200 earlycon loglevel=7 root=/dev/disk/by-partlabel/linux rootwait rw" \
             --base 0x00000000 \
             --pagesize 4096 \
-            --kernel_offset 0x00000000 \
+            --kernel_offset 0x00008000 \
             --ramdisk_offset 0x02000000 \
             --tags_offset 0x01e00000 \
             --header_version 4 \
