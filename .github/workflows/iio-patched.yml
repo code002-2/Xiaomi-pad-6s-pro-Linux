@@ -1,7 +1,6 @@
 name: Build iio-sensor-proxy (SSC Patched) DEB (ARM64)
 
 on:
-  push:
   workflow_dispatch:
 
 jobs:
