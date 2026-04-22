@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: ["Build Kernel"]   # HARUS sama dengan "name" di build.yml
     types:
-      - completed:
+      - completed
     inputs:
       kernel_version:
         required: true
