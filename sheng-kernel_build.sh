@@ -21,7 +21,7 @@ export STRIP="llvm-strip"
 git clone https://github.com/map220v/sm8550-mainline.git --branch sheng-7.0 --depth 1 linux
 cd linux
 
-wget https://gitlab.postmarketos.org/alghiffaryfa19/pmaports/-/raw/master/device/testing/linux-postmarketos-qcom-sm8550/config-postmarketos-qcom-sm8550.aarch64 -O .config
+wget https://gitlab.postmarketos.org/alghiffaryfa19/pmaports/-/raw/sheng/device/testing/linux-postmarketos-qcom-sm8550/config-postmarketos-qcom-sm8550.aarch64 -O .config
 
 make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1
 _kernel_version="$(make kernelrelease -s)"
