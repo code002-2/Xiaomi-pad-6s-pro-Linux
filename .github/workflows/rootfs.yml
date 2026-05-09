@@ -138,15 +138,28 @@ jobs:
           curl
         echo "✅ 工具安装完成"
 
-    - name: "📥 Download kernel bundle"
-  run: |
-    KERNEL_VER="${{ needs.prepare-release.outputs.kernel_version }}"
-    echo "⬇️ 下载 bundle kernel-bundle-$KERNEL_VER"
+          - name: "📥 Download kernel bundle"
+        run: |
+          # 1. 将变量赋值和上下文语法放在 run 块的第一层缩进
+          KERNEL_VER="${{ needs.prepare-release.outputs.kernel_version }}"
+          
+          echo "⬇️ 下载 bundle kernel-bundle-$KERNEL_VER"
 
-    gh release download "kernel-bundle-$KERNEL_VER" \
-      --pattern "*.deb" \
-      --repo "alghiffaryfa19/Linux-xiaomi-sheng" \
-      --clobber
+          # 2. 执行下载命令
+          gh release download "kernel-bundle-$KERNEL_VER" \
+            --pattern "*.deb" \
+            --repo "alghiffaryfa19/Linux-xiaomi-sheng" \
+            --clobber
+
+          echo "✅ 已下载文件:"
+          ls -lah *.deb
+
+          COUNT=$(ls *.deb | wc -l)
+          if [ "$COUNT" -lt 8 ]; then
+            echo "❌ Package incomplete"
+            exit 1
+          fi
+
 
     ...
 
