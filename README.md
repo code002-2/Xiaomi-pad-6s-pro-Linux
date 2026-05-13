@@ -36,7 +36,7 @@
 请仔细遵循本指南
 
 1. 确保您已解锁设备的引导加载程序，并且只安装了安卓操作系统。
-2. 从Github Action的Build rootfs下载所需的 rootfs 和 boot 镜像。
+2. 从Github Action下载所需的 rootfs 和 boot 镜像。
 
 # 单系统启动
 也许以后会有。
