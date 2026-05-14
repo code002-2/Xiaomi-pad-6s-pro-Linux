@@ -1,5 +1,5 @@
 Package: linux-xiaomi-sheng
-Version: 6.19.0
+Version: 7.0.0
 Architecture: arm64
 Maintainer: map220v
 Section: kernel
