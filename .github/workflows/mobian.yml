@@ -59,8 +59,8 @@ jobs:
       - name: Setup Mobian repository
         run: |
           sudo chroot rootfs /bin/bash -c "
-            DEBIAN_SUITE=forky
-            SUITE=forky
+            DEBIAN_SUITE=trixie
+            SUITE=trixie
 
             if [ \"\$DEBIAN_SUITE\" = \"bullseye\" ] || \
               [ \"\$DEBIAN_SUITE\" = \"bookworm\" ] || \
