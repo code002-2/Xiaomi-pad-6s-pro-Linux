@@ -1,10 +1,7 @@
 name: Build Mobian RootFS & Boot Image
 
 on:
-  workflow_run:
-    workflows: ["Build Kernel Bundle"]   # HARUS sama dengan "name" di build.yml
-    types:
-      - completed
+  workflow_dispatch:
 
 jobs:
   build:
@@ -33,7 +30,7 @@ jobs:
       # =========================
       - name: Create Debian rootfs
         run: |
-          sudo debootstrap --arch=arm64 --foreign --variant=minbase --components=main,contrib,non-free-firmware testing rootfs http://deb.debian.org/debian/
+          sudo debootstrap --arch=arm64 --foreign --variant=minbase --components=main,contrib,non-free-firmware trixie rootfs http://deb.debian.org/debian/
           sudo cp /usr/bin/qemu-aarch64-static rootfs/usr/bin/
           sudo chroot rootfs /debootstrap/debootstrap --second-stage
 
@@ -257,7 +254,7 @@ jobs:
       - name: Extract kernel & initrd
         run: |
           KVER=$(ls rootfs/lib/modules)
-          cp rootfs/boot/Image.gz-dtb_sheng Image.gz-dtb_sheng
+          cp rootfs/boot/Image.gz Image.gz
           cp rootfs/boot/sm8550-xiaomi-sheng.dtb sm8550-xiaomi-sheng.dtb
           cp rootfs/boot/initrd.img-* initrd.img
 
@@ -266,7 +263,8 @@ jobs:
           git clone https://github.com/LineageOS/android_system_tools_mkbootimg
           cd android_system_tools_mkbootimg
           python3 mkbootimg.py \
-            --kernel ../Image.gz-dtb_sheng \
+            --kernel ../Image.gz \
+            --dtb ../sm8550-xiaomi-sheng.dtb \
             --ramdisk ../initrd.img \
             --cmdline "console=ttyMSM0,115200 earlycon loglevel=7 root=/dev/disk/by-partlabel/linux rootwait rw" \
             --base 0x00000000 \
@@ -274,7 +272,7 @@ jobs:
             --kernel_offset 0x00008000 \
             --ramdisk_offset 0x02000000 \
             --tags_offset 0x01e00000 \
-            --header_version 4 \
+            --header_version 2 \
             -o ../boot.img
 
       # =========================

@@ -24,7 +24,7 @@ if [ "$distro_type" != "debian" ]; then
     exit 1
 fi
 
-distro_version="forky"
+distro_version="trixie"
 
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
