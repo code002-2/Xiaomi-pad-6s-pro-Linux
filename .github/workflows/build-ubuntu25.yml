@@ -10,7 +10,10 @@ on:
       build_type:
         description: '构建类型'
         type: choice
-        options: ['all', 'server-only', 'desktop-only']
+        options:
+          - all
+          - server-only
+          - desktop-only
         default: 'all'
       skip_release:
         description: '跳过创建Release'
@@ -41,16 +44,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build:
+  build-server:
+    name: Build Ubuntu Server
     runs-on: ubuntu-24.04-arm
     needs: prepare-release
-    strategy:
-      matrix:
-        variant: ${{ 
-          github.event.inputs.build_type == 'server-only' && fromJSON('["server"]') || 
-          github.event.inputs.build_type == 'desktop-only' && fromJSON('["desktop"]') || 
-          fromJSON('["server", "desktop"]')
-        }}
+    if: |
+      github.event.inputs.build_type == 'all' ||
+      github.event.inputs.build_type == 'server-only'
     steps:
       - uses: actions/checkout@v4
       - name: Install tools
@@ -62,11 +62,52 @@ jobs:
           ls -la *.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build RootFS
+      - name: Build RootFS (Server)
         id: build
         run: |
           chmod +x build-ubuntu25-rootfs.sh
-          sudo ./build-ubuntu25-rootfs.sh ${{ matrix.variant }} ${{ github.event.inputs.kernel_version }}
+          sudo ./build-ubuntu25-rootfs.sh server ${{ github.event.inputs.kernel_version }}
+          SEVEN_Z_FILE=$(ls ubuntu25_*.7z | head -1)
+          echo "filename=$(basename "$SEVEN_Z_FILE")" >> $GITHUB_OUTPUT
+          echo "path=$SEVEN_Z_FILE" >> $GITHUB_OUTPUT
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build.outputs.filename }}
+          path: ${{ steps.build.outputs.path }}
+          retention-days: 7
+      - name: Upload to Release
+        if: ${{ !github.event.inputs.skip_release }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          files: ${{ steps.build.outputs.path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-desktop:
+    name: Build Ubuntu Desktop
+    runs-on: ubuntu-24.04-arm
+    needs: prepare-release
+    if: |
+      github.event.inputs.build_type == 'all' ||
+      github.event.inputs.build_type == 'desktop-only'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: sudo apt update && sudo apt install -y debootstrap p7zip-full curl
+      - name: Download kernel bundle
+        run: |
+          gh release download "kernel-bundle-${{ github.event.inputs.kernel_version }}" \
+            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
+          ls -la *.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build RootFS (Desktop)
+        id: build
+        run: |
+          chmod +x build-ubuntu25-rootfs.sh
+          sudo ./build-ubuntu25-rootfs.sh desktop ${{ github.event.inputs.kernel_version }}
           SEVEN_Z_FILE=$(ls ubuntu25_*.7z | head -1)
           echo "filename=$(basename "$SEVEN_Z_FILE")" >> $GITHUB_OUTPUT
           echo "path=$SEVEN_Z_FILE" >> $GITHUB_OUTPUT
