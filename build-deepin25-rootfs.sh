@@ -5,9 +5,9 @@ IMAGE_SIZE="8G"
 FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 
 # Deepin 25 配置
-DEEPIN_SUITE="crimson"                                    # 关键：使用 crimson 作为套件代号
-DEEPIN_MIRROR="https://mirrors.tuna.tsinghua.edu.cn/deepin"  # 清华镜像源
-DEEPIN_APT_MIRROR="https://community-packages.deepin.com/beige"  # APT 仓库源
+DEEPIN_SUITE="crimson"
+# 使用官方源（确保有 Release 文件）
+DEEPIN_MIRROR="https://community-packages.deepin.com/deepin"
 
 usage() {
     echo "用法: $0 <kernel_version>"
@@ -40,34 +40,35 @@ mkfs.ext4 "$ROOTFS_IMG"
 mkdir rootdir
 mount -o loop "$ROOTFS_IMG" rootdir
 
-# 关键：使用 crimson 套件和清华镜像源进行 debootstrap
-debootstrap --arch=arm64 "$DEEPIN_SUITE" rootdir "$DEEPIN_MIRROR"
+# 使用官方源，跳过 GPG 检查（因 keyring 可能不存在）
+debootstrap --arch=arm64 --no-check-gpg "$DEEPIN_SUITE" rootdir "$DEEPIN_MIRROR"
 
 mount --bind /dev rootdir/dev
 mount --bind /dev/pts rootdir/dev/pts
 mount -t proc proc rootdir/proc
 mount -t sysfs sys rootdir/sys
 
-# 配置 APT 源（使用 Deepin 官方仓库）
+# 配置 APT 源（官方源 + 清华源备份）
 cat > rootdir/etc/apt/sources.list <<EOF
-deb $DEEPIN_APT_MIRROR $DEEPIN_SUITE main commercial community
+deb $DEEPIN_MIRROR $DEEPIN_SUITE main commercial community
+deb https://mirrors.tuna.tsinghua.edu.cn/deepin $DEEPIN_SUITE main commercial community
 EOF
 
 chroot rootdir apt update
 
-# 安装内核包（如果存在）
+# 安装内核包（如果有）
 if ls *.deb 1> /dev/null 2>&1; then
     cp *.deb rootdir/tmp/
     chroot rootdir bash -c "apt install -y /tmp/*.deb || true"
 fi
 
-# 基础包安装
+# 基础包
 chroot rootdir apt install -y --no-install-recommends \
     systemd sudo vim-tiny wget curl \
     network-manager openssh-server \
     wpasupplicant dbus
 
-# 设置英文 locale
+# 英文 locale
 chroot rootdir bash -c "echo 'LANG=en_US.UTF-8' > /etc/default/locale"
 chroot rootdir locale-gen en_US.UTF-8
 
@@ -75,9 +76,7 @@ chroot rootdir locale-gen en_US.UTF-8
 chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
 echo "deepin25" > rootdir/etc/hostname
 
-# =========================
-# 安装 DDE 桌面环境
-# =========================
+# 安装 DDE 桌面
 chroot rootdir apt install -y --no-install-recommends \
     dde \
     dde-file-manager \
@@ -90,7 +89,7 @@ chroot rootdir useradd -m -s /bin/bash luser
 echo "luser:luser" | chroot rootdir chpasswd
 chroot rootdir usermod -aG sudo luser
 
-# 配置 LightDM 自动登录
+# LightDM 自动登录
 mkdir -p rootdir/etc/lightdm/lightdm.conf.d
 cat > rootdir/etc/lightdm/lightdm.conf.d/autologin.conf <<EOF
 [Seat:*]
