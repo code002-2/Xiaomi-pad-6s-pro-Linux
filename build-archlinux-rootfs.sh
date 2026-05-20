@@ -28,110 +28,105 @@ echo "=========================================="
 echo "开始构建 Arch Linux RootFS ($VARIANT)"
 echo "=========================================="
 
+# 确保 QEMU 静态支持已安装
+if ! command -v qemu-aarch64-static &> /dev/null; then
+    apt-get update && apt-get install -y qemu-user-static
+fi
+
 rm -rf rootdir || true
+
+# 创建空镜像并挂载
 truncate -s $IMAGE_SIZE "$ROOTFS_IMG"
 mkfs.ext4 "$ROOTFS_IMG"
 mkdir rootdir
 mount -o loop "$ROOTFS_IMG" rootdir
 
-# --- 配置 Arch Linux ARM 源 ---
-# 初始化 pacman 并配置为使用 Arch Linux ARM 仓库
+# 创建必要目录
+mkdir -p rootdir/usr/bin
 mkdir -p rootdir/var/lib/pacman
-mkdir -p rootdir/etc/pacman.d
-# 预先放置一个临时的 gpg 目录，避免初始化的交互请求
 mkdir -p rootdir/etc/pacman.d/gnupg
+mkdir -p rootdir/dev
+mkdir -p rootdir/proc
+mkdir -p rootdir/sys
+mkdir -p rootdir/tmp
 
-# 配置基础的 pacman.conf，允许弱签名以解决构建中的常见问题
-cat > rootdir/etc/pacman.conf <<EOF
+# 复制 QEMU 静态二进制
+cp $(which qemu-aarch64-static) rootdir/usr/bin/
+
+# 配置 pacman (使用 Arch Linux ARM 源)
+cat > rootdir/etc/pacman.conf <<'EOF'
 [options]
 Architecture = aarch64
 SigLevel = Never
 [core]
-Server = http://mirror.archlinuxarm.org/\$arch/\$repo
+Server = http://mirror.archlinuxarm.org/$arch/$repo
 [extra]
-Server = http://mirror.archlinuxarm.org/\$arch/\$repo
+Server = http://mirror.archlinuxarm.org/$arch/$repo
 [community]
-Server = http://mirror.archlinuxarm.org/\$arch/\$repo
+Server = http://mirror.archlinuxarm.org/$arch/$repo
 EOF
 
-# 复制本地的内核 .deb 包 (虽然 Arch 可能不需要，但保留以兼容流程)
-if ls *.deb 1>/dev/null 2>&1; then
-    cp *.deb rootdir/tmp/
-fi
-
-# 关键步骤：静态 QEMU 模拟
-# 1. 设置 binfmt 支持
-if [ ! -f /proc/sys/fs/binfmt_misc/status ]; then
-    mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc
-fi
-update-binfmts --enable
-
-# 2. 确保 qemu-user-static 存在
-if ! command -v qemu-aarch64-static &> /dev/null; then
-    apt-get update && apt-get install -y qemu-user-static
-fi
-cp $(which qemu-aarch64-static) rootdir/usr/bin/
-
-# --- 核心构建步骤：pacstrap (在 chroot 环境中运行) ---
-# 由于 pacstrap 原生不支持指定架构，我们将使用 arch-chroot 配合 QEMU 来完成
+# 创建引导脚本 (在 chroot 内执行)
 cat > rootdir/bootstrap.sh <<'EOF'
 #!/bin/bash
-# 临时使用 arm64 仓库进行初始化
 echo "初始化 Pacman 密钥环..."
 pacman-key --init
-# 由于构建环境无网络，直接信任所有密钥（仅用于镜像构建）
 pacman-key --populate archlinuxarm
-
 echo "安装基础系统..."
-pacman -Syu --noconfirm --needed base base-devel
+pacman -Syu --noconfirm --needed base base-devel linux-aarch64
 if [ "$1" = "desktop" ]; then
-    pacman -S --noconfirm --needed xorg-server xorg-xinit plasma-desktop sddm firefox
+    pacman -S --noconfirm --needed xorg-server plasma-desktop sddm firefox
+fi
+# 启用服务
+systemctl enable systemd-networkd systemd-resolved
+if [ "$1" = "desktop" ]; then
+    systemctl enable sddm
+else
+    systemctl enable sshd
 fi
 EOF
-
 chmod +x rootdir/bootstrap.sh
-# 这里需要使用 qemu-user-static 来运行 aarch64 二进制
-chroot rootdir /usr/bin/qemu-aarch64-static /bin/bash /bootstrap.sh $VARIANT
 
-# 清理 QEMU 模拟器
+# 挂载虚拟文件系统
+mount --bind /dev rootdir/dev
+mount -t proc proc rootdir/proc
+mount -t sysfs sys rootdir/sys
+
+# 进入 chroot 执行构建
+chroot rootdir /usr/bin/qemu-aarch64-static /bin/bash /bootstrap.sh "$VARIANT"
+
+# 清理
+umount rootdir/dev rootdir/proc rootdir/sys 2>/dev/null || true
 rm -f rootdir/usr/bin/qemu-aarch64-static
+rm -f rootdir/bootstrap.sh
 
-# --- 执行 systemd 服务和用户配置 ---
-# 这些配置是在当前宿主机上进行的，因为操作的是纯文本文件
+# 配置主机名
 echo "arch-${VARIANT}" > rootdir/etc/hostname
 
-cat > rootdir/etc/systemd/network/20-wired.network <<EOF
-[Match]
-Name=en*
-[Network]
-DHCP=yes
-EOF
-
+# 创建普通用户 (桌面版)
 if [ "$VARIANT" = "desktop" ]; then
-    # 启用 SDDM 并创建用户
-    chroot rootdir systemctl enable sddm
-    chroot rootdir useradd -m -G wheel -s /bin/bash arch
-    echo "arch:arch" | chroot rootdir chpasswd
-    # 添加用户到 sudoers
-    echo "arch ALL=(ALL) ALL" >> rootdir/etc/sudoers
-else
-    # 启用 SSH 服务
-    chroot rootdir systemctl enable sshd
+    mount --bind /dev rootdir/dev
+    mount -t proc proc rootdir/proc
+    mount -t sysfs sys rootdir/sys
+    chroot rootdir /usr/bin/qemu-aarch64-static /bin/bash -c "
+        useradd -m -G wheel -s /bin/bash arch
+        echo 'arch:arch' | chpasswd
+        echo 'arch ALL=(ALL) ALL' >> /etc/sudoers
+    "
+    umount rootdir/dev rootdir/proc rootdir/sys 2>/dev/null || true
 fi
 
-# 启用网络服务
-chroot rootdir systemctl enable systemd-networkd systemd-resolved
+# 清理 pacman 缓存
+chroot rootdir /usr/bin/qemu-aarch64-static /bin/bash -c "pacman -Scc --noconfirm" 2>/dev/null || true
 
-# --- 清理和打包 ---
-chroot rootdir pacman -Scc --noconfirm
-rm -rf rootdir/tmp/*.deb rootdir/bootstrap.sh
-
-umount rootdir/proc rootdir/sys rootdir/dev 2>/dev/null || true
+# 卸载镜像
 umount rootdir || true
 rm -rf rootdir
 
+# 固定 UUID
 tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
-echo "✅ 生成镜像: $ROOTFS_IMG"
+
+echo "✅ 镜像生成: $ROOTFS_IMG"
 echo "🗜️ 压缩中..."
 7z a "${ROOTFS_IMG}.7z" "$ROOTFS_IMG"
-echo "🎉 完成！"
+echo "🎉 完成！输出文件: ${ROOTFS_IMG}.7z"
