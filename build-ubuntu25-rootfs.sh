@@ -4,8 +4,8 @@ set -e
 IMAGE_SIZE="8G"
 FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 
-# Ubuntu 25.04 配置
-UBUNTU_SUITE="plucky"
+# 临时使用 Ubuntu 24.04 LTS (Noble) 确保稳定
+UBUNTU_SUITE="noble"
 UBUNTU_MIRROR="http://archive.ubuntu.com/ubuntu"
 
 usage() {
@@ -32,10 +32,10 @@ if [[ "$VARIANT" != "server" && "$VARIANT" != "desktop" ]]; then
 fi
 
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-ROOTFS_IMG="ubuntu25_${VARIANT}_${TIMESTAMP}.img"
+ROOTFS_IMG="ubuntu24_${VARIANT}_${TIMESTAMP}.img"   # 文件名改为 ubuntu24
 
 echo "=========================================="
-echo "开始构建 Ubuntu 25.04 (Plucky) RootFS"
+echo "开始构建 Ubuntu 24.04 (Noble) RootFS"
 echo "变体: $VARIANT"
 echo "内核版本: $KERNEL"
 echo "镜像: $ROOTFS_IMG"
@@ -54,7 +54,8 @@ mkfs.ext4 "$ROOTFS_IMG"
 mkdir rootdir
 mount -o loop "$ROOTFS_IMG" rootdir
 
-# debootstrap 基础系统（明确指定正确的路径）
+# debootstrap 基础系统（明确打印实际命令）
+echo "Running: debootstrap --arch=arm64 $UBUNTU_SUITE rootdir $UBUNTU_MIRROR"
 debootstrap --arch=arm64 "$UBUNTU_SUITE" rootdir "$UBUNTU_MIRROR"
 
 # 挂载虚拟文件系统
@@ -69,7 +70,7 @@ if ls *.deb 1> /dev/null 2>&1; then
     echo "安装内核及驱动包..."
     chroot rootdir bash -c "apt update && apt install -y /tmp/*.deb || true"
 else
-    echo "警告: 未找到任何.deb包"
+    echo "警告: 未找到任何.deb包，请确保内核bundle已下载"
 fi
 
 # 基础包安装
@@ -81,7 +82,7 @@ chroot rootdir apt install -y \
 
 # root密码
 chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
-echo "ubuntu25-${VARIANT}" > rootdir/etc/hostname
+echo "ubuntu24-${VARIANT}" > rootdir/etc/hostname
 
 # 桌面环境配置
 if [ "$VARIANT" = "desktop" ]; then
