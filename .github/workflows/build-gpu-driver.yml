@@ -38,11 +38,14 @@ jobs:
             libdrm-dev libx11-dev libxext-dev libxdamage-dev \
             libxcb-glx0-dev libxcb-shm0-dev libxcb-dri2-0-dev \
             libxcb-dri3-dev libxcb-present-dev libxshmfence-dev \
-            libxxf86vm-dev libxrandr-dev libxfixes-dev libwayland-dev \
+            libxxf86vm-dev libxrandr-dev libxfixes-dev \
+            libwayland-dev libwayland-egl1-dev \
             wayland-protocols libxcb-randr0-dev libvulkan-dev \
             libelf-dev libexpat1-dev libzstd-dev \
             dpkg-dev debhelper fakeroot \
-            libglvnd-dev glslang-tools
+            libglvnd-dev glslang-tools \
+            libxcb-keysyms1-dev libomxil-bellagio-dev \
+            libclang-dev libclc-dev libllvm-dev
 
       - name: Upgrade meson to >=1.4.0
         run: |
