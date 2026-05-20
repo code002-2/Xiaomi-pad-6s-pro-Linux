@@ -1,4 +1,4 @@
-name: 🐧 Build Ubuntu 25.04 RootFS
+name: 🐧 Build Ubuntu 24.04 RootFS
 
 on:
   workflow_dispatch:
@@ -28,24 +28,52 @@ jobs:
     outputs:
       release_tag: ${{ steps.tag.outputs.release_tag }}
     steps:
-      - name: Generate tag
+      - name: Generate release tag
         id: tag
         run: |
-          TAG="ubuntu25-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
+          TAG="ubuntu24-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
           echo "release_tag=$TAG" >> $GITHUB_OUTPUT
-      - name: Create Release
+      - name: Create GitHub Release
         if: ${{ !github.event.inputs.skip_release }}
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: "Ubuntu 25.04 ${{ steps.tag.outputs.release_tag }}"
-          body: "构建中，请稍后..."
+          name: "Ubuntu 24.04 for Sheng - ${{ steps.tag.outputs.release_tag }}"
+          body: |
+            🐧 Ubuntu 24.04 (Noble) for Sheng
+            
+            ---
+            
+            ### 📋 构建信息
+            | 项目 | 详情 |
+            |------|------|
+            | Ubuntu版本 | 24.04 LTS (Noble) |
+            | 内核版本 | ${{ github.event.inputs.kernel_version }} |
+            | 构建类型 | ${{ github.event.inputs.build_type }} |
+            
+            ---
+            
+            ### 🔐 默认凭据
+            
+            **服务器版**
+            - 用户名: `root`
+            - 密码: `1234`
+            
+            **桌面版**
+            - 用户名: `luser`
+            - 密码: `luser`
+            - 桌面: GNOME + GDM3
+            
+            ---
+            
+            ### 📦 镜像文件
+            构建完成后的文件将出现在下方附件中。
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-server:
-    name: Build Ubuntu Server
+    name: Build Ubuntu 24.04 Server
     runs-on: ubuntu-24.04-arm
     needs: prepare-release
     if: |
@@ -53,7 +81,7 @@ jobs:
       github.event.inputs.build_type == 'server-only'
     steps:
       - uses: actions/checkout@v4
-      - name: Install tools
+      - name: Install build tools
         run: sudo apt update && sudo apt install -y debootstrap p7zip-full curl
       - name: Download kernel bundle
         run: |
@@ -67,7 +95,7 @@ jobs:
         run: |
           chmod +x build-ubuntu25-rootfs.sh
           sudo ./build-ubuntu25-rootfs.sh server ${{ github.event.inputs.kernel_version }}
-          SEVEN_Z_FILE=$(ls ubuntu25_*.7z | head -1)
+          SEVEN_Z_FILE=$(ls ubuntu24_*.7z | head -1)
           echo "filename=$(basename "$SEVEN_Z_FILE")" >> $GITHUB_OUTPUT
           echo "path=$SEVEN_Z_FILE" >> $GITHUB_OUTPUT
       - name: Upload artifact
@@ -86,7 +114,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-desktop:
-    name: Build Ubuntu Desktop
+    name: Build Ubuntu 24.04 Desktop
     runs-on: ubuntu-24.04-arm
     needs: prepare-release
     if: |
@@ -94,7 +122,7 @@ jobs:
       github.event.inputs.build_type == 'desktop-only'
     steps:
       - uses: actions/checkout@v4
-      - name: Install tools
+      - name: Install build tools
         run: sudo apt update && sudo apt install -y debootstrap p7zip-full curl
       - name: Download kernel bundle
         run: |
@@ -108,7 +136,7 @@ jobs:
         run: |
           chmod +x build-ubuntu25-rootfs.sh
           sudo ./build-ubuntu25-rootfs.sh desktop ${{ github.event.inputs.kernel_version }}
-          SEVEN_Z_FILE=$(ls ubuntu25_*.7z | head -1)
+          SEVEN_Z_FILE=$(ls ubuntu24_*.7z | head -1)
           echo "filename=$(basename "$SEVEN_Z_FILE")" >> $GITHUB_OUTPUT
           echo "path=$SEVEN_Z_FILE" >> $GITHUB_OUTPUT
       - name: Upload artifact
