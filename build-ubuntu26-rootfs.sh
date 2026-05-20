@@ -103,7 +103,6 @@ case "$DESKTOP_ENV" in
             systemsettings \
             discover \
             packagekit
-        # 移除了 packagekit-tools（Ubuntu 26.04 中不存在）
         DM="sddm"
         ;;
     xfce)
