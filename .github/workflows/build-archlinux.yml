@@ -1,0 +1,49 @@
+name: 🐧 Build Arch Linux RootFS
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: '构建类型'
+        type: choice
+        options:
+          - all
+          - server-only
+          - desktop-only
+        default: 'all'
+      skip_release:
+        description: '跳过创建GitHub Release'
+        type: boolean
+        default: false
+
+jobs:
+  build-archlinux:
+    strategy:
+      matrix:
+        variant: ${{ fromJSON(github.event.inputs.build_type == 'server-only' && '["server"]' || github.event.inputs.build_type == 'desktop-only' && '["desktop"]' || '["server", "desktop"]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 准备 QEMU 用户态模拟环境
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static binfmt-support
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+      
+      - name: 安装构建工具
+        run: sudo apt-get install -y debootstrap arch-install-scripts systemd-container
+      
+      - name: 执行构建
+        id: build
+        run: |
+          chmod +x build-archlinux-rootfs.sh
+          sudo ./build-archlinux-rootfs.sh ${{ matrix.variant }}
+          echo "file=$(ls archlinux_*.7z)" >> $GITHUB_OUTPUT
+      
+      - name: 上传到 Release
+        if: ${{ !github.event.inputs.skip_release }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: archlinux-rootfs-${{ github.run_number }}
+          files: archlinux_*.7z
