@@ -43,7 +43,7 @@ jobs:
             libwayland-egl-backend-dev \
             libvulkan-dev libelf-dev libexpat1-dev libzstd-dev \
             dpkg-dev debhelper fakeroot libglvnd-dev glslang-tools \
-            libxcb-keysyms1-dev
+            libxcb-keysyms1-dev libx11-xcb-dev
 
       - name: Upgrade meson to >=1.4.0
         run: |
