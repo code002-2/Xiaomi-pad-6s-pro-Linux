@@ -17,35 +17,54 @@ on:
         default: false
 
 jobs:
-  build-arch:
+  build-server:
+    name: Build Arch Linux Server
     runs-on: ubuntu-24.04-arm
-    strategy:
-      matrix:
-        variant: ${{ 
-          github.event.inputs.build_type == 'server-only' && fromJSON('["server"]') ||
-          github.event.inputs.build_type == 'desktop-only' && fromJSON('["desktop"]') ||
-          fromJSON('["server", "desktop"]')
-        }}
+    if: github.event.inputs.build_type == 'all' || github.event.inputs.build_type == 'server-only'
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-user-static binfmt-support debootstrap arch-install-scripts p7zip-full
-      - name: Build RootFS
-        id: build
+          sudo apt-get install -y qemu-user-static binfmt-support p7zip-full
+      - name: Build RootFS (Server)
         run: |
           chmod +x build-archlinux-rootfs.sh
-          sudo ./build-archlinux-rootfs.sh ${{ matrix.variant }}
-          echo "file=$(ls archlinux_*.7z)" >> $GITHUB_OUTPUT
-      - name: Upload artifact
+          sudo ./build-archlinux-rootfs.sh server
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: archlinux-${{ matrix.variant }}
-          path: archlinux_*.7z
+          name: archlinux-server
+          path: archlinux_server_*.7z
       - name: Upload to Release
         if: ${{ !github.event.inputs.skip_release }}
         uses: softprops/action-gh-release@v1
         with:
           tag_name: archlinux-rootfs-${{ github.run_number }}
-          files: archlinux_*.7z
+          files: archlinux_server_*.7z
+
+  build-desktop:
+    name: Build Arch Linux Desktop
+    runs-on: ubuntu-24.04-arm
+    if: github.event.inputs.build_type == 'all' || github.event.inputs.build_type == 'desktop-only'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static binfmt-support p7zip-full
+      - name: Build RootFS (Desktop)
+        run: |
+          chmod +x build-archlinux-rootfs.sh
+          sudo ./build-archlinux-rootfs.sh desktop
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: archlinux-desktop
+          path: archlinux_desktop_*.7z
+      - name: Upload to Release
+        if: ${{ !github.event.inputs.skip_release }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: archlinux-rootfs-${{ github.run_number }}
+          files: archlinux_desktop_*.7z
