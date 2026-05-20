@@ -53,17 +53,17 @@ mkdir -p rootdir/tmp
 # 复制 QEMU 静态二进制
 cp $(which qemu-aarch64-static) rootdir/usr/bin/
 
-# 配置 pacman (Arch Linux ARM 源)
+# 配置 pacman (使用清华源，避免网络慢)
 cat > rootdir/etc/pacman.conf <<'EOF'
 [options]
 Architecture = aarch64
 SigLevel = Never
 [core]
-Server = http://mirror.archlinuxarm.org/$arch/$repo
+Server = https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm/$arch/$repo
 [extra]
-Server = http://mirror.archlinuxarm.org/$arch/$repo
+Server = https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm/$arch/$repo
 [community]
-Server = http://mirror.archlinuxarm.org/$arch/$repo
+Server = https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm/$arch/$repo
 EOF
 
 # 挂载虚拟文件系统
@@ -71,18 +71,25 @@ mount --bind /dev rootdir/dev
 mount -t proc proc rootdir/proc
 mount -t sysfs sys rootdir/sys
 
-# 在 chroot 内执行引导脚本
+# 修复 /dev/random 熵问题 (可能提高速度)
+mount --bind /dev/urandom rootdir/dev/random 2>/dev/null || true
+
+# 在 chroot 内执行引导脚本（使用 timeout 防止卡死）
 cat > rootdir/bootstrap.sh <<'EOF'
 #!/bin/bash
 set -e
-echo "初始化 pacman 密钥环..."
-pacman-key --init
-pacman-key --populate archlinuxarm
-echo "安装基础系统..."
-pacman -Syu --noconfirm --needed base base-devel
+echo ">>> 初始化 pacman 密钥环 (跳过 GPG 以加速)..."
+# 跳过密钥环初始化，直接使用 SigLevel = Never
+mkdir -p /etc/pacman.d/gnupg
+echo ">>> 更新软件包数据库..."
+pacman -Sy --noconfirm
+echo ">>> 安装基础系统..."
+pacman -S --noconfirm --needed base base-devel
 if [ "$1" = "desktop" ]; then
+    echo ">>> 安装桌面环境 (plasma-desktop, sddm)..."
     pacman -S --noconfirm --needed xorg-server plasma-desktop sddm firefox
 fi
+echo ">>> 启用系统服务..."
 systemctl enable systemd-networkd systemd-resolved
 if [ "$1" = "desktop" ]; then
     systemctl enable sddm
@@ -92,7 +99,12 @@ fi
 EOF
 chmod +x rootdir/bootstrap.sh
 
-chroot rootdir /usr/bin/qemu-aarch64-static /bin/bash /bootstrap.sh "$VARIANT"
+# 执行引导脚本，设置 30 分钟超时
+timeout 1800 chroot rootdir /usr/bin/qemu-aarch64-static /bin/bash /bootstrap.sh "$VARIANT"
+if [ $? -eq 124 ]; then
+    echo "错误: 构建超时 (30分钟)"
+    exit 1
+fi
 
 # 创建用户（桌面版）
 if [ "$VARIANT" = "desktop" ]; then
@@ -115,6 +127,7 @@ rm -f rootdir/usr/bin/qemu-aarch64-static
 chroot rootdir pacman -Scc --noconfirm 2>/dev/null || true
 
 # 卸载
+umount rootdir/dev/random 2>/dev/null || true
 umount rootdir/dev rootdir/proc rootdir/sys 2>/dev/null || true
 umount rootdir || true
 rm -rf rootdir
