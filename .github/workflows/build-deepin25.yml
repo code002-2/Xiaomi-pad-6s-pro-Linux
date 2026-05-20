@@ -1,4 +1,4 @@
-name: 🐧 构建Deepin 25 Desktop (DDE)
+name: 🐧 构建按Deepin 25 Desktop (DDE) 测试中 酌情使用
 
 on:
   workflow_dispatch:
