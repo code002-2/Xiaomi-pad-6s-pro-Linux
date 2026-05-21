@@ -19,35 +19,43 @@ echo "开始构建 Fedora $FEDORA_VERSION (ARM64) RootFS"
 echo "将从 kernel-bundle-$KERNEL 中提取固件并注入"
 echo "=========================================="
 
-# --- 准备工作：提取 kernel-bundle 中的固件 ---
-# 临时目录用于解压所有 .deb 包，但最终只提取 firmware
+# --- 1. 提取固件：优先使用 firmware-xiaomi-sheng.deb ---
 FW_TEMP_DIR=$(mktemp -d)
 FW_SOURCE_DIR=""
 
-# 解压所有 .deb 包到临时目录
-for deb in *.deb; do
-    echo "正在解压 $deb ..."
-    dpkg-deb -x "$deb" "$FW_TEMP_DIR"
-done
-
-# 查找临时目录中的 /lib/firmware 目录
-if [ -d "$FW_TEMP_DIR/lib/firmware" ]; then
-    FW_SOURCE_DIR="$FW_TEMP_DIR/lib/firmware"
-    echo "✅ 成功找到固件目录"
+if [ -f firmware-xiaomi-sheng.deb ]; then
+    echo "📦 从 firmware-xiaomi-sheng.deb 提取固件..."
+    dpkg-deb -x firmware-xiaomi-sheng.deb "$FW_TEMP_DIR"
+elif [ -f linux-xiaomi-sheng.deb ]; then
+    echo "📦 从 linux-xiaomi-sheng.deb 提取固件..."
+    dpkg-deb -x linux-xiaomi-sheng.deb "$FW_TEMP_DIR"
 else
-    echo "⚠️ 未在解压后的目录中发现 /lib/firmware，将跳过固件注入"
+    echo "⚠️ 未找到包含固件的 .deb 包，将跳过固件注入"
 fi
 
-# --- 1. 创建空白 ext4 镜像并挂载 ---
+# 查找固件目录（常见路径为 /lib/firmware 或 /usr/lib/firmware）
+if [ -d "$FW_TEMP_DIR/lib/firmware" ]; then
+    FW_SOURCE_DIR="$FW_TEMP_DIR/lib/firmware"
+    echo "✅ 在 /lib/firmware 找到固件"
+elif [ -d "$FW_TEMP_DIR/usr/lib/firmware" ]; then
+    FW_SOURCE_DIR="$FW_TEMP_DIR/usr/lib/firmware"
+    echo "✅ 在 /usr/lib/firmware 找到固件"
+else
+    echo "⚠️ 未找到固件目录"
+fi
+
+# --- 2. 创建空白 ext4 镜像并挂载 ---
 rm -rf rootdir || true
 truncate -s $IMAGE_SIZE "$ROOTFS_IMG"
 mkfs.ext4 "$ROOTFS_IMG"
 mkdir rootdir
 mount -o loop "$ROOTFS_IMG" rootdir
 
-# --- 2. 使用 dnf 安装基础系统（--installroot）---
-# 确保 dnf 命令存在（工作流会提前安装）
-dnf --installroot=rootdir \
+# 获取 rootdir 的绝对路径（dnf 要求绝对路径）
+ROOTDIR_ABS=$(realpath rootdir)
+
+# --- 3. 使用 dnf 安装基础系统（绝对路径）---
+dnf --installroot="$ROOTDIR_ABS" \
     --releasever=$FEDORA_VERSION \
     --forcearch=aarch64 \
     --nogpgcheck \
@@ -59,47 +67,47 @@ dnf --installroot=rootdir \
     NetworkManager openssh-server \
     passwd glibc-langpack-en
 
-# --- 3. 注入固件 ---
+# --- 4. 注入固件（使用绝对路径）---
 if [ -n "$FW_SOURCE_DIR" ]; then
     echo "📡 正在将提取的固件合并到 Fedora 系统..."
-    mkdir -p rootdir/lib/firmware
-    cp -rf $FW_SOURCE_DIR/* rootdir/lib/firmware/
+    mkdir -p "$ROOTDIR_ABS/lib/firmware"
+    cp -rf "$FW_SOURCE_DIR/"* "$ROOTDIR_ABS/lib/firmware/"
     echo "✅ 固件合并完成"
 fi
 
-# --- 4. 挂载虚拟文件系统（用于 systemctl 等）---
-mount --bind /dev rootdir/dev
-mount -t proc proc rootdir/proc
-mount -t sysfs sys rootdir/sys
+# --- 5. 挂载虚拟文件系统（用于 systemctl 等）---
+mount --bind /dev "$ROOTDIR_ABS/dev"
+mount -t proc proc "$ROOTDIR_ABS/proc"
+mount -t sysfs sys "$ROOTDIR_ABS/sys"
 
-# --- 5. 基础配置 ---
-chroot rootdir /bin/bash -c "echo 'LANG=en_US.UTF-8' > /etc/locale.conf"
-chroot rootdir /bin/bash -c "echo 'fedora41' > /etc/hostname"
-chroot rootdir /bin/bash -c "echo -e '1234\n1234' | passwd root"
-chroot rootdir systemctl enable NetworkManager sshd
+# --- 6. 系统配置（语言、主机名、root密码）---
+chroot "$ROOTDIR_ABS" /bin/bash -c "echo 'LANG=en_US.UTF-8' > /etc/locale.conf"
+chroot "$ROOTDIR_ABS" /bin/bash -c "echo 'fedora41' > /etc/hostname"
+chroot "$ROOTDIR_ABS" /bin/bash -c "echo -e '1234\n1234' | passwd root"
+chroot "$ROOTDIR_ABS" systemctl enable NetworkManager sshd
 
-# --- 6. 创建普通用户 ---
-chroot rootdir useradd -m -s /bin/bash luser
-chroot rootdir bash -c "echo 'luser:luser' | chpasswd"
-chroot rootdir usermod -aG wheel luser
+# --- 7. 创建普通用户 ---
+chroot "$ROOTDIR_ABS" useradd -m -s /bin/bash luser
+chroot "$ROOTDIR_ABS" bash -c "echo 'luser:luser' | chpasswd"
+chroot "$ROOTDIR_ABS" usermod -aG wheel luser
 
-# --- 7. 安装 GNOME 桌面 ---
-chroot rootdir dnf groupinstall -y "GNOME Desktop" "GNOME Applications" "Standard"
-chroot rootdir systemctl set-default graphical.target
-chroot rootdir systemctl enable gdm
+# --- 8. 安装 GNOME 桌面（可选，可按需注释）---
+chroot "$ROOTDIR_ABS" dnf groupinstall -y "GNOME Desktop" "GNOME Applications" "Standard"
+chroot "$ROOTDIR_ABS" systemctl set-default graphical.target
+chroot "$ROOTDIR_ABS" systemctl enable gdm
 
-# --- 8. 清理 ---
-chroot rootdir dnf clean all
-rm -rf rootdir/var/cache/dnf
+# --- 9. 清理缓存，减小镜像体积 ---
+chroot "$ROOTDIR_ABS" dnf clean all
+rm -rf "$ROOTDIR_ABS/var/cache/dnf"
 sync; sleep 2
 
-# --- 9. 卸载镜像 ---
-umount rootdir/dev rootdir/proc rootdir/sys 2>/dev/null || true
-umount rootdir || true
+# --- 10. 卸载所有挂载点 ---
+umount "$ROOTDIR_ABS/dev" "$ROOTDIR_ABS/proc" "$ROOTDIR_ABS/sys" 2>/dev/null || true
+umount rootdir 2>/dev/null || true
 rm -rf rootdir
 rm -rf "$FW_TEMP_DIR"
 
-# --- 10. 固定 UUID 并压缩 ---
+# --- 11. 固定 UUID 并压缩 ---
 tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
 echo "✅ 镜像生成: $ROOTFS_IMG"
 echo "🗜️ 压缩中..."
