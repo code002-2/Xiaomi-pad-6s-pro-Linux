@@ -5,10 +5,8 @@ IMAGE_SIZE="8G"
 FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 FEDORA_VERSION="44"
 
-# 使用清华源（baseurl 直连，避免 metalink 解析失败）
-FEDORA_BASEURL="https://mirrors.tuna.tsinghua.edu.cn/fedora/linux"
-# 备选：如果清华源不稳定，可切换至官方 CDN（但需要确保网络可达）
-# FEDORA_BASEURL="https://download.fedoraproject.org/pub/fedora/linux"
+# 使用中科大源（已同步 Fedora 44，且网络稳定）
+FEDORA_BASEURL="https://mirrors.ustc.edu.cn/fedora/linux"
 
 usage() { echo "用法: $0 <kernel_version>"; exit 1; }
 [ $# -ne 1 ] && usage
@@ -54,7 +52,7 @@ mkdir rootdir
 mount -o loop "$ROOTFS_IMG" rootdir
 ROOTDIR_ABS=$(realpath rootdir)
 
-# --- 使用 dnf 安装基础系统（直接指定 baseurl，绕过 metalink 解析）---
+# --- 使用 dnf 安装基础系统（直接指定 baseurl，使用中科大源）---
 dnf --installroot="$ROOTDIR_ABS" \
     --releasever=$FEDORA_VERSION \
     --forcearch=aarch64 \
