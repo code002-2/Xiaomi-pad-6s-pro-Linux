@@ -30,7 +30,7 @@ jobs:
           tag_name: ${{ steps.tag.outputs.release_tag }}
           name: "Fedora 41 RootFS - ${{ steps.tag.outputs.release_tag }}"
           body: |
-            🐧 Fedora 41 (ARM64) RootFS for Sheng
+            🐧 Fedora 41 (ARM64) RootFS
             - **内核版本**: ${{ github.event.inputs.kernel_version }}
             - **桌面**: GNOME (GDM)
             - **用户**: luser / 密码: luser ; root / 密码: 1234
@@ -44,7 +44,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install build tools
-        run: sudo apt update && sudo apt install -y qemu-user-static debootstrap p7zip-full dpkg
+        run: |
+          sudo apt update
+          sudo apt install -y qemu-user-static debootstrap p7zip-full dpkg dnf
       - name: Download kernel bundle
         run: |
           gh release download "kernel-bundle-${{ github.event.inputs.kernel_version }}" \
