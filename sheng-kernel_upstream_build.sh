@@ -36,8 +36,8 @@ else
 fi
 
 echo "🛡️ 正在物理隔离并备份本地验证通过的设备树文件..."
-mkdir -p dtb_backup
-cp -r linux/arch/arm64/boot/dts/qcom/* dtb_backup/ 2>/dev/null || true
+mkdir -p "$WORKSPACE/dtb_backup"
+cp -r linux/arch/arm64/boot/dts/qcom/* "$WORKSPACE/dtb_backup/" 2>/dev/null || true
 
 cd linux
 
@@ -67,7 +67,7 @@ else
 fi
 
 echo "♻️ 正在强行还原稳定的高通小米设备树，覆盖 7.1 错乱节点..."
-cp -r ../dtb_backup/* arch/arm64/boot/dts/qcom/ 2>/dev/null || true
+cp -r "$WORKSPACE/dtb_backup"/* arch/arm64/boot/dts/qcom/ 2>/dev/null || true
 echo "✅ 设备树总线结构体强制回滚至安全状态"
 # ========================================================
 
@@ -82,11 +82,8 @@ find drivers/ sound/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/#i
 
 echo "📱 [2/5] 正在强行重写触摸屏驱动 (nt36xxx.c)，完全抹除旧版 GPIO 函数..."
 if [ -f drivers/input/touchscreen/nt36532e/nt36xxx.c ]; then
-    # 彻底覆盖包含 "of_get_named_gpio" 的一整行，将其强行转化为 7.1 规范的 fwnode 获取方式
     sed -i 's/.*of_get_named_gpio.*novatek,irq.*/        ts->irq_gpio = desc_to_gpio(fwnode_gpiod_get_index(of_fwnode_handle(np), "novatek,irq", 0, GPIOD_ASIS, "nt36xxx_irq"));/g' drivers/input/touchscreen/nt36532e/nt36xxx.c
     sed -i 's/.*of_get_named_gpio.*novatek,reset.*/        ts->reset_gpio = desc_to_gpio(fwnode_gpiod_get_index(of_fwnode_handle(np), "novatek,reset", 0, GPIOD_ASIS, "nt36xxx_reset"));/g' drivers/input/touchscreen/nt36532e/nt36xxx.c
-    
-    # 防御性补充：如果代码中还有直接引用旧 api 的地方，统一做降级拦截
     sed -i 's/of_get_named_gpio(np, "novatek,irq-gpio", 0)/desc_to_gpio(fwnode_gpiod_get_index(of_fwnode_handle(np), "novatek,irq", 0, GPIOD_ASIS, "nt36xxx_irq"))/g' drivers/input/touchscreen/nt36532e/nt36xxx.c
     sed -i 's/of_get_named_gpio(np, "novatek,reset-gpio", 0)/desc_to_gpio(fwnode_gpiod_get_index(of_fwnode_handle(np), "novatek,reset", 0, GPIOD_ASIS, "nt36xxx_reset"))/g' drivers/input/touchscreen/nt36532e/nt36xxx.c
 fi
@@ -117,7 +114,7 @@ echo "CONFIG_FONT_8x16=y" >> .config
 echo "CONFIG_LOGO=y" >> .config
 echo "CONFIG_LOGO_LINUX_CLUT224=y" >> .config
 
-# 强制锁死基本参数，配合 A/B 槽独立分区引导
+# 锁死基本启动参数
 echo 'CONFIG_CMDLINE="console=ttyMSM0,115200 earlycon=msm_geni_serial,0xaec00000 root=PARTLABEL=linux rootwait fbcon=nodefer msm_drm.allow_fb_modifiers=1 loglevel=7 panic=0 pm_poweroff.reset_type=1"' >> .config
 echo "CONFIG_CMDLINE_FORCE=y" >> .config
 
@@ -157,5 +154,6 @@ _kernel_version="$(make kernelrelease -s)"
 echo "📦 最终构建出的内核定制版本号为: ${_kernel_version}"
 
 # ========================================================
-# 📦 打包重构
-# =================
+# 📦 打包重构（强力重构：全部采用绝对路径，确保 Actions 100% 抓到包）
+# ========================================================
+GAME_PKG_NAME="l
