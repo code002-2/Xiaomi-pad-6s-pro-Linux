@@ -1,4 +1,4 @@
-name: 🐧 Build Fedora 44 RootFS (with firmware from kernel-bundle)
+name: 构建 Fedora 44 RootFS
 
 on:
   workflow_dispatch:
