@@ -28,7 +28,6 @@ else
     git clone https://github.com/code002-2/sm8550-mainline.git --depth 150 linux
 fi
 
-# 【安全防御】：在合并前，强行将本地百分百好用的设备树源码提取出来做物理备份
 echo "🛡️ 正在物理隔离并备份本地验证通过的设备树文件..."
 mkdir -p dtb_backup
 cp -r linux/arch/arm64/boot/dts/qcom/* dtb_backup/ 2>/dev/null || true
@@ -60,7 +59,6 @@ else
     echo "⚠️ 已通过 Ours 策略强制完成 7.1 补丁合并。"
 fi
 
-# 【防硬砖核心】：用 Ours 强制合并后，主线 7.1 的底层总线文件很可能乱掉。这里我们用备份的稳定设备树直接覆盖回去！
 echo "♻️ 正在强行还原稳定的高通小米设备树，覆盖 7.1 错乱节点..."
 cp -r ../dtb_backup/* arch/arm64/boot/dts/qcom/ 2>/dev/null || true
 echo "✅ 设备树总线结构体强制回滚至安全状态"
@@ -70,17 +68,15 @@ echo "📥 正在下载基础内核配置文件..."
 wget https://gitlab.postmarketos.org/alghiffaryfa19/pmaports/-/raw/sheng/device/testing/linux-postmarketos-qcom-sm8550/config-postmarketos-qcom-sm8550.aarch64 -O .config
 
 # ========================================================
-# 🛠️ 核心自愈：精准修补 7.1 不兼容的代码接口
+# 🛠️ 核心自愈与极致瘦身：解决内存越界硬卡死
 # ========================================================
 echo "🩹 [1/5] 正在全量扫荡并修复所有驱动中残留的旧版 of_gpio.h 引用..."
 find drivers/ sound/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/#include <linux\/of_gpio.h>/#include <linux\/gpio\/consumer.h>/g' {} + 2>/dev/null || true
-echo "✅ 全量 GPIO 头文件清理完成"
 
 echo "📱 [2/5] 正在使用 7.1 正统 fwnode 架构重写触摸屏驱动 (nt36xxx.c)..."
 if [ -f drivers/input/touchscreen/nt36532e/nt36xxx.c ]; then
     sed -i 's/ts->irq_gpio = .*/ts->irq_gpio = desc_to_gpio(fwnode_gpiod_get_index(of_fwnode_handle(np), "novatek,irq", 0, GPIOD_ASIS, "nt36xxx_irq"));/g' drivers/input/touchscreen/nt36532e/nt36xxx.c
     sed -i 's/.*reset-gpio.*/ts->reset_gpio = desc_to_gpio(fwnode_gpiod_get_index(of_fwnode_handle(np), "novatek,reset", 0, GPIOD_ASIS, "nt36xxx_reset"));/g' drivers/input/touchscreen/nt36532e/nt36xxx.c
-    echo "✅ nt36xxx.c 7.1 终极 GPIO 转换层注入成功"
 fi
 
 echo "🎨 [3/5] 正在修复高通 GPU (msm_gem.c) 7.1 锁管理和共享判定冲突..."
@@ -88,26 +84,34 @@ if [ -f drivers/gpu/drm/msm/msm_gem.c ]; then
     sed -i 's/obj->base.resv/obj->resv/g' drivers/gpu/drm/msm/msm_gem.c 2>/dev/null || true
     sed -i 's/(obj->resv != &obj->_resv)/(!obj->import_attach)/g' drivers/gpu/drm/msm/msm_gem.c 2>/dev/null || true
     sed -i 's/container_of(obj->resv, struct drm_gem_object, _resv)/obj/g' drivers/gpu/drm/msm/msm_gem.c 2>/dev/null || true
-    echo "✅ msm_gem.c 7.1 兼容性补丁应用成功"
 fi
 
-echo "🚀 [4/5] 正在动态向配置中注入高通主线屏幕保活指令..."
+echo "🚀 [4/5] 正在注入高通主线显示核心与底座 Regulator 电源保活指令..."
 echo "CONFIG_DRM_MSM=y" >> .config
-echo "CONFIG_DRM_MSM_REGISTER_LOGGING=y" >> .config
-echo "CONFIG_DRM_MSM_GPU_STATE=y" >> .config
 
-# 强行使能基础显示面板与背光拓扑，防止 7.1 乱刷配置导致黑屏
+# 强行锁死高通电源总线控制器，防止 7.1 自动剔除导致断电黑屏
+echo "CONFIG_REGULATOR=y" >> .config
+echo "CONFIG_REGULATOR_QCOM=y" >> .config
+echo "CONFIG_REGULATOR_QCOM_RPMH=y" >> .config
+echo "CONFIG_REGULATOR_QCOM_SMD=y" >> .config
+
+# 基础显示面板与背光保活
 echo "CONFIG_DRM_PANEL=y" >> .config
 echo "CONFIG_DRM_PANEL_SIMPLE=y" >> .config
 echo "CONFIG_BACKLIGHT_CLASS_DEVICE=y" >> .config
 echo "CONFIG_BACKLIGHT_GPIO=y" >> .config
 
-# 【调试关键】：暂时注释掉 ntsync，先用最保守的内存机制让系统亮屏引导
+# 保持极致瘦身，确保内核体积不复胖
+echo "CONFIG_CC_OPTIMIZE_FOR_SIZE=y" >> .config
+sed -i 's/CONFIG_DEBUG_INFO=y/# CONFIG_DEBUG_INFO is not set/g' .config
+echo "CONFIG_DEBUG_INFO_NONE=y" >> .config
+
+# ntsync 作为实验特性，目前保持屏蔽状态（对照组排查法）
 # echo "CONFIG_NTSYNC=y" >> .config
 # echo "CONFIG_ANON_INODES=y" >> .config
 
 # ========================================================
-# 🏷️ [5/5] 核心改名：注入独特的专属游戏内核版本后缀
+# 🏷️ [5/5] 核心改名
 # ========================================================
 echo "🏷️ 正在向内核配置系统注入自定义版本后缀: -xiaomi-pad-6s-pro-game"
 sed -i '/CONFIG_LOCALVERSION/d' .config
@@ -117,7 +121,7 @@ echo "🔄 正在针对新合并的 7.1 内核自动刷新 Kconfig 选项..."
 make ARCH=arm64 LLVM=1 olddefconfig
 
 # ========================================================
-# 🔨 精准编译：捕获并打印驱动核心报错
+# 🔨 精准编译
 # ========================================================
 echo "🔨 开始编译内核 Image, Image.gz, 内核模块和设备树..."
 make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 Image Image.gz modules dtbs 2> build_error.log
@@ -130,17 +134,15 @@ if [ $MAKE_EXIT_CODE -ne 0 ]; then
     grep -B 3 -A 5 -i "error:" build_error.log || tail -n 80 build_error.log
     echo "========================================================================="
     exit $MAKE_EXIT_CODE
-else
-    echo "✅ 恭喜！高防御力安全调试版内核编译通过！"
 fi
 
-set -e # 恢复错误退出机制
+set -e 
 
 _kernel_version="$(make kernelrelease -s)"
 echo "📦 最终构建出的内核定制版本号为: ${_kernel_version}"
 
 # ========================================================
-# 📦 打包重构：将旧包名全面迁移至新游戏标识包名
+# 📦 打包重构：使用安全大内存布局 + 亮屏调试 CMDLINE
 # ========================================================
 GAME_PKG_NAME="linux-xiaomi-pad-6s-pro-game"
 PKGDIR="../${GAME_PKG_NAME}"
@@ -151,12 +153,12 @@ if [ -d "../linux-xiaomi-sheng/DEBIAN" ]; then
     sed -i "s/Package:.*/Package: ${GAME_PKG_NAME}/" "${PKGDIR}/DEBIAN/control"
     sed -i "s/Version:.*/Version: ${_kernel_version}/" "${PKGDIR}/DEBIAN/control"
 else
-    mkdir -p "${PKGDIR}/DEBIAN"
+    mkdir -p "${GRID}/DEBIAN"
     echo "Package: ${GAME_PKG_NAME}" > "${PKGDIR}/DEBIAN/control"
     echo "Version: ${_kernel_version}" >> "${PKGDIR}/DEBIAN/control"
     echo "Architecture: arm64" >> "${PKGDIR}/DEBIAN/control"
     echo "Maintainer: github-actions" >> "${PKGDIR}/DEBIAN/control"
-    echo "Description: Upstream 7.1 Linux kernel safety edition for Xiaomi Pad 6S Pro Game" >> "${PKGDIR}/DEBIAN/control"
+    echo "Description: Upstream 7.1 Linux kernel with power-keepalive for Xiaomi Pad 6S Pro Game" >> "${PKGDIR}/DEBIAN/control"
 fi
 
 ARCH=arm64
@@ -178,9 +180,13 @@ cat arch/arm64/boot/Image.gz arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb > 
 install -Dm644 Image.gz-dtb_game $PKGDIR/boot/Image.gz-dtb_game
 mv Image.gz-dtb_game zImage_game
 
-echo "📱 正在组装 Android 安全调试版刷机镜像 boot.img..."
-../mkbootimg --kernel zImage_game --cmdline "root=PARTLABEL=linux" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_pad6spro_game_dualboot.img
-../mkbootimg --kernel zImage_game --cmdline "root=PARTLABEL=userdata" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_pad6spro_game_singleboot.img
+# 🚨 终极亮屏调试 CMDLINE 策略：
+# 强制开启控制台打印、提高日志等级到 7、禁止 Panic 自动重置，以此来逼迫黑屏阶段留出调试窗口。
+NEW_CMDLINE="console=ttyMSM0,115200 earlycon=msm_geni_serial,0xaec00000 root=PARTLABEL=linux loglevel=7 panic=0 pm_poweroff.reset_type=1"
+
+echo "📱 正在组装 Android [亮屏调试防黑防PanicReset] 刷机镜像 boot.img..."
+../mkbootimg --kernel zImage_game --cmdline "${NEW_CMDLINE}" --base 0x00000000 --kernel_offset 0x00080000 --ramdisk_offset 0x01000000 --tags_offset 0x00000100 --dtb_offset 0x01f00000 --pagesize 4096 --id -o ../boot_pad6spro_game_dualboot.img
+../mkbootimg --kernel zImage_game --cmdline "${NEW_CMDLINE}" --base 0x00000000 --kernel_offset 0x00080000 --ramdisk_offset 0x01000000 --tags_offset 0x00000100 --dtb_offset 0x01f00000 --pagesize 4096 --id -o ../boot_pad6spro_game_singleboot.img
 
 echo "🧱 安装内核模块..."
 make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=$PKGDIR modules_install
@@ -208,4 +214,4 @@ if [ -d "sheng-devauth" ]; then
     dpkg-deb --build --root-owner-group sheng-devauth
 fi
 
-echo "🎉 安全防御调试版内核构建任务圆满结束！"
+echo "🎉 全套亮屏调试安全版内核构建任务圆满结束！"
