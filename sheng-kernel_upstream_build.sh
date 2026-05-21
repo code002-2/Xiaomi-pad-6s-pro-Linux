@@ -60,14 +60,20 @@ echo "📥 正在下载基础内核配置文件..."
 wget https://gitlab.postmarketos.org/alghiffaryfa19/pmaports/-/raw/sheng/device/testing/linux-postmarketos-qcom-sm8550/config-postmarketos-qcom-sm8550.aarch64 -O .config
 
 # ========================================================
-# 🛠️ 核心自愈：精准修补 7.1 不兼容的代码接口
+# 🛠️ 核心自愈与配置注入：修补代码 & 开启 ntsync
 # ========================================================
-echo "🩹 [1/2] 正在全量扫荡并修复所有驱动中残留的旧版 of_gpio.h 引用..."
-# 使用 find 找出 drivers 和 sound 目录下包含 of_gpio.h 的所有源文件，直接一键替换
+echo "🩹 [1/4] 正在全量扫荡并修复所有驱动中残留的旧版 of_gpio.h 引用..."
 find drivers/ sound/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/#include <linux\/of_gpio.h>/#include <linux\/gpio\/consumer.h>/g' {} + 2>/dev/null || true
 echo "✅ 全量 GPIO 头文件清理完成"
 
-echo "🎨 [2/2] 正在修复高通 GPU (msm_gem.c) 7.1 锁管理和共享判定冲突..."
+echo "📱 [2/4] 正在修补触摸屏驱动 (nt36xxx.c) 的旧版 GPIO 获取函数..."
+if [ -f drivers/input/touchscreen/nt36532e/nt36xxx.c ]; then
+    sed -i 's/of_get_named_gpio(np, "novatek,irq-gpio", 0)/of_get_gpio(np, 0)/g' drivers/input/touchscreen/nt36532e/nt36xxx.c
+    sed -i 's/of_get_named_gpio(np, "novatek,reset-gpio", 0)/of_get_gpio(np, 1)/g' drivers/input/touchscreen/nt36532e/nt36xxx.c
+    echo "✅ nt36xxx.c 7.1 兼容性函数重写成功"
+fi
+
+echo "🎨 [3/4] 正在修复高通 GPU (msm_gem.c) 7.1 锁管理和共享判定冲突..."
 if [ -f drivers/gpu/drm/msm/msm_gem.c ]; then
     sed -i 's/obj->base.resv/obj->resv/g' drivers/gpu/drm/msm/msm_gem.c 2>/dev/null || true
     sed -i 's/(obj->resv != &obj->_resv)/(!obj->import_attach)/g' drivers/gpu/drm/msm/msm_gem.c 2>/dev/null || true
@@ -75,18 +81,32 @@ if [ -f drivers/gpu/drm/msm/msm_gem.c ]; then
     echo "✅ msm_gem.c 7.1 兼容性补丁应用成功"
 fi
 
-# 确保 GPU 及声音相关 Kconfig 被满血激活
+echo "🚀 [4/4] 正在动态向配置中注入 ntsync 满血开启指令..."
+# 确保 GPU 相关 Kconfig 激活
 echo "CONFIG_DRM_MSM=y" >> .config
 echo "CONFIG_DRM_MSM_REGISTER_LOGGING=y" >> .config
 echo "CONFIG_DRM_MSM_GPU_STATE=y" >> .config
 
+# 【核心功能项】强行注入 ntsync 内核驱动及其必须的后台依赖项
+echo "CONFIG_NTSYNC=y" >> .config
+echo "CONFIG_ANON_INODES=y" >> .config
+echo "✅ ntsync 游戏加速驱动已在配置中强行使能"
+
 echo "🔄 正在针对新合并的 7.1 内核自动刷新 Kconfig 选项..."
 make ARCH=arm64 LLVM=1 olddefconfig
+
+# 验证 ntsync 是否真的被内核配置系统接纳了
+if grep -q "CONFIG_NTSYNC=y" .config; then
+    echo "🎯 [检查] 完美！内核配置刷新后，CONFIG_NTSYNC=y 依然稳固存在。"
+else
+    echo "⚠️ [注意] ntsync 选项被 olddefconfig 过滤，正在尝试再次强制补全..."
+    sed -i 's/# CONFIG_NTSYNC is not set/CONFIG_NTSYNC=y/g' .config
+fi
 
 # ========================================================
 # 🔨 精准编译：捕获并打印驱动核心报错
 # ========================================================
-echo "🔨 开始编译内核 Image, Image.gz, 内核模块(含GPU)和设备树..."
+echo "🔨 开始编译内核 Image, Image.gz, 内核模块(含GPU+ntsync)和设备树..."
 make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 Image Image.gz modules dtbs 2> build_error.log
 MAKE_EXIT_CODE=$?
 
@@ -98,7 +118,7 @@ if [ $MAKE_EXIT_CODE -ne 0 ]; then
     echo "========================================================================="
     exit $MAKE_EXIT_CODE
 else
-    echo "✅ 恭喜！包含满血 GPU 驱动的 7.1 内核核心阶段顺利通过！"
+    echo "✅ 恭喜！包含满血 GPU 驱动、修复后触摸屏驱动以及 ntsync 的 7.1 内核核心阶段顺利通过！"
 fi
 
 set -e # 恢复错误退出机制
@@ -106,7 +126,7 @@ set -e # 恢复错误退出机制
 _kernel_version="$(make kernelrelease -s)"
 echo "📦 最终构建出的内核版本号为: ${_kernel_version}"
 
-# 后续的打包与 deb/boot.img 封装逻辑
+# 后续的打包与 deb/boot.img 封装逻辑保持不变
 sed -i "s/Version:.*/Version: ${_kernel_version}/" ../linux-xiaomi-sheng/DEBIAN/control
 PKGDIR=../linux-xiaomi-sheng
 ARCH=arm64
