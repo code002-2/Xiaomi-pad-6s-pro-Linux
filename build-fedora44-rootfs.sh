@@ -3,8 +3,9 @@ set -e
 
 IMAGE_SIZE="8G"
 FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
-FEDORA_VERSION="41"
-FEDORA_MIRROR="https://mirrors.tuna.tsinghua.edu.cn/fedora"
+FEDORA_VERSION="44"
+# 使用清华镜像源，并切换至正式版仓库路径
+FEDORA_MIRROR="https://mirrors.tuna.tsinghua.edu.cn/fedora/linux"
 
 usage() { echo "用法: $0 <kernel_version>"; exit 1; }
 [ $# -ne 1 ] && usage
@@ -12,17 +13,16 @@ usage() { echo "用法: $0 <kernel_version>"; exit 1; }
 
 KERNEL=$1
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-ROOTFS_IMG="fedora41_${TIMESTAMP}.img"
+ROOTFS_IMG="fedora44_${TIMESTAMP}.img"
 
 echo "=========================================="
 echo "开始构建 Fedora $FEDORA_VERSION (ARM64) RootFS"
 echo "将从 kernel-bundle-$KERNEL 中提取固件并注入"
 echo "=========================================="
 
-# --- 1. 提取固件：优先使用 firmware-xiaomi-sheng.deb ---
+# --- 提取固件（与之前相同，优先使用 firmware-xiaomi-sheng.deb）---
 FW_TEMP_DIR=$(mktemp -d)
 FW_SOURCE_DIR=""
-
 if [ -f firmware-xiaomi-sheng.deb ]; then
     echo "📦 从 firmware-xiaomi-sheng.deb 提取固件..."
     dpkg-deb -x firmware-xiaomi-sheng.deb "$FW_TEMP_DIR"
@@ -33,7 +33,6 @@ else
     echo "⚠️ 未找到包含固件的 .deb 包，将跳过固件注入"
 fi
 
-# 查找固件目录（常见路径为 /lib/firmware 或 /usr/lib/firmware）
 if [ -d "$FW_TEMP_DIR/lib/firmware" ]; then
     FW_SOURCE_DIR="$FW_TEMP_DIR/lib/firmware"
     echo "✅ 在 /lib/firmware 找到固件"
@@ -44,17 +43,15 @@ else
     echo "⚠️ 未找到固件目录"
 fi
 
-# --- 2. 创建空白 ext4 镜像并挂载 ---
+# --- 创建镜像 ---
 rm -rf rootdir || true
 truncate -s $IMAGE_SIZE "$ROOTFS_IMG"
 mkfs.ext4 "$ROOTFS_IMG"
 mkdir rootdir
 mount -o loop "$ROOTFS_IMG" rootdir
-
-# 获取 rootdir 的绝对路径（dnf 要求绝对路径）
 ROOTDIR_ABS=$(realpath rootdir)
 
-# --- 3. 使用 dnf 安装基础系统（绝对路径）---
+# --- 使用 dnf 安装基础系统，切换至正式版的 releases/44/Everything 目录---
 dnf --installroot="$ROOTDIR_ABS" \
     --releasever=$FEDORA_VERSION \
     --forcearch=aarch64 \
@@ -67,7 +64,7 @@ dnf --installroot="$ROOTDIR_ABS" \
     NetworkManager openssh-server \
     passwd glibc-langpack-en
 
-# --- 4. 注入固件（使用绝对路径）---
+# --- 注入固件 ---
 if [ -n "$FW_SOURCE_DIR" ]; then
     echo "📡 正在将提取的固件合并到 Fedora 系统..."
     mkdir -p "$ROOTDIR_ABS/lib/firmware"
@@ -75,39 +72,38 @@ if [ -n "$FW_SOURCE_DIR" ]; then
     echo "✅ 固件合并完成"
 fi
 
-# --- 5. 挂载虚拟文件系统（用于 systemctl 等）---
+# --- 挂载虚拟文件系统 ---
 mount --bind /dev "$ROOTDIR_ABS/dev"
 mount -t proc proc "$ROOTDIR_ABS/proc"
 mount -t sysfs sys "$ROOTDIR_ABS/sys"
 
-# --- 6. 系统配置（语言、主机名、root密码）---
+# --- 系统配置 ---
 chroot "$ROOTDIR_ABS" /bin/bash -c "echo 'LANG=en_US.UTF-8' > /etc/locale.conf"
-chroot "$ROOTDIR_ABS" /bin/bash -c "echo 'fedora41' > /etc/hostname"
+chroot "$ROOTDIR_ABS" /bin/bash -c "echo 'fedora44' > /etc/hostname"
 chroot "$ROOTDIR_ABS" /bin/bash -c "echo -e '1234\n1234' | passwd root"
 chroot "$ROOTDIR_ABS" systemctl enable NetworkManager sshd
 
-# --- 7. 创建普通用户 ---
+# --- 创建普通用户 ---
 chroot "$ROOTDIR_ABS" useradd -m -s /bin/bash luser
 chroot "$ROOTDIR_ABS" bash -c "echo 'luser:luser' | chpasswd"
 chroot "$ROOTDIR_ABS" usermod -aG wheel luser
 
-# --- 8. 安装 GNOME 桌面（可选，可按需注释）---
+# --- 安装 GNOME 桌面（可选，可注释）---
 chroot "$ROOTDIR_ABS" dnf groupinstall -y "GNOME Desktop" "GNOME Applications" "Standard"
 chroot "$ROOTDIR_ABS" systemctl set-default graphical.target
 chroot "$ROOTDIR_ABS" systemctl enable gdm
 
-# --- 9. 清理缓存，减小镜像体积 ---
+# --- 清理 ---
 chroot "$ROOTDIR_ABS" dnf clean all
 rm -rf "$ROOTDIR_ABS/var/cache/dnf"
 sync; sleep 2
 
-# --- 10. 卸载所有挂载点 ---
+# --- 卸载 ---
 umount "$ROOTDIR_ABS/dev" "$ROOTDIR_ABS/proc" "$ROOTDIR_ABS/sys" 2>/dev/null || true
 umount rootdir 2>/dev/null || true
 rm -rf rootdir
 rm -rf "$FW_TEMP_DIR"
 
-# --- 11. 固定 UUID 并压缩 ---
 tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
 echo "✅ 镜像生成: $ROOTFS_IMG"
 echo "🗜️ 压缩中..."
