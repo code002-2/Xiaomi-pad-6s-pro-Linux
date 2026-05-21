@@ -1,0 +1,74 @@
+name: 🐧 构建Fedora 41 RootFS
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_version:
+        description: '内核版本 (对应 kernel-bundle 标签，如 7.0)'
+        required: true
+        default: '7.0'
+      skip_release:
+        description: '跳过创建GitHub Release'
+        type: boolean
+        default: false
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+    outputs:
+      release_tag: ${{ steps.tag.outputs.release_tag }}
+    steps:
+      - name: Generate release tag
+        id: tag
+        run: echo "release_tag=fedora41-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+      - name: Create GitHub Release
+        if: ${{ !github.event.inputs.skip_release }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          name: "Fedora 41 RootFS - ${{ steps.tag.outputs.release_tag }}"
+          body: |
+            🐧 Fedora 41 (ARM64) RootFS for Sheng
+            - **内核版本**: ${{ github.event.inputs.kernel_version }}
+            - **桌面**: GNOME (GDM)
+            - **用户**: luser / 密码: luser ; root / 密码: 1234
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-fedora:
+    runs-on: ubuntu-24.04-arm
+    needs: prepare-release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt update && sudo apt install -y qemu-user-static debootstrap p7zip-full dpkg
+      - name: Download kernel bundle
+        run: |
+          gh release download "kernel-bundle-${{ github.event.inputs.kernel_version }}" \
+            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
+          ls -la *.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build RootFS (with firmware injection)
+        id: build
+        run: |
+          chmod +x build-fedora41-rootfs.sh
+          sudo ./build-fedora41-rootfs.sh ${{ github.event.inputs.kernel_version }}
+          echo "filename=$(ls fedora41_*.7z)" >> $GITHUB_OUTPUT
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fedora41-rootfs
+          path: ${{ steps.build.outputs.filename }}
+          retention-days: 7
+      - name: Upload to Release
+        if: ${{ !github.event.inputs.skip_release }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          files: ${{ steps.build.outputs.filename }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
