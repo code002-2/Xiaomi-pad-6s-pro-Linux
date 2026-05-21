@@ -24,37 +24,37 @@ export READELF="llvm-readelf"
 export STRIP="llvm-strip"
 
 echo "🌐 正在克隆你的自定义 sm8550-mainline 仓库..."
-# 拉取 120 深度，建立合并基础
-if git clone https://github.com/code002-2/sm8550-mainline.git --branch "sheng-7.0" --depth 120 linux; then
+# 拉取 150 深度，确保有足够的共同提交历史用于后面的合并
+if git clone https://github.com/code002-2/sm8550-mainline.git --branch "sheng-7.0" --depth 150 linux; then
     echo "✅ 成功克隆基础 sheng-7.0 分支"
 else
     echo "⚠️ 未找到 sheng-7.0 分支，尝试克隆默认主分支..."
-    git clone https://github.com/code002-2/sm8550-mainline.git --depth 120 linux
+    git clone https://github.com/code002-2/sm8550-mainline.git --depth 150 linux
 fi
 
 cd linux
 
 # ========================================================
-# 🔄 改进步骤：精准、免 Tag 追踪 Linux 7.1.y 稳定版上游补丁
+# 🔄 修正步骤：精准拉取 Linus Mainline 主线最新 7.1 开发树
 # ========================================================
-echo "📡 正在连接 Linux 官方 Stable 稳定版内核仓库..."
-git remote add upstream-stable https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
+echo "📡 正在连接 Linus Mainline 官方主线内核仓库..."
+git remote add upstream-mainline https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
 
-echo "📥 【优化】跳过全量 Tags，仅精准拉取 7.1.y 稳定版分支..."
-# --no-tags 可以阻止 Git 下载那数万个死锁的 Tag，仅仅传输最新分支对象
-git fetch upstream-stable linux-7.1.y --depth 20 --no-tags
+echo "📥 【核心修复】拒绝 Tags，仅精准拉取上游 master 分支最新提交..."
+# 此时上游的 master 分支就是正在推进的 7.1-rcX 核心代码
+git fetch upstream-mainline master --depth 50 --no-tags
 
-UPSTREAM_TARGET="upstream-stable/linux-7.1.y"
-echo "🎯 成功锁定 Linux 上游官方最新补丁分支: $UPSTREAM_TARGET"
+UPSTREAM_TARGET="upstream-mainline/master"
+echo "🎯 成功锁定 Linux 7.1 开发主线上游目标: $UPSTREAM_TARGET"
 
-echo "🔀 正在将最新补丁自动无损合并到你的代码中..."
+echo "🔀 正在将最新 7.1 补丁自动无损合并到你的代码中..."
 # 配置 Actions 虚拟环境的临时 Git 身份
 git config user.name "github-actions[bot]"
 git config user.email "github-actions[bot]@users.noreply.github.com"
 
 # 执行合并
 if git merge "$UPSTREAM_TARGET" --no-edit; then
-    echo "✅ 完美！上游 7.1.y 分支最新补丁已无缝合并，未发生代码冲突。"
+    echo "✅ 完美！上游 7.1 主线最新补丁已无缝合并，未发生代码冲突。"
 else
     echo "❌ 警告：在上游更新与你的小米平板移植代码合并时发生冲突！"
     echo "📊 冲突文件总览："
@@ -64,14 +64,14 @@ else
     git merge --abort
     # 使用 -X ours 强行推进，确保你为 sheng 写的设备树和关键驱动不被破坏
     git merge "$UPSTREAM_TARGET" --no-edit -X ours
-    echo "⚠️ 已通过 Ours 策略强制完成补丁合并。"
+    echo "⚠️ 已通过 Ours 策略强制完成 7.1 补丁合并。"
 fi
 # ========================================================
 
 echo "📥 正在下载基础内核配置文件..."
 wget https://gitlab.postmarketos.org/alghiffaryfa19/pmaports/-/raw/sheng/device/testing/linux-postmarketos-qcom-sm8550/config-postmarketos-qcom-sm8550.aarch64 -O .config
 
-echo "🔄 正在针对新合并的内核自动刷新 Kconfig 选项..."
+echo "🔄 正在针对新合并的 7.1 内核自动刷新 Kconfig 选项..."
 make ARCH=arm64 LLVM=1 olddefconfig
 
 echo "🔨 开始编译内核 Image, Image.gz 和设备树..."
