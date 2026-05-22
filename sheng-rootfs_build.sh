@@ -1,3 +1,4 @@
+#!/bin/bash
 set -e
 
 IMAGE_SIZE="8G"
@@ -25,7 +26,6 @@ if [ "$distro_type" != "debian" ]; then
 fi
 
 distro_version="trixie"
-
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
 # 🔥 MULTI FLAVOUR
@@ -79,12 +79,47 @@ chroot rootdir apt install -y \
     libmbim-glib4 || true
 
 # Install satu per satu (biar gampang debug kalau gagal)
-# debug
 ls -lah rootdir/tmp/
 
 chroot rootdir bash -c "apt update && apt install -y /tmp/*.deb" || exit 1
 
 echo "✅ All custom .deb installed"
+
+# ========================================================
+# ⚙️ 注入高通移动端自愈配置与平板专属修补
+# ========================================================
+echo "🩹 正在针对高通 SM8550 (Sheng) 注入底层自愈补丁..."
+
+# 1. 锁死主线串口控制台守候进程 (本级防御：开机黑屏时保留串口救砖通道)
+chroot rootdir bash -c "echo 'ttyMSM0' >> /etc/securetty"
+ln -sf /lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
+
+# 2. 修复 DNS 无法解析导致联网后无法刷网页的问题
+chroot rootdir systemctl enable systemd-resolved
+ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
+
+# 3. 配置声卡主线上游 UCM 音频软链接对齐总线
+mkdir -p rootdir/usr/share/alsa/ucm2/conf.d/sm8550
+if [ -d rootdir/usr/share/alsa/ucm2/vbat-snd-card ]; then
+    ln -sf ../vbat-snd-card rootdir/usr/share/alsa/ucm2/conf.d/sm8550/vbat-snd-card
+fi
+
+# 4. 阻止休眠挂起（防止平板进桌面后一息屏直接导致主线内核挂起死机）
+mkdir -p rootdir/etc/systemd/sleep.conf.d
+cat > rootdir/etc/systemd/sleep.conf.d/disable-suspend.conf <<EOF
+[Sleep]
+AllowSuspend=no
+AllowHibernation=no
+AllowSuspendThenHibernate=no
+AllowHybridSleep=no
+EOF
+
+# 5. 注入平板横屏触控校准规则
+mkdir -p rootdir/etc/udev/rules.d/
+cat > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules <<EOF
+ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"
+EOF
+# ========================================================
 
 # root password
 chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
@@ -111,10 +146,10 @@ if [ "$distro_variant" = "desktop" ]; then
         chroot rootdir systemctl enable gdm3
     fi
 
-    # user
+    # user与用户组提权
     chroot rootdir useradd -m -s /bin/bash luser
     echo "luser:luser" | chroot rootdir chpasswd
-    chroot rootdir usermod -aG sudo luser
+    chroot rootdir usermod -aG sudo,audio,video,render,input,plugdev luser
 
     # autologin
     if [ "$FLAVOUR" = "lomiri" ]; then
@@ -141,13 +176,12 @@ EOF
 fi
 
 # =========================
-# 💽 FSTAB (INI KUNCI)
+# 💽 FSTAB
 # =========================
-
 if [ "$MODE" = "dual" ]; then
-    echo "PARTLABEL=linux / ext4 defaults 0 1" > rootdir/etc/fstab
+    echo "PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1" > rootdir/etc/fstab
 else
-    echo "PARTLABEL=userdata / ext4 defaults 0 1" > rootdir/etc/fstab
+    echo "PARTLABEL=userdata / ext4 defaults,noatime,errors=remount-ro 0 1" > rootdir/etc/fstab
 fi
 
 # clean
