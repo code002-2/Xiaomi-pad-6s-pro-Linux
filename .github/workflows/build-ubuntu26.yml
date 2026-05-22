@@ -68,14 +68,13 @@ jobs:
           [ -z "$KERNEL_VER" ] && KERNEL_VER="7.0"
           
           chmod +x build-ubuntu26-rootfs.sh
-          # 执行构建，开启详细日志以备排查
+          # 执行构建脚本
           sudo bash -x ./build-ubuntu26-rootfs.sh ${KERNEL_VER} ${{ matrix.desktop_env }}
           
-          # 验证文件是否存在 (根据构建逻辑，文件名应为 ubuntu26_gnome.7z 等)
-          TARGET_FILE="ubuntu26_${{ matrix.desktop_env }}.7z"
-          if [ ! -f "$TARGET_FILE" ]; then
-            echo "错误: 找不到生成的镜像文件: $TARGET_FILE"
-            ls -lh  # 打印当前目录内容辅助调试
+          # 检查文件是否生成，防止静默失败
+          if [ -z "$(ls ubuntu26_${{ matrix.desktop_env }}_*.7z 2>/dev/null)" ]; then
+            echo "错误: 未找到生成的 .7z 镜像文件"
+            ls -lh
             exit 1
           fi
 
@@ -83,7 +82,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ubuntu26-${{ matrix.desktop_env }}
-          path: ubuntu26_${{ matrix.desktop_env }}.7z
+          # 使用通配符匹配，完美兼容动态时间戳文件名
+          path: ubuntu26_${{ matrix.desktop_env }}_*.7z
           retention-days: 7
 
       - name: Upload to Release
@@ -91,6 +91,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
-          files: ubuntu26_${{ matrix.desktop_env }}.7z
+          # 使用通配符匹配上传至 Release
+          files: ubuntu26_${{ matrix.desktop_env }}_*.7z
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
