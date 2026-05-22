@@ -26,7 +26,7 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 ROOTFS_IMG="debian13_desktop_${TIMESTAMP}.img"
 
 echo "=========================================="
-echo "⏳ 开始构建 Debian 13 (Trixie) 桌面版 RootFS"
+echo "⏳ 开始构建纯净桌面版 Debian 13 (Trixie) RootFS"
 echo "内核版本: $KERNEL"
 echo "=========================================="
 
@@ -36,7 +36,7 @@ mkfs.ext4 "$ROOTFS_IMG"
 mkdir rootdir
 mount -o loop "$ROOTFS_IMG" rootdir
 
-# 基础引导安装
+# 基础系统自举安装
 debootstrap --arch=arm64 "$DEBIAN_SUITE" rootdir "$DEBIAN_MIRROR"
 
 mount --bind /dev rootdir/dev
@@ -44,9 +44,10 @@ mount --bind /dev/pts rootdir/dev/pts
 mount -t proc proc rootdir/proc
 mount -t sysfs sys rootdir/sys
 
-# 注入软件源
+# 严格配置 Debian 官方国内镜像源（无残留）
 printf "deb %s %s main contrib non-free non-free-firmware\n" "$DEBIAN_MIRROR" "$DEBIAN_SUITE" > rootdir/etc/apt/sources.list
 printf "deb %s %s-updates main contrib non-free non-free-firmware\n" "$DEBIAN_MIRROR" "$DEBIAN_SUITE" >> rootdir/etc/apt/sources.list
+printf "deb %s %s-proposed-updates main contrib non-free non-free-firmware\n" "$DEBIAN_MIRROR" "$DEBIAN_SUITE" >> rootdir/etc/apt/sources.list
 chroot rootdir apt update
 
 if ls *.deb 1> /dev/null 2>&1; then
@@ -54,23 +55,25 @@ if ls *.deb 1> /dev/null 2>&1; then
     chroot rootdir bash -c "apt install -y /tmp/*.deb || true"
 fi
 
-# 🚨 核心修复：显式加入 locales 包（提供 locale-gen），并安装 systemd-resolved 依赖
+# 🚨 精简修改：移除了带有 Server 标记的 openssh-server 构建依赖，仅保留桌面终端必需的底层连接件
 chroot rootdir apt install -y --no-install-recommends \
-    systemd systemd-resolved sudo vim-tiny wget curl network-manager openssh-server wpasupplicant dbus locales
+    systemd systemd-resolved sudo vim-tiny wget curl network-manager wpasupplicant dbus locales
 
-# 🌐 语言与本地化配置 (由于上面安装了 locales 包，此时 locale-gen 100% 存在)
+# 🌐 语言环境初始化 (🚨 修复：将路径完美纠正为 Debian 官方的 /etc/locale.gen)
 chroot rootdir bash -c "echo 'LANG=en_US.UTF-8' > /etc/default/locale"
-chroot rootdir sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locales.build 2>/dev/null || true
+chroot rootdir sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
 chroot rootdir locale-gen en_US.UTF-8
 
-# root 用户密码
+# 密码设置
 chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
+
+# 主机名完全调整为 debian-sheng
 echo "debian-sheng" > rootdir/etc/hostname
 
-# 安装 GNOME 桌面环境及必备组件
+# 仅通过 task-gnome-desktop 编译 Debian 标准图形层
 chroot rootdir apt install -y --no-install-recommends task-gnome-desktop gdm3
 
-# 创建普通用户并指派基础硬件权限组
+# 创建普通用户并分配合规的硬件访问权限组
 chroot rootdir useradd -m -s /bin/bash luser
 echo "luser:luser" | chroot rootdir chpasswd
 chroot rootdir usermod -aG sudo,audio,video,render,input luser
@@ -79,26 +82,26 @@ echo "🩹 正在针对高通 SM8550 (Sheng) 注入底层自愈补丁..."
 chroot rootdir bash -c "echo 'ttyMSM0' >> /etc/securetty"
 ln -sf /lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
 
-# 启动网络解析托管
+# 激活 DNS 托管解析
 chroot rootdir systemctl enable systemd-resolved
 ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
 
-# 触控校准规则
+# 触控屏幕方向与矩阵校准规则
 mkdir -p rootdir/etc/udev/rules.d/
 printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"\n' > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules
 
-# GDM3 自动登录配置
+# GDM3 自动登录配置。改用纯净的常规配置写法
 mkdir -p rootdir/etc/gdm3
 printf "[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=luser\n" > rootdir/etc/gdm3/daemon.conf
 chroot rootdir systemctl enable gdm3
 
-# 设定默认图形化启动级别
+# 强制进入图形化靶位
 chroot rootdir systemctl set-default graphical.target
 
-# 挂载对齐
+# 文件系统挂载对齐
 printf "PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1\n" > rootdir/etc/fstab
 
-# 干净清理
+# 清理构建缓存
 chroot rootdir apt clean
 chroot rootdir rm -rf /tmp/*.deb
 
@@ -116,4 +119,4 @@ echo "🗜️ 正在生成最终 7z 压缩包..."
 7z a "debian13_desktop_${TIMESTAMP}.7z" "$ROOTFS_IMG"
 rm -f "$ROOTFS_IMG"
 
-echo "🎉 Debian 13 自动化加固编译全部圆满成功！"
+echo "🎉 精简桌面版 Debian 13 自动化编译全部圆满成功！"
