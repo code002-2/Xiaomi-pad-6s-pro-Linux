@@ -1,97 +1,20 @@
-name: 🐧 Build Ubuntu 26.04 Desktop (GNOME/KDE/Xfce)
-
-on:
-  workflow_dispatch:
-    inputs:
-      kernel_version:
-        description: '内核版本 (如 7.0)'
-        required: true
-        default: '7.0'
-      skip_release:
-        description: '跳过创建GitHub Release'
-        type: boolean
-        default: false
-  push:
-    branches:
-      - main
-      - master
-
-permissions:
-  contents: write
-
+name: 🐧 Build Ubuntu 26.04 Desktop
+on: [workflow_dispatch, push]
 jobs:
-  prepare-release:
-    runs-on: ubuntu-24.04-arm
-    outputs:
-      release_tag: ${{ steps.tag.outputs.release_tag }}
-    steps:
-      - name: Generate release tag
-        id: tag
-        run: |
-          TAG="ubuntu26-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
-          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
-      - name: Create GitHub Release
-        if: ${{ !github.event.inputs.skip_release }}
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: "Ubuntu 26.04 Desktop - ${{ steps.tag.outputs.release_tag }}"
-          body: "自动化构建的 Ubuntu 26.04 RootFS 镜像。"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build-desktop:
-    name: Build Ubuntu 26.04 Desktop (${{ matrix.desktop_env }})
     runs-on: ubuntu-24.04-arm
-    needs: prepare-release
     strategy:
       matrix:
-        desktop_env: [gnome, kde, xfce]
-      fail-fast: false
+        desktop_env: [gnome]
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install build tools
-        run: sudo apt update && sudo apt install -y debootstrap p7zip-full curl
-
-      - name: Download kernel bundle
-        run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
-          [ -z "$KERNEL_VER" ] && KERNEL_VER="7.0"
-          gh release download "kernel-bundle-${KERNEL_VER}" --pattern "*.deb" --repo "${{ github.repository }}" --clobber || echo "警告: 未找到内核包"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build RootFS
         run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
-          [ -z "$KERNEL_VER" ] && KERNEL_VER="7.0"
-          
           chmod +x build-ubuntu26-rootfs.sh
-          # 执行构建脚本
-          sudo bash -x ./build-ubuntu26-rootfs.sh ${KERNEL_VER} ${{ matrix.desktop_env }}
-          
-          # 检查文件是否生成，防止静默失败
-          if [ -z "$(ls ubuntu26_${{ matrix.desktop_env }}_*.7z 2>/dev/null)" ]; then
-            echo "错误: 未找到生成的 .7z 镜像文件"
-            ls -lh
-            exit 1
-          fi
-
+          sudo bash -x ./build-ubuntu26-rootfs.sh 7.0 ${{ matrix.desktop_env }}
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ubuntu26-${{ matrix.desktop_env }}
-          # 使用通配符匹配，完美兼容动态时间戳文件名
           path: ubuntu26_${{ matrix.desktop_env }}_*.7z
           retention-days: 7
-
-      - name: Upload to Release
-        if: ${{ !github.event.inputs.skip_release }}
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
-          # 使用通配符匹配上传至 Release
-          files: ubuntu26_${{ matrix.desktop_env }}_*.7z
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
