@@ -52,7 +52,7 @@ mkdir rootdir
 mount -o loop "$ROOTFS_IMG" rootdir
 ROOTDIR_ABS=$(realpath rootdir)
 
-# --- 使用 dnf 安装基础系统（直接指定 baseurl，使用中科大源）---
+# --- 使用 dnf 安装基础系统 ---
 dnf --installroot="$ROOTDIR_ABS" \
     --releasever=$FEDORA_VERSION \
     --forcearch=aarch64 \
@@ -84,15 +84,26 @@ chroot "$ROOTDIR_ABS" /bin/bash -c "echo 'fedora44' > /etc/hostname"
 chroot "$ROOTDIR_ABS" bash -c "echo -e '1234\n1234' | passwd root"
 chroot "$ROOTDIR_ABS" systemctl enable NetworkManager sshd
 
+# 解开 Fedora 上 GDM 对超级用户 root 的图形登录限制
+chroot "$ROOTDIR_ABS" sed -i 's/auth.*required.*pam_succeed_if.so user != root.*/#&/' /etc/pam.d/gdm-password || true
+
 # --- 创建普通用户 ---
 chroot "$ROOTDIR_ABS" useradd -m -s /bin/bash luser
 chroot "$ROOTDIR_ABS" bash -c "echo 'luser:luser' | chpasswd"
-chroot "$ROOTDIR_ABS" usermod -aG wheel luser
+chroot "$ROOTDIR_ABS" usermod -aG wheel,audio,video,input luser
 
-# --- 安装 GNOME 桌面（使用 dnf group install 兼容 dnf5）---
+# --- 安装 GNOME 桌面 ---
 chroot "$ROOTDIR_ABS" dnf group install -y "GNOME Desktop" "GNOME Applications" "Standard"
 chroot "$ROOTDIR_ABS" systemctl set-default graphical.target
 chroot "$ROOTDIR_ABS" systemctl enable gdm
+
+# 注入高通核心串行连接和屏幕翻转防护
+chroot "$ROOTDIR_ABS" bash -c "echo 'ttyMSM0' >> /etc/securetty"
+ln -sf /usr/lib/systemd/system/getty@.service "$ROOTDIR_ABS/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service"
+mkdir -p "$ROOTDIR_ABS/etc/udev/rules.d/"
+cat > "$ROOTDIR_ABS/etc/udev/rules.d/99-touchscreen-sheng.rules <<EOF
+ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"
+EOF
 
 # --- 清理 ---
 chroot "$ROOTDIR_ABS" dnf clean all
