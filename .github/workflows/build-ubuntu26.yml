@@ -11,9 +11,13 @@ on:
         description: '跳过创建GitHub Release'
         type: boolean
         default: false
+  push:
+    branches:
+      - main
+      - master
 
 permissions:
-  contents: write # ⚡ 强制提权，防止 GitHub Actions 后台鉴权拦截导致的手动触发灰化
+  contents: write
 
 jobs:
   prepare-release:
@@ -41,7 +45,7 @@ jobs:
             | 项目 | 详情 |
             |------|------|
             | Ubuntu版本 | 26.04 LTS (Resolute) |
-            | 内核版本 | ${{ github.event.inputs.kernel_version }} |
+            | 内核版本 | ${{ github.event.inputs.kernel_version || '7.0' }} |
             | 桌面环境 | GNOME, KDE Plasma, Xfce |
             
             ---
@@ -79,7 +83,10 @@ jobs:
 
       - name: Download kernel bundle
         run: |
-          gh release download "kernel-bundle-${{ github.event.inputs.kernel_version }}" \
+          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
+          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.0"; fi
+          
+          gh release download "kernel-bundle-${KERNEL_VER}" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber
           ls -la *.deb
         env:
@@ -88,68 +95,15 @@ jobs:
       - name: Build RootFS
         id: build
         run: |
+          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
+          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.0"; fi
+          
           chmod +x build-ubuntu26-rootfs.sh
-          sudo ./build-ubuntu26-rootfs.sh ${{ github.event.inputs.kernel_version }} ${{ matrix.desktop_env }}
+          sudo ./build-ubuntu26-rootfs.sh ${KERNEL_VER} ${{ matrix.desktop_env }}
           
-          # 动态捕获刚刚生成的 7z 产物和未压缩的 img 原文件
           SEVEN_Z_FILE=$(ls ubuntu26_${{ matrix.desktop_env }}_*.7z | head -1)
-          ORIGINAL_IMG=$(ls ubuntu26_${{ matrix.desktop_env }}_*.img | head -1)
-          
           echo "filename=$(basename "$SEVEN_Z_FILE")" >> $GITHUB_OUTPUT
           echo "path=$SEVEN_Z_FILE" >> $GITHUB_OUTPUT
-          echo "img_path=$ORIGINAL_IMG" >> $GITHUB_OUTPUT
-
-      - name: 🩹 🧠 自动化联动防御：深度拦截并加固 KDE 图形引导 (防止 sddm 卡死)
-        if: matrix.desktop_env == 'kde'
-        run: |
-          KDE_IMG="${{ steps.build.outputs.img_path }}"
-          
-          if [ -f "$KDE_IMG" ]; then
-            echo "🔧 发现刚生成的未压缩 KDE 镜像: $KDE_IMG，执行防挂起开机修复..."
-            mkdir -p mnt_repair
-            sudo mount -o loop "$KDE_IMG" mnt_repair
-            
-            # 【核心修复 1】强制锁死 sddm 为稳健的 X11 模式（主线化早期由于显示管道 DRM 初始化延迟，Wayland 容易在开机阶段直接崩溃）
-            sudo mkdir -p mnt_repair/etc/sddm.conf.d
-            sudo cat > mnt_repair/etc/sddm.conf.d/ubuntu-defaults.conf <<EOF
-[General]
-DisplayServer=x11
-InputMethod=
-EOF
-
-            # 【核心修复 2】强制修正 sddm 自动登录机制，严防找不到默认 Session
-            sudo cat > mnt_repair/etc/sddm.conf.d/autologin.conf <<EOF
-[Autologin]
-User=luser
-Session=plasma
-EOF
-
-            # 【核心修复 3】为 sddm 基础服务用户指派 video 与 render 渲染权限组，保证其有权调用 Freedreno/Mesa 的显卡硬件加速
-            if chroot mnt_repair id -u sddm >/dev/null 2>&1; then
-              sudo chroot mnt_repair usermod -aG video,render,input sddm || true
-            fi
-
-            # 【核心修复 4】在全局 xdg 级禁用 Plasma 电源息屏与休眠（拦截由于主线 Deep Sleep 尚未健全导致的系统假死或崩溃）
-            sudo mkdir -p mnt_repair/etc/xdg
-            sudo cat > mnt_repair/etc/xdg/plasmarc <<EOF
-[PowerManagement]
-ScreenBlanking=false
-DisplaySleep=0
-EOF
-
-            sudo sync
-            sudo umount -l mnt_repair
-            rm -rf mnt_repair
-            
-            # 【重新打包】删除原本未加固的 7z，重新打包最新的加固镜像
-            echo "🗜️ 正在重新压缩加固后的完美版 KDE 镜像..."
-            rm -f "${{ steps.build.outputs.path }}" || true
-            7z a "${{ steps.build.outputs.path }}" "$KDE_IMG"
-            
-            echo "✅ KDE 镜像引导修复手术顺利完成！"
-          else
-            echo "⚠️ 错误：未检测到可用的未压缩原始 KDE 镜像，跳过加固过程！"
-          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
