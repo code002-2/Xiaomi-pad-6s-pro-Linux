@@ -118,10 +118,25 @@ case "$DESKTOP_ENV" in
         ;;
 esac
 
-# 创建普通用户
+# 创建普通用户并注入完整的硬件组权限
 chroot rootdir useradd -m -s /bin/bash luser
 echo "luser:luser" | chroot rootdir chpasswd
-chroot rootdir usermod -aG sudo luser
+chroot rootdir usermod -aG sudo,audio,video,render,input,plugdev luser
+
+# ========================================================
+# ⚙️ 注入高通特定平台优化
+# ========================================================
+chroot rootdir bash -c "echo 'ttyMSM0' >> /etc/securetty"
+ln -sf /lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
+chroot rootdir systemctl enable systemd-resolved
+ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
+
+# 自动挂触控翻转校准矩阵
+mkdir -p rootdir/etc/udev/rules.d/
+cat > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules <<EOF
+ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"
+EOF
+# ========================================================
 
 # 自动登录配置
 case "$DM" in
@@ -156,9 +171,9 @@ esac
 
 chroot rootdir systemctl set-default graphical.target
 
-# fstab
+# fstab 对齐
 cat > rootdir/etc/fstab <<EOF
-PARTLABEL=linux / ext4 defaults 0 1
+PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1
 EOF
 
 chroot rootdir apt clean
@@ -176,4 +191,4 @@ tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
 echo "✅ 镜像生成: $ROOTFS_IMG"
 echo "🗜️ 压缩中..."
 7z a "${ROOTFS_IMG}.7z" "$ROOTFS_IMG"
-echo "🎉 完成！输出文件: ${ROOTFS_IMG}.7z"
+echo "🎉 完成！输出文件: ${ROOTIMG}.7z"
