@@ -82,7 +82,7 @@ chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
 echo "ubuntu26-${DESKTOP_ENV}" > rootdir/etc/hostname
 
 # =========================
-# 桌面环境安装
+# 桌面环境安装与配置
 # =========================
 case "$DESKTOP_ENV" in
     gnome)
@@ -124,14 +124,14 @@ echo "luser:luser" | chroot rootdir chpasswd
 chroot rootdir usermod -aG sudo,audio,video,render,input,plugdev luser
 
 # ========================================================
-# ⚙️ 注入高通特定平台优化
+# ⚙️ 注入高通移动端自愈底层配置
 # ========================================================
 chroot rootdir bash -c "echo 'ttyMSM0' >> /etc/securetty"
 ln -sf /lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
 chroot rootdir systemctl enable systemd-resolved
 ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
 
-# 自动挂触控翻转校准矩阵
+# 自动挂载触控翻转校准矩阵（对齐平板横屏）
 mkdir -p rootdir/etc/udev/rules.d/
 cat > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules <<EOF
 ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"
@@ -186,9 +186,9 @@ umount rootdir/sys || true
 umount rootdir || true
 rm -rf rootdir
 
+# 修复原脚本：先固定文件的 UUID
 tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
 
-echo "✅ 镜像生成: $ROOTFS_IMG"
-echo "🗜️ 压缩中..."
-7z a "${ROOTFS_IMG}.7z" "$ROOTFS_IMG"
-echo "🎉 完成！输出文件: ${ROOTIMG}.7z"
+echo "✅ 镜像生成完成: $ROOTFS_IMG"
+echo "🗜️ 正在首次压缩产物..."
+7z a "ubuntu26_${DESKTOP_ENV}_${TIMESTAMP}.7z" "$ROOTFS_IMG"
