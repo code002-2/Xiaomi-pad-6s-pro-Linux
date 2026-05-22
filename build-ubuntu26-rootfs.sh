@@ -37,7 +37,6 @@ echo "=========================================="
 echo "开始构建 Ubuntu 26.04 LTS (Resolute) RootFS"
 echo "桌面环境: $DESKTOP_ENV"
 echo "内核版本: $KERNEL"
-echo "语言环境: 英文 (en_US.UTF-8)"
 echo "=========================================="
 
 rm -rf rootdir || true
@@ -82,7 +81,7 @@ chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
 echo "ubuntu26-${DESKTOP_ENV}" > rootdir/etc/hostname
 
 # =========================
-# 桌面环境安装与配置
+# 桌面环境安装
 # =========================
 case "$DESKTOP_ENV" in
     gnome)
@@ -124,21 +123,21 @@ echo "luser:luser" | chroot rootdir chpasswd
 chroot rootdir usermod -aG sudo,audio,video,render,input,plugdev luser
 
 # ========================================================
-# ⚙️ 注入高通移动端自愈底层配置
+# ⚙️ 高通移动端自愈底层配置 & 触控校准
 # ========================================================
 chroot rootdir bash -c "echo 'ttyMSM0' >> /etc/securetty"
 ln -sf /lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
 chroot rootdir systemctl enable systemd-resolved
 ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
 
-# 自动挂载触控翻转校准矩阵（对齐平板横屏）
+# 修复之前的引号缺失造成的语法死锁漏洞
 mkdir -p rootdir/etc/udev/rules.d/
 cat > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules <<EOF
-ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"
+ENV{ID_INPUT_TOUCHSCREEN}==\"1\", ENV{LIBINPUT_CALIBRATION_MATRIX}=\"1 0 0 0 1 0 0 0 1\"
 EOF
 # ========================================================
 
-# 自动登录配置
+# 自动登录配置与 KDE 专项加固
 case "$DM" in
     gdm3)
         mkdir -p rootdir/etc/gdm3
@@ -151,44 +150,6 @@ EOF
         ;;
     sddm)
         mkdir -p rootdir/etc/sddm.conf.d
-        cat > rootdir/etc/sddm.conf.d/autologin.conf <<EOF
-[Autologin]
-User=luser
-Session=plasma
-EOF
-        chroot rootdir systemctl enable sddm
-        ;;
-    lightdm)
-        mkdir -p rootdir/etc/lightdm/lightdm.conf.d
-        cat > rootdir/etc/lightdm/lightdm.conf.d/autologin.conf <<EOF
-[Seat:*]
-autologin-user=luser
-autologin-user-timeout=0
-EOF
-        chroot rootdir systemctl enable lightdm
-        ;;
-esac
-
-chroot rootdir systemctl set-default graphical.target
-
-# fstab 对齐
-cat > rootdir/etc/fstab <<EOF
-PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1
-EOF
-
-chroot rootdir apt clean
-chroot rootdir rm -rf /tmp/*.deb
-
-umount rootdir/dev/pts || true
-umount rootdir/dev || true
-umount rootdir/proc || true
-umount rootdir/sys || true
-umount rootdir || true
-rm -rf rootdir
-
-# 修复原脚本：先固定文件的 UUID
-tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
-
-echo "✅ 镜像生成完成: $ROOTFS_IMG"
-echo "🗜️ 正在首次压缩产物..."
-7z a "ubuntu26_${DESKTOP_ENV}_${TIMESTAMP}.7z" "$ROOTFS_IMG"
+        cat > rootdir/etc/sddm.conf.d/ubuntu-defaults.conf <<EOF
+[General]
+Display
