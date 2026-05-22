@@ -54,13 +54,16 @@ if ls *.deb 1> /dev/null 2>&1; then
     chroot rootdir bash -c "apt install -y /tmp/*.deb || true"
 fi
 
-# 🚨 核心修复：显式加入 systemd-resolved 依赖包，解决服务不存在的问题
+# 🚨 核心修复：显式加入 locales 包（提供 locale-gen），并安装 systemd-resolved 依赖
 chroot rootdir apt install -y --no-install-recommends \
-    systemd systemd-resolved sudo vim-tiny wget curl network-manager openssh-server wpasupplicant dbus
+    systemd systemd-resolved sudo vim-tiny wget curl network-manager openssh-server wpasupplicant dbus locales
 
-# 语言与本地化配置
+# 🌐 语言与本地化配置 (由于上面安装了 locales 包，此时 locale-gen 100% 存在)
 chroot rootdir bash -c "echo 'LANG=en_US.UTF-8' > /etc/default/locale"
+chroot rootdir sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locales.build 2>/dev/null || true
 chroot rootdir locale-gen en_US.UTF-8
+
+# root 用户密码
 chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
 echo "debian-sheng" > rootdir/etc/hostname
 
@@ -76,7 +79,7 @@ echo "🩹 正在针对高通 SM8550 (Sheng) 注入底层自愈补丁..."
 chroot rootdir bash -c "echo 'ttyMSM0' >> /etc/securetty"
 ln -sf /lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
 
-# 启动网络解析托管（此时包已安装，绝对不会再报错报错）
+# 启动网络解析托管
 chroot rootdir systemctl enable systemd-resolved
 ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
 
