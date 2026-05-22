@@ -52,12 +52,11 @@ mount --bind /dev/pts rootdir/dev/pts
 mount -t proc proc rootdir/proc
 mount -t sysfs sys rootdir/sys
 
-cat > rootdir/etc/apt/sources.list <<EOF
-deb $UBUNTU_MIRROR $UBUNTU_SUITE main restricted universe multiverse
-deb $UBUNTU_MIRROR ${UBUNTU_SUITE}-updates main restricted universe multiverse
-deb $UBUNTU_MIRROR ${UBUNTU_SUITE}-backports main restricted universe multiverse
-deb $UBUNTU_MIRROR ${UBUNTU_SUITE}-security main restricted universe multiverse
-EOF
+# 基础软件源
+printf "deb %s %s main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" > rootdir/etc/apt/sources.list
+printf "deb %s %s-updates main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" >> rootdir/etc/apt/sources.list
+printf "deb %s %s-backports main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" >> rootdir/etc/apt/sources.list
+printf "deb %s %s-security main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" >> rootdir/etc/apt/sources.list
 
 chroot rootdir apt update
 
@@ -66,90 +65,103 @@ if ls *.deb 1> /dev/null 2>&1; then
     chroot rootdir bash -c "apt install -y /tmp/*.deb || true"
 fi
 
-# 基础包
+# 基础核心依赖
 chroot rootdir apt install -y --no-install-recommends \
     systemd sudo vim-tiny wget curl \
     network-manager openssh-server \
     wpasupplicant dbus
 
-# 设置英文 locale
+# 设置英文语言环境
 chroot rootdir bash -c "echo 'LANG=en_US.UTF-8' > /etc/default/locale"
 chroot rootdir locale-gen en_US.UTF-8
 
-# root 密码
+# root 用户初始化
 chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
 echo "ubuntu26-${DESKTOP_ENV}" > rootdir/etc/hostname
 
-# =========================
-# 桌面环境安装
-# =========================
-case "$DESKTOP_ENV" in
-    gnome)
-        chroot rootdir apt install -y --no-install-recommends \
-            ubuntu-desktop-minimal \
-            gnome-terminal \
-            firefox \
-            gdm3
-        DM="gdm3"
-        ;;
-    kde)
-        chroot rootdir apt install -y --no-install-recommends \
-            plasma-desktop \
-            sddm \
-            konsole \
-            firefox \
-            plasma-workspace \
-            systemsettings \
-            discover \
-            packagekit
-        DM="sddm"
-        ;;
-    xfce)
-        chroot rootdir apt install -y --no-install-recommends \
-            xfce4 \
-            xfce4-terminal \
-            lightdm \
-            lightdm-gtk-greeter \
-            firefox \
-            mousepad \
-            thunar
-        DM="lightdm"
-        ;;
-esac
+# ========================================================
+# 📦 桌面环境分支流转 (去除一切文本写入，只留包安装)
+# ========================================================
+if [ "$DESKTOP_ENV" = "gnome" ]; then
+    chroot rootdir apt install -y --no-install-recommends ubuntu-desktop-minimal gnome-terminal firefox gdm3
+    DM="gdm3"
+elif [ "$DESKTOP_ENV" = "kde" ]; then
+    chroot rootdir apt install -y --no-install-recommends plasma-desktop sddm konsole firefox plasma-workspace systemsettings discover packagekit
+    DM="sddm"
+elif [ "$DESKTOP_ENV" = "xfce" ]; then
+    chroot rootdir apt install -y --no-install-recommends xfce4 xfce4-terminal lightdm lightdm-gtk-greeter firefox mousepad thunar
+    DM="lightdm"
+fi
 
-# 创建普通用户并注入完整的硬件组权限
+# 创建普通用户 luser
 chroot rootdir useradd -m -s /bin/bash luser
 echo "luser:luser" | chroot rootdir chpasswd
 chroot rootdir usermod -aG sudo,audio,video,render,input,plugdev luser
 
 # ========================================================
-# ⚙️ 高通移动端自愈底层配置 & 触控校准
+# ⚙️ 底层硬件自愈与触控校准
 # ========================================================
 chroot rootdir bash -c "echo 'ttyMSM0' >> /etc/securetty"
 ln -sf /lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
 chroot rootdir systemctl enable systemd-resolved
 ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
 
-# 修复之前的引号缺失造成的语法死锁漏洞
 mkdir -p rootdir/etc/udev/rules.d/
-cat > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules <<EOF
-ENV{ID_INPUT_TOUCHSCREEN}==\"1\", ENV{LIBINPUT_CALIBRATION_MATRIX}=\"1 0 0 0 1 0 0 0 1\"
-EOF
+printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"\n' > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules
+
+# ========================================================
+# 🔒 自动登录与桌面加固配置（完全展平，杜绝任何 case 嵌套漏洞）
 # ========================================================
 
-# 自动登录配置与 KDE 专项加固
-case "$DM" in
-    gdm3)
-        mkdir -p rootdir/etc/gdm3
-        cat > rootdir/etc/gdm3/daemon.conf <<EOF
-[daemon]
-AutomaticLoginEnable=true
-AutomaticLogin=luser
-EOF
-        chroot rootdir systemctl enable gdm3
-        ;;
-    sddm)
-        mkdir -p rootdir/etc/sddm.conf.d
-        cat > rootdir/etc/sddm.conf.d/ubuntu-defaults.conf <<EOF
-[General]
-Display
+# 1. GNOME 配置
+if [ "$DM" = "gdm3" ]; then
+    mkdir -p rootdir/etc/gdm3
+    printf "[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=luser\n" > rootdir/etc/gdm3/daemon.conf
+    chroot rootdir systemctl enable gdm3
+fi
+
+# 2. KDE 降级 X11 与防息屏加固
+if [ "$DM" = "sddm" ]; then
+    mkdir -p rootdir/etc/sddm.conf.d
+    printf "[General]\nDisplayServer=x11\nInputMethod=\n" > rootdir/etc/sddm.conf.d/ubuntu-defaults.conf
+    printf "[Autologin]\nUser=luser\nSession=plasma\n" > rootdir/etc/sddm.conf.d/autologin.conf
+    
+    if chroot rootdir id -u sddm >/dev/null 2>&1; then
+        chroot rootdir usermod -aG video,render,input sddm || true
+    fi
+    
+    mkdir -p rootdir/etc/xdg
+    printf "[PowerManagement]\nScreenBlanking=false\nDisplaySleep=0\n" > rootdir/etc/xdg/plasmarc
+    chroot rootdir systemctl enable sddm
+fi
+
+# 3. XFCE 配置
+if [ "$DM" = "lightdm" ]; then
+    mkdir -p rootdir/etc/lightdm/lightdm.conf.d
+    printf "[Seat:*]\nautologin-user=luser\nautologin-user-timeout=0\n" > rootdir/etc/lightdm/lightdm.conf.d/autologin.conf
+    chroot rootdir systemctl enable lightdm
+fi
+
+# 统一进入图形层级
+chroot rootdir systemctl set-default graphical.target
+
+# 文件系统挂载对齐
+printf "PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1\n" > rootdir/etc/fstab
+
+# 清理缓存
+chroot rootdir apt clean
+chroot rootdir rm -rf /tmp/*.deb
+
+umount rootdir/dev/pts || true
+umount rootdir/dev || true
+umount rootdir/proc || true
+umount rootdir/sys || true
+umount rootdir || true
+rm -rf rootdir
+
+tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
+
+echo "✅ 镜像生成完成: $ROOTFS_IMG"
+echo "🗜️ 正在生成压缩包..."
+7z a "ubuntu26_${DESKTOP_ENV}_${TIMESTAMP}.7z" "$ROOTFS_IMG"
+rm -f "$ROOTFS_IMG"
