@@ -55,7 +55,7 @@ echo "📦 解压到镜像..."
 tar -xzf archlinuxarm.tar.gz -C rootdir
 rm archlinuxarm.tar.gz
 
-# 复制固件（如果可用）
+# 复制固件
 if [ "$FIRMWARE_AVAILABLE" = true ]; then
     echo "📡 复制 Debian 固件到 /lib/firmware ..."
     mkdir -p rootdir/lib/firmware
@@ -63,7 +63,7 @@ if [ "$FIRMWARE_AVAILABLE" = true ]; then
     echo "✅ 固件已复制"
 fi
 
-# 挂载虚拟文件系统（用于后续 chroot）
+# 挂载虚拟文件系统
 mount --bind /dev rootdir/dev
 mount -t proc proc rootdir/proc
 mount -t sysfs sys rootdir/sys
@@ -73,27 +73,35 @@ cat > rootdir/etc/pacman.d/mirrorlist <<'EOF'
 Server = https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm/$arch/$repo
 EOF
 
-# 在 chroot 内安装附加软件包
+# 在 chroot 内安装附加软件包并修复高通守候服务
 if [ "$VARIANT" = "desktop" ]; then
     echo "🖥️ 安装桌面环境 (Plasma, SDDM, Firefox)..."
     chroot rootdir /bin/bash -c "
         pacman -Sy --noconfirm
-        pacman -S --noconfirm --needed xorg-server plasma-desktop sddm firefox
-        systemctl enable sddm
-        useradd -m -G wheel -s /bin/bash arch
+        pacman -S --noconfirm --needed xorg-server plasma-desktop sddm firefox networkmanager
+        systemctl enable sddm NetworkManager
+        useradd -m -G wheel,audio,video,input -s /bin/bash arch
         echo 'arch:arch' | chpasswd
-        echo 'arch ALL=(ALL) ALL' >> /etc/sudoers
+        echo '%wheel ALL=(ALL:ALL) ALL' >> /etc/sudoers
         echo 'arch-${VARIANT}' > /etc/hostname
     "
 else
     echo "⚙️ 安装服务器版基础包 (OpenSSH)..."
     chroot rootdir /bin/bash -c "
         pacman -Sy --noconfirm
-        pacman -S --noconfirm --needed openssh
-        systemctl enable sshd
+        pacman -S --noconfirm --needed openssh networkmanager
+        systemctl enable sshd NetworkManager
         echo 'arch-${VARIANT}' > /etc/hostname
     "
 fi
+
+# 注入高通串口守护及屏幕矩阵
+chroot rootdir bash -c "echo 'ttyMSM0' >> /etc/securetty"
+ln -sf /usr/lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
+mkdir -p rootdir/etc/udev/rules.d/
+cat > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules <<EOF
+ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"
+EOF
 
 # 清理 pacman 缓存
 chroot rootdir pacman -Scc --noconfirm 2>/dev/null || true
