@@ -82,7 +82,7 @@ jobs:
           gh release download "kernel-bundle-${KERNEL_VER}" \
             --repo "${{ github.repository }}" --clobber || true
             
-          # 🚨 新增：额外下载指定的 Debian Mesa 软件包
+          # 下载指定的 Debian Mesa 软件包
           echo "⬇️ 正在下载 Debian Mesa dev 包..."
           wget -q -O mesa-common-dev_26.0.7-1_arm64.deb "http://ftp.br.debian.org/debian/pool/main/m/mesa/mesa-common-dev_26.0.7-1_arm64.deb"
           
