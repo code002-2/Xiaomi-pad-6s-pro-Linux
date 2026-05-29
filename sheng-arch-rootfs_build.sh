@@ -141,22 +141,25 @@ chroot rootdir systemctl enable gdm
 # 强制进入图形化靶位
 chroot rootdir systemctl set-default graphical.target
 
-# 文件系统挂载对齐
-printf "PARTLABEL=linux / ext4 defaults,noatime 0 1\n" > rootdir/etc/fstab
+# ==========================================
+# 🚨 挂载安全防线
+# ==========================================
+# 文件系统挂载对齐 (加入了 errors=remount-ro 容灾防线)
+printf "PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1\n" > rootdir/etc/fstab
 
 # 清理构建缓存
 chroot rootdir pacman -Scc --noconfirm
 
 # ==========================================
-# 🚨 终极安全卸载与清理流程
+# 终极安全卸载与清理流程
 # ==========================================
 echo "🧹 正在清理后台遗留进程并安全卸载挂载点..."
 
-# 1. 强行杀死 chroot 环境中遗留的任何幽灵进程 (如 gpg-agent, dbus)
+# 1. 强行杀死 chroot 环境中遗留的任何幽灵进程
 fuser -k -9 -m rootdir || true
 sleep 2
 
-# 2. 使用 -l (lazy) 懒卸载强行分离系统层，无视任何资源占用状态
+# 2. 使用 -l (lazy) 懒卸载强行分离系统层
 umount -l rootdir/dev/pts || true
 umount -l rootdir/dev || true
 umount -l rootdir/proc || true
@@ -176,4 +179,4 @@ echo "🗜️ 正在生成最终 7z 压缩包..."
 7z a "archlinux_desktop_${TIMESTAMP}.7z" "$ROOTFS_IMG"
 rm -f "$ROOTFS_IMG"
 
-echo "🎉 精简桌面版 Arch Linux ARM 自动化编译全部圆满成功！"
+echo "🎉 Arch Linux ARM 编译全部圆满成功！"
