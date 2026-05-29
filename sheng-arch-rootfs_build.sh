@@ -169,14 +169,22 @@ umount -l rootdir || true
 # 给内核一点时间同步文件系统日志
 sleep 2
 
-# 3. 安全删除目录
+# 3. 安全删除挂载目录
 rm -rf rootdir
 
 tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
 
-echo "✅ 镜像生成完成: $ROOTFS_IMG"
-echo "🗜️ 正在生成最终 7z 压缩包..."
-7z a "archlinux_desktop_${TIMESTAMP}.7z" "$ROOTFS_IMG"
-rm -f "$ROOTFS_IMG"
+echo "✅ 原始镜像生成完成: $ROOTFS_IMG"
+echo "🔄 正在将其转换为 Fastboot 专用的稀疏镜像 (Sparse Image)..."
+SPARSE_IMG="sparse_${ROOTFS_IMG}"
+# 🚨 终极绝杀：利用 img2simg 生成可被 fastboot 直接识别的镜像格式
+img2simg "$ROOTFS_IMG" "$SPARSE_IMG"
 
-echo "🎉 Arch Linux ARM 编译全部圆满成功！"
+echo "🗜️ 正在生成最终 7z 压缩包..."
+# 打包时仅保留转换后的稀疏镜像，体积大大减小
+7z a "archlinux_desktop_${TIMESTAMP}.7z" "$SPARSE_IMG"
+
+# 清理原始镜像和中间文件
+rm -f "$ROOTFS_IMG" "$SPARSE_IMG"
+
+echo "🎉 Fastboot 专用精简桌面版 Arch Linux ARM 自动化编译全部圆满成功！"
