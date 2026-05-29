@@ -45,7 +45,7 @@ mount --bind /dev/pts rootdir/dev/pts
 mount -t proc proc rootdir/proc
 mount -t sysfs sys rootdir/sys
 
-# 强制写入公共 DNS，彻底绕过 Ubuntu 宿主机的本地存根问题
+# 强制写入公共 DNS
 rm -f rootdir/etc/resolv.conf
 echo "nameserver 8.8.8.8" > rootdir/etc/resolv.conf
 echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
@@ -57,42 +57,57 @@ echo "Server = $ALARM_MIRROR/\$arch/\$repo" > rootdir/etc/pacman.d/mirrorlist
 chroot rootdir pacman-key --init
 chroot rootdir pacman-key --populate archlinuxarm
 
+echo "🧹 正在清理 Arch 自带的内核与固件，只为您提供的 Release 包保留空间..."
+# 使用 -Rdd 暴力卸载原生内核和固件，忽略依赖警告
+chroot rootdir pacman -Rdd --noconfirm linux-aarch64 linux-firmware || true
+
 echo "📦 正在更新系统并安装基础组件..."
-chroot rootdir pacman -Syu --noconfirm systemd sudo vim wget curl networkmanager wpa_supplicant dbus
+# 显式加入 kmod 和 base，确保 depmod 和基本系统库完好无损
+chroot rootdir pacman -Syu --noconfirm base kmod glibc systemd sudo vim wget curl networkmanager wpa_supplicant dbus
 
 echo "🔨 正在扫描并注入本地内核与系统固件包..."
 
-# 🚨 处理所有 .deb 格式文件 (通常是内核或打包好的固件)
+# 🚨 处理所有的 .deb 包 (底层修复：解决 Debian 与 Arch 的目录软链接冲突)
 if ls *.deb 1> /dev/null 2>&1; then
+    mkdir -p rootdir/tmp/deb_ext
     for pkg in *.deb; do
-        echo "   -> 正在提取 $pkg ..."
-        dpkg-deb -x "$pkg" rootdir/
+        echo "   -> 正在安全提取 $pkg ..."
+        # 1. 先将 deb 释放到沙盒临时目录
+        dpkg-deb -x "$pkg" rootdir/tmp/deb_ext/
     done
+    # 2. 使用 cp -a 合并内容，这能完美识别并遵循 Arch 的 /lib 等软链接，不会覆盖系统架构
+    echo "   -> 正在将解压的包无损合并到文件系统中..."
+    cp -a rootdir/tmp/deb_ext/. rootdir/
+    rm -rf rootdir/tmp/deb_ext
     
     echo "   正在更新内核模块依赖..."
-    KERNEL_MODULE_DIR=$(ls rootdir/lib/modules/ | head -n 1)
+    # 为防环境变量失效，使用绝对路径调用 depmod
+    KERNEL_MODULE_DIR=$(ls rootdir/usr/lib/modules/ | head -n 1)
     if [ -n "$KERNEL_MODULE_DIR" ]; then
         echo "   发现内核版本: $KERNEL_MODULE_DIR"
-        chroot rootdir depmod -a "$KERNEL_MODULE_DIR" || true
+        chroot rootdir /usr/bin/depmod -a "$KERNEL_MODULE_DIR" || true
     else
-        echo "   ⚠️ 未能在 /lib/modules/ 中找到内核模块目录。"
+        echo "   ⚠️ 未能在 /usr/lib/modules/ 中找到内核模块目录。"
     fi
 fi
 
-# 🚨 处理所有 .tar.gz 格式文件 (通常是散装固件或配置文件)
+# 处理所有的 .tar.gz 格式文件
 if ls *.tar.gz 1> /dev/null 2>&1; then
     for tarball in *.tar.gz; do
         echo "   -> 正在解压系统包 $tarball ..."
-        tar -xzf "$tarball" -C rootdir/
+        # 使用 --keep-directory-symlink 保护 Arch 原生系统软链接
+        tar -xz --keep-directory-symlink -f "$tarball" -C rootdir/
     done
 fi
 
-# 确保固件目录权限安全 (以防压缩包内权限混乱)
-chmod -R 755 rootdir/lib/firmware/ || true
+# 确保固件目录存在并修正权限，避免 chmod 找不到目录报错
+if [ -d "rootdir/usr/lib/firmware" ]; then
+    chmod -R 755 rootdir/usr/lib/firmware/ || true
+fi
 
 # 🌐 语言环境初始化
 echo 'en_US.UTF-8 UTF-8' > rootdir/etc/locale.gen
-chroot rootdir locale-gen
+chroot rootdir /usr/bin/locale-gen
 echo 'LANG=en_US.UTF-8' > rootdir/etc/locale.conf
 
 # 密码设置
@@ -117,7 +132,7 @@ chmod 440 rootdir/etc/sudoers.d/wheel
 echo "🩹 正在针对高通 SM8550 (Sheng) 注入底层自愈补丁..."
 ln -sf /usr/lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
 
-# 激活 DNS 托管解析与网络服务 (此步骤会接管 DNS，完美覆盖我们刚才硬编码的 8.8.8.8)
+# 激活 DNS 托管解析与网络服务 
 chroot rootdir systemctl enable systemd-resolved
 chroot rootdir systemctl enable NetworkManager
 ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
