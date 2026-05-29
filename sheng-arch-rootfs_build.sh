@@ -64,7 +64,8 @@ echo "🧹 正在清理 Arch 自带的内核与固件，为您提供的 Release 
 chroot rootdir pacman -Rdd --noconfirm linux-aarch64 linux-firmware || true
 
 echo "📦 正在更新系统并安装基础组件..."
-chroot rootdir pacman -Syu --noconfirm base kmod glibc systemd sudo vim wget curl networkmanager wpa_supplicant dbus
+# ✨ [修改点1] 追加了 qrtr 和 dialog 组件
+chroot rootdir pacman -Syu --noconfirm base kmod glibc systemd sudo vim wget curl networkmanager wpa_supplicant dbus qrtr dialog
 
 echo "🖥️ 正在安装 GNOME 桌面环境及依赖..."
 chroot rootdir pacman -S --noconfirm gnome gdm
@@ -140,6 +141,44 @@ chroot rootdir systemctl enable gdm
 
 # 强制进入图形化靶位
 chroot rootdir systemctl set-default graphical.target
+
+
+# ==========================================
+# ✨ [修改点2] 高通 WiFi 专属一键自动修复魔法
+# ==========================================
+echo "⚙️ 正在预配置高通 WiFi 固件修复与驱动适配..."
+
+# 1. 自动处理 board.bin 伪装 (解决固件报错)
+FW_DIR="rootdir/usr/lib/firmware/ath12k/WCN7850/hw2.0"
+if [ -f "$FW_DIR/board-2.bin" ]; then
+    cp "$FW_DIR/board-2.bin" "$FW_DIR/board.bin"
+    echo "✅ board.bin 伪装成功！"
+else
+    echo "⚠️ 警告: 未找到 board-2.bin，无法自动伪装，请确认您的固件包是否完整。"
+fi
+
+# 2. 自动修正内核模块文件夹名称 (解决 modprobe not found 报错)
+MOD_DIR="rootdir/usr/lib/modules"
+TARGET_VER="7.0.0-sm8550-gf273227fab85"
+
+if [ -d "$MOD_DIR" ]; then
+    for dir in "$MOD_DIR"/*; do
+        if [ -d "$dir" ] && [ "$(basename "$dir")" != "$TARGET_VER" ]; then
+            echo "🔧 发现错误命名的驱动文件夹: $(basename "$dir")，正在重命名为 $TARGET_VER ..."
+            mv "$dir" "$MOD_DIR/$TARGET_VER"
+            # 重新生成新目录的内核索引
+            chroot rootdir /usr/bin/depmod -a "$TARGET_VER" || true
+            echo "✅ 内核驱动目录重命名与索引重建完成！"
+            break
+        fi
+    done
+fi
+
+# 3. 自动设置 qrtr 服务开机自启 (解决 -110 超时报错)
+chroot rootdir systemctl enable qrtr-ns || true
+echo "✅ 高通 QMI 通讯服务已设置为开机自启！"
+# ==========================================
+
 
 # ==========================================
 # 🚨 挂载安全防线
