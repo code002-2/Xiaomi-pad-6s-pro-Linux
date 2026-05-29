@@ -1,49 +1,114 @@
-name: 🛠️ Build Kernel（Arch linux）
+name: Build Arch Kernel
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'sheng-arch-kernel_build.sh'
+    inputs:
+      kernel_version:
+        description: "内核版本号 (如: 7.0)"
+        required: true
+        default: "7.0"
 
 jobs:
-  build-kernel:
-    name: Build Kernel & Modules
-    runs-on: ubuntu-24.04
+  build:
+    name: "构建 Arch 内核 v${{ github.event.inputs.kernel_version || '7.0' }}"
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+
     steps:
-      - name: Checkout repository
+      - name: "📥 检出代码"
         uses: actions/checkout@v4
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            bc bison build-essential ccache curl flex \
-            g++-aarch64-linux-gnu gcc-aarch64-linux-gnu \
-            libelf-dev libssl-dev lz4 \
-            python3 python3-pip wget \
-            clang lld llvm zstd
-          
-          # 下载 mkbootimg (如果仓库里没有的话)
-          wget -qO mkbootimg https://raw.githubusercontent.com/osm0sis/mkbootimg/master/mkbootimg
-          chmod +x mkbootimg
-
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: kernel-sm8550-arch
-          max-size: 10G
+          fetch-depth: 0
+          submodules: recursive
 
-      - name: Compile Kernel
+      - name: "💾 设置ccache缓存"
+        uses: actions/cache@v4
+        id: cache-ccache
+        with:
+          path: /home/runner/.ccache
+          key: ${{ runner.os }}-ccache-arch-kernel-${{ github.event.inputs.kernel_version || '7.0' }}-${{ github.ref_name }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-arch-kernel-${{ github.event.inputs.kernel_version || '7.0' }}-
+            ${{ runner.os }}-ccache-arch-kernel-
+
+      - name: "🔧 设置构建环境"
         run: |
-          chmod +x sheng-arch-kernel_build.sh
-          ./sheng-arch-kernel_build.sh
+          echo "⚙️ 正在安装必要的构建工具..."
+          sudo apt update
+          sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld python3 zstd
+          echo "✅ 构建工具安装完成"
+          
+          # 确保ccache目录存在
+          mkdir -p /home/runner/.ccache
+          
+          # 优化ccache配置
+          ccache --set-config=max_size=10G
+          ccache --set-config=cache_dir=/home/runner/.ccache
+          ccache --set-config=sloppiness=file_macro,locale,time_macros
+          
+          # 赋予 mkbootimg 执行权限
+          chmod +x mkbootimg
+          
+          echo "📊 缓存恢复状态: ${{ steps.cache-ccache.outputs.cache-hit }}"
 
-      - name: Upload Kernel Artifacts
+      - name: "🔨 编译内核与打包"
+        id: build
+        run: |
+          echo "🚀 开始编译 Arch 内核版本 ${{ github.event.inputs.kernel_version || '7.0' }}"
+          
+          export CCACHE_DIR=/home/runner/.ccache
+          export PATH="/usr/lib/ccache:$PATH"
+          
+          # 执行专为 Arch 优化的编译脚本
+          chmod +x sheng-arch-kernel_build.sh
+          ./sheng-arch-kernel_build.sh "${{ github.event.inputs.kernel_version || '7.0' }}"
+          
+          echo "✅ 内核编译完成"
+          ccache --show-stats --verbose | grep -E "(hit rate|cache hit|cache miss|max size)" || true
+
+      - name: "📤 上传 boot.img"
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-sheng-arch
-          path: |
-            out_arch_kernel/boot_sheng_dualboot.img
-            out_arch_kernel/sheng-modules.tar.gz
+          name: boot_dualboot.img
+          path: out_arch/boot_sheng_dualboot.img
           retention-days: 7
+
+      - name: "📤 上传 Kernel Modules"
+        uses: actions/upload-artifact@v4
+        with:
+          name: sheng-modules.tar.gz
+          path: out_arch/sheng-modules.tar.gz
+          retention-days: 7
+
+      - name: "🏷️ 创建GitHub Release"
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: arch-kernel-${{ github.event.inputs.kernel_version || '7.0' }}
+          name: "Arch Linux Kernel ${{ github.event.inputs.kernel_version || '7.0' }}"
+          body: |
+            🧩 Arch Linux 专属内核 ${{ github.event.inputs.kernel_version || '7.0' }}
+            
+            --- 
+            
+            ### 🔧 构建信息
+            | 项目 | 详情 |
+            |------|------|
+            | 内核版本 | ${{ github.event.inputs.kernel_version || '7.0' }} |
+            | 构建方式 | GitHub Actions (ARM原生编译) |
+            | 挂载特性 | 已注入 `rootwait rw` 防线 |
+            
+            --- 
+            
+            ### 📦 包含文件
+            - `boot_sheng_dualboot.img` : 直接用 fastboot 刷入 boot 分区
+            - `sheng-modules.tar.gz` : Arch RootFS 自动化注入依赖包
+          draft: false
+          prerelease: false
+          files: |
+            out_arch/boot_sheng_dualboot.img
+            out_arch/sheng-modules.tar.gz
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
