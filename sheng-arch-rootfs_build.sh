@@ -45,8 +45,10 @@ mount --bind /dev/pts rootdir/dev/pts
 mount -t proc proc rootdir/proc
 mount -t sysfs sys rootdir/sys
 
-# 🚨 将宿主机的 DNS 配置文件复制到 chroot 环境中，赋予其联网解析域名的能力
-cp /etc/resolv.conf rootdir/etc/resolv.conf
+# 🚨 终极 DNS 修复：强制写入公共 DNS，彻底绕过 Ubuntu 宿主机的 127.0.0.53 本地存根问题
+rm -f rootdir/etc/resolv.conf
+echo "nameserver 8.8.8.8" > rootdir/etc/resolv.conf
+echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
 
 # 配置清华大学 Arch Linux ARM 镜像源
 echo "Server = $ALARM_MIRROR/\$arch/\$repo" > rootdir/etc/pacman.d/mirrorlist
@@ -104,7 +106,7 @@ chmod 440 rootdir/etc/sudoers.d/wheel
 echo "🩹 正在针对高通 SM8550 (Sheng) 注入底层自愈补丁..."
 ln -sf /usr/lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
 
-# 激活 DNS 托管解析与网络服务 (这一步会覆盖我们之前复制的 resolv.conf，确保成品系统的网络交由 Arch 的 systemd-resolved 管理)
+# 激活 DNS 托管解析与网络服务 (此步骤会重新接管 DNS，完美覆盖我们刚才硬编码的 8.8.8.8)
 chroot rootdir systemctl enable systemd-resolved
 chroot rootdir systemctl enable NetworkManager
 ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
@@ -142,4 +144,4 @@ echo "🗜️ 正在生成最终 7z 压缩包..."
 7z a "archlinux_desktop_${TIMESTAMP}.7z" "$ROOTFS_IMG"
 rm -f "$ROOTFS_IMG"
 
-echo "🎉 精简桌面版 Arch Linux ARM 自动化编译全部圆满成功！"
+echo "🎉 精简桌面版 Arch Linux ARM 自动化编译全部圆满成功！
