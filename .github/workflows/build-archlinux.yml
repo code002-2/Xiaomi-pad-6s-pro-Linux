@@ -71,6 +71,7 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Install build tools
+        # 修复点：将 bsdtar 替换为 libarchive-tools
         run: sudo apt update && sudo apt install -y libarchive-tools p7zip-full curl wget
 
       - name: Download kernel bundle
@@ -78,10 +79,10 @@ jobs:
           KERNEL_VER="${{ github.event.inputs.kernel_version }}"
           if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.0"; fi
           
-          # Arch Linux 通常打包为 .pkg.tar.zst 或 .pkg.tar.xz
+          # 修复点：改回下载 .deb 格式的内核包
           gh release download "kernel-bundle-${KERNEL_VER}" \
-            --pattern "*.pkg.tar.*" --repo "${{ github.repository }}" --clobber || true
-          ls -la *.pkg.tar.* || echo "No custom kernel found."
+            --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
+          ls -la *.deb || echo "No custom kernel found."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
