@@ -36,79 +36,75 @@ jobs:
         run: |
           echo "⚙️ 正在安装必要的构建工具..."
           sudo apt update
-          sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld python3 zstd
+          sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld
           echo "✅ 构建工具安装完成"
           
-          # 确保ccache目录存在
           mkdir -p /home/runner/.ccache
-          
-          # 优化ccache配置
           ccache --set-config=max_size=10G
           ccache --set-config=cache_dir=/home/runner/.ccache
           ccache --set-config=sloppiness=file_macro,locale,time_macros
-          
-          # 赋予 mkbootimg 执行权限
-          chmod +x mkbootimg
-          
-          echo "📊 缓存恢复状态: ${{ steps.cache-ccache.outputs.cache-hit }}"
 
-      - name: "🔨 编译内核与打包"
+      - name: "🔨 编译 Arch 优化内核"
         id: build
         run: |
-          echo "🚀 开始编译 Arch 内核版本 ${{ github.event.inputs.kernel_version || '7.0' }}"
+          echo "🚀 开始编译内核版本 ${{ github.event.inputs.kernel_version || '7.0' }}"
           
           export CCACHE_DIR=/home/runner/.ccache
           export PATH="/usr/lib/ccache:$PATH"
           
-          # 执行专为 Arch 优化的编译脚本
+          # 执行带有 rootwait 补丁的内核构建脚本
           chmod +x sheng-arch-kernel_build.sh
-          ./sheng-arch-kernel_build.sh "${{ github.event.inputs.kernel_version || '7.0' }}"
+          bash sheng-arch-kernel_build.sh
           
           echo "✅ 内核编译完成"
-          ccache --show-stats --verbose | grep -E "(hit rate|cache hit|cache miss|max size)" || true
+
+      - name: "📦 收集编译产物"
+        id: collect_artifacts
+        run: |
+          PKG_COUNT=$(ls -1 *.deb 2>/dev/null | wc -l)
+          echo "📦 共找到 $PKG_COUNT 个包文件"
+          echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
+
+      - name: "📤 上传构建产物 (deb)"
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-kernel-debs-${{ github.event.inputs.kernel_version || '7.0' }}
+          path: "*.deb"
+          retention-days: 7
+          if-no-files-found: error
 
       - name: "📤 上传 boot.img"
         uses: actions/upload-artifact@v4
         with:
-          name: boot_dualboot.img
-          path: out_arch/boot_sheng_dualboot.img
-          retention-days: 7
-
-      - name: "📤 上传 Kernel Modules"
-        uses: actions/upload-artifact@v4
-        with:
-          name: sheng-modules.tar.gz
-          path: out_arch/sheng-modules.tar.gz
-          retention-days: 7
+          name: boot_images
+          path: |
+            boot_sheng_singleboot.img
+            boot_sheng_dualboot.img
 
       - name: "🏷️ 创建GitHub Release"
-        if: github.event_name == 'workflow_dispatch'
+        if: steps.collect_artifacts.outputs.pkg_count > 0 && github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: arch-kernel-${{ github.event.inputs.kernel_version || '7.0' }}
-          name: "Arch Linux Kernel ${{ github.event.inputs.kernel_version || '7.0' }}"
+          name: "Arch Kernel ${{ github.event.inputs.kernel_version || '7.0' }}"
           body: |
             🧩 Arch Linux 专属内核 ${{ github.event.inputs.kernel_version || '7.0' }}
             
-            --- 
-            
             ### 🔧 构建信息
-            | 项目 | 详情 |
-            |------|------|
-            | 内核版本 | ${{ github.event.inputs.kernel_version || '7.0' }} |
-            | 构建方式 | GitHub Actions (ARM原生编译) |
-            | 挂载特性 | 已注入 `rootwait rw` 防线 |
-            
-            --- 
+            - 内核版本: ${{ github.event.inputs.kernel_version || '7.0' }}
+            - 挂载特性: 已注入 `rootwait rw` 防线 (解决挂载重启黑屏)
             
             ### 📦 包含文件
-            - `boot_sheng_dualboot.img` : 直接用 fastboot 刷入 boot 分区
-            - `sheng-modules.tar.gz` : Arch RootFS 自动化注入依赖包
+            - `linux-xiaomi-sheng.deb` (含模块与基础内核)
+            - `firmware-xiaomi-sheng.deb`
+            - `alsa-xiaomi-sheng.deb`
+            - `boot_sheng_dualboot.img`
+            - `boot_sheng_singleboot.img`
           draft: false
           prerelease: false
           files: |
-            out_arch/boot_sheng_dualboot.img
-            out_arch/sheng-modules.tar.gz
+            *.deb
+            *.img
           generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
