@@ -67,18 +67,13 @@ chroot rootdir pacman -Syu --noconfirm base kmod glibc systemd sudo vim wget cur
 
 echo "🔨 正在扫描并注入本地内核与系统固件包..."
 
-# 🚨 处理所有的 .deb 包 (底层修复：解决 Debian 与 Arch 的目录软链接冲突)
+# 🚨 终极修复：使用 tar 的软链接保护机制完美合并 Debian 与 Arch 目录树
 if ls *.deb 1> /dev/null 2>&1; then
-    mkdir -p rootdir/tmp/deb_ext
     for pkg in *.deb; do
         echo "   -> 正在安全提取 $pkg ..."
-        # 1. 先将 deb 释放到沙盒临时目录
-        dpkg-deb -x "$pkg" rootdir/tmp/deb_ext/
+        # 将 deb 转化为 tar 数据流，利用 --keep-directory-symlink 精准注入
+        dpkg-deb --fsys-tarfile "$pkg" | tar -x --keep-directory-symlink -C rootdir/
     done
-    # 2. 使用 cp -a 合并内容，这能完美识别并遵循 Arch 的 /lib 等软链接，不会覆盖系统架构
-    echo "   -> 正在将解压的包无损合并到文件系统中..."
-    cp -a rootdir/tmp/deb_ext/. rootdir/
-    rm -rf rootdir/tmp/deb_ext
     
     echo "   正在更新内核模块依赖..."
     # 为防环境变量失效，使用绝对路径调用 depmod
@@ -95,7 +90,7 @@ fi
 if ls *.tar.gz 1> /dev/null 2>&1; then
     for tarball in *.tar.gz; do
         echo "   -> 正在解压系统包 $tarball ..."
-        # 使用 --keep-directory-symlink 保护 Arch 原生系统软链接
+        # 同样使用 --keep-directory-symlink 保护 Arch 原生系统软链接
         tar -xz --keep-directory-symlink -f "$tarball" -C rootdir/
     done
 fi
