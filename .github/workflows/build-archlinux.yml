@@ -58,7 +58,7 @@ jobs:
             ---
             
             ### 📦 镜像文件
-            构建完成后将出现在下方附件中。
+            构建完成后将出现在下方附件中。解压后请直接使用 fastboot flash 刷入。
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,7 +71,8 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Install build tools
-        run: sudo apt update && sudo apt install -y libarchive-tools p7zip-full curl wget
+        # 🚨 加入 android-tools-fsutils 以便在打包前进行稀疏镜像转换
+        run: sudo apt update && sudo apt install -y libarchive-tools p7zip-full curl wget android-tools-fsutils
 
       - name: Download kernel and system bundles
         run: |
