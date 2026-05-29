@@ -55,10 +55,24 @@ chroot rootdir pacman-key --populate archlinuxarm
 echo "📦 正在更新系统并安装基础组件..."
 chroot rootdir pacman -Syu --noconfirm systemd sudo vim wget curl networkmanager wpa_supplicant dbus
 
-if ls *.pkg.tar.* 1> /dev/null 2>&1; then
-    echo "🔨 发现本地内核/构建包，正在安装..."
-    cp *.pkg.tar.* rootdir/tmp/
-    chroot rootdir bash -c "pacman -U --noconfirm /tmp/*.pkg.tar.* || true"
+# 修复点：强制解压 Debian 内核 .deb 包到 Arch rootfs 中
+if ls *.deb 1> /dev/null 2>&1; then
+    echo "🔨 发现 Debian 内核包 (.deb)，正在将其强制提取到 Arch rootfs 中..."
+    
+    for deb in *.deb; do
+        echo "   正在提取 $deb ..."
+        dpkg-deb -x "$deb" rootdir/
+    done
+    
+    echo "   正在更新内核模块依赖..."
+    # 自动获取 /lib/modules 下的内核版本目录名并运行 depmod
+    KERNEL_MODULE_DIR=$(ls rootdir/lib/modules/ | head -n 1)
+    if [ -n "$KERNEL_MODULE_DIR" ]; then
+        echo "   发现内核版本: $KERNEL_MODULE_DIR"
+        chroot rootdir depmod -a "$KERNEL_MODULE_DIR" || true
+    else
+        echo "   ⚠️ 未能在 /lib/modules/ 中找到内核模块目录，请检查 deb 包内容。"
+    fi
 fi
 
 # 🌐 语言环境初始化
@@ -76,7 +90,7 @@ echo "arch-sheng" > rootdir/etc/hostname
 echo "🖥️ 正在安装 GNOME 桌面环境..."
 chroot rootdir pacman -S --noconfirm gnome gdm
 
-# 创建普通用户并分配合规的硬件访问权限组 (Arch 习惯使用 wheel 组进行提权)
+# 创建普通用户并分配合规的硬件访问权限组
 chroot rootdir useradd -m -s /bin/bash luser
 chroot rootdir bash -c "echo 'luser:luser' | chpasswd"
 chroot rootdir usermod -aG wheel,audio,video,input luser
@@ -97,7 +111,7 @@ ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
 mkdir -p rootdir/etc/udev/rules.d/
 printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"\n' > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules
 
-# GDM 自动登录配置 (Arch 中 GDM 配置文件路径不同于 Debian)
+# GDM 自动登录配置
 mkdir -p rootdir/etc/gdm
 printf "[daemon]\nAutomaticLoginEnable=True\nAutomaticLogin=luser\n" > rootdir/etc/gdm/custom.conf
 chroot rootdir systemctl enable gdm
@@ -110,7 +124,6 @@ printf "PARTLABEL=linux / ext4 defaults,noatime 0 1\n" > rootdir/etc/fstab
 
 # 清理构建缓存
 chroot rootdir pacman -Scc --noconfirm
-chroot rootdir rm -rf /tmp/*.pkg.tar.*
 
 # 卸载与清理
 umount rootdir/dev/pts || true
