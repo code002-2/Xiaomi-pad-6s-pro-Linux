@@ -1,90 +1,116 @@
-name: 🐧 构建Arch linux rootfs (测试 酌情使用)
+name: 🌀 Build Arch Linux Desktop (Gnome)
 
 on:
   workflow_dispatch:
     inputs:
       kernel_version:
-        description: '内核版本（对应 Debian kernel-bundle 标签，如 7.0）'
+        description: '内核版本 (如 7.0)'
         required: true
         default: '7.0'
-      build_type:
-        description: '构建类型'
-        type: choice
-        options:
-          - all
-          - server-only
-          - desktop-only
-        default: 'all'
       skip_release:
-        description: '跳过创建 GitHub Release'
+        description: '跳过创建GitHub Release'
         type: boolean
         default: false
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: write
 
 jobs:
-  build-server:
-    name: Build Arch Linux Server (with firmware)
+  prepare-release:
     runs-on: ubuntu-24.04-arm
-    if: github.event.inputs.build_type == 'all' || github.event.inputs.build_type == 'server-only'
+    outputs:
+      release_tag: ${{ steps.tag.outputs.release_tag }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y wget p7zip-full dpkg
-      - name: Download Debian kernel bundle
+      - name: Generate release tag
+        id: tag
         run: |
-          gh release download "kernel-bundle-${{ github.event.inputs.kernel_version }}" \
-            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
-          mkdir -p firmware_extract
-          for deb in *.deb; do
-            dpkg-deb -x "$deb" firmware_extract/
-          done
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build Arch Linux RootFS (Server)
-        run: |
-          chmod +x build-archlinux-rootfs.sh
-          sudo ./build-archlinux-rootfs.sh server firmware_extract
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: archlinux-server-with-firmware
-          path: archlinux_server_*.7z
-      - name: Upload to Release
-        if: ${{ !github.event.inputs.skip_release }}
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: archlinux-fw-${{ github.run_number }}
-          files: archlinux_server_*.7z
+          TAG="archlinux-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
 
-  build-desktop:
-    name: Build Arch Linux Desktop (with firmware)
-    runs-on: ubuntu-24.04-arm
-    if: github.event.inputs.build_type == 'all' || github.event.inputs.build_type == 'desktop-only'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y wget p7zip-full dpkg
-      - name: Download Debian kernel bundle
-        run: |
-          gh release download "kernel-bundle-${{ github.event.inputs.kernel_version }}" \
-            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
-          mkdir -p firmware_extract
-          for deb in *.deb; do
-            dpkg-deb -x "$deb" firmware_extract/
-          done
+      - name: Create GitHub Release
+        if: ${{ !github.event.inputs.skip_release }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          name: "Arch Linux Desktop - ${{ steps.tag.outputs.release_tag }}"
+          body: |
+            🌀 Arch Linux ARM Desktop Gnome For SM8550
+            
+            ---
+            
+            ### 📋 构建信息
+            | 项目 | 详情 |
+            |------|------|
+            | 架构 | ARM64 (aarch64) |
+            | 内核版本 | ${{ github.event.inputs.kernel_version || '7.0' }} |
+            | 桌面环境 | GNOME |
+            
+            ---
+            
+            ### 🔐 默认凭据
+            - 普通用户: `luser` / 密码: `luser`
+            - 管理员用户: `root` / 密码: `1234`
+            
+            ---
+            
+            ### 📦 镜像文件
+            构建完成后将出现在下方附件中。
+          draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build Arch Linux RootFS (Desktop)
+
+  build-arch:
+    name: Build Arch Linux Desktop
+    runs-on: ubuntu-24.04-arm
+    needs: prepare-release
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install build tools
+        run: sudo apt update && sudo apt install -y bsdtar p7zip-full curl wget
+
+      - name: Download kernel bundle
         run: |
-          chmod +x build-archlinux-rootfs.sh
-          sudo ./build-archlinux-rootfs.sh desktop firmware_extract
+          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
+          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.0"; fi
+          
+          # Arch Linux 通常打包为 .pkg.tar.zst 或 .pkg.tar.xz
+          gh release download "kernel-bundle-${KERNEL_VER}" \
+            --pattern "*.pkg.tar.*" --repo "${{ github.repository }}" --clobber || true
+          ls -la *.pkg.tar.* || echo "No custom kernel found."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build RootFS
+        id: build
+        run: |
+          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
+          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.0"; fi
+          
+          chmod +x sheng-arch-rootfs_build.sh
+          sudo ./sheng-arch-rootfs_build.sh archlinux ${KERNEL_VER}
+          
+          # 动态捕捉打包生成的 7z 文件
+          SEVEN_Z_FILE=$(ls archlinux_desktop_*.7z | head -1)
+          echo "filename=$(basename "$SEVEN_Z_FILE")" >> $GITHUB_OUTPUT
+          echo "path=$SEVEN_Z_FILE" >> $GITHUB_OUTPUT
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: archlinux-desktop-with-firmware
-          path: archlinux_desktop_*.7z
+          name: archlinux-desktop-gnome
+          path: ${{ steps.build.outputs.path }}
+          retention-days: 7
+
       - name: Upload to Release
         if: ${{ !github.event.inputs.skip_release }}
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: archlinux-fw-${{ github.run_number }}
-          files: archlinux_desktop_*.7z
+          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          files: ${{ steps.build.outputs.path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
