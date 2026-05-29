@@ -3,7 +3,8 @@ set -e
 
 IMAGE_SIZE="8G"
 FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
-ALARM_MIRROR="https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm"
+# 🚨 终极网络修复 1：改用 Arch Linux ARM 全球官方源，避免跨国连接国内清华源导致超时
+ALARM_MIRROR="http://mirror.archlinuxarm.org"
 
 usage() {
     echo "用法: $0 <distro_name> <kernel_version>"
@@ -50,12 +51,15 @@ rm -f rootdir/etc/resolv.conf
 echo "nameserver 8.8.8.8" > rootdir/etc/resolv.conf
 echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
 
-# 配置清华大学 Arch Linux ARM 镜像源
+# 配置 Arch Linux ARM 全球镜像源
 echo "Server = $ALARM_MIRROR/\$arch/\$repo" > rootdir/etc/pacman.d/mirrorlist
 
 # 初始化 pacman 密钥环
 chroot rootdir pacman-key --init
 chroot rootdir pacman-key --populate archlinuxarm
+
+# 🚨 终极网络修复 2：禁用 pacman 的下载超时机制，防止海外节点偶发的网络波动导致构建失败
+sed -i 's/^#DisableDownloadTimeout/DisableDownloadTimeout/' rootdir/etc/pacman.conf
 
 echo "🧹 正在清理 Arch 自带的内核与固件，只为您提供的 Release 包保留空间..."
 # 使用 -Rdd 暴力卸载原生内核和固件，忽略依赖警告
@@ -67,7 +71,7 @@ chroot rootdir pacman -Syu --noconfirm base kmod glibc systemd sudo vim wget cur
 
 echo "🔨 正在扫描并注入本地内核与系统固件包..."
 
-# 🚨 终极修复：使用 tar 的软链接保护机制完美合并 Debian 与 Arch 目录树
+# 使用 tar 的软链接保护机制完美合并 Debian 与 Arch 目录树
 if ls *.deb 1> /dev/null 2>&1; then
     for pkg in *.deb; do
         echo "   -> 正在安全提取 $pkg ..."
