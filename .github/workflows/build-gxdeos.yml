@@ -1,4 +1,4 @@
-name: 🌀 Build GXDE OS (From Official ISO)
+name: 🌀 Build GXDE OS
 
 on:
   workflow_dispatch:
