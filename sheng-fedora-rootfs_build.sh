@@ -51,8 +51,9 @@ echo "nameserver 8.8.8.8" > rootdir/etc/resolv.conf
 echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
 
 echo "📦 正在更新 Fedora 系统并安装基础组件..."
-chroot rootdir dnf -y update --exclude="kernel" --exclude="kernel-core" --exclude="kernel-modules*"
-chroot rootdir dnf -y install --exclude="kernel" --exclude="kernel-core" --exclude="kernel-modules*" \
+# 排除官方内核，避免 dracut 报错并加快速度。加入编译工具。
+chroot rootdir dnf -y update --exclude=kernel*
+chroot rootdir dnf -y install --exclude=kernel* \
     systemd sudo vim wget curl tar xz pciutils findutils \
     NetworkManager wpa_supplicant dialog \
     git gcc make kernel-headers
@@ -61,6 +62,7 @@ echo "🔨 正在从高通官方源码现场编译 qrtr 服务..."
 chroot rootdir bash -c "cd /tmp && git clone https://github.com/linux-msm/qrtr.git && cd qrtr && make prefix=/usr install && rm -rf /tmp/qrtr"
 
 echo "🖥️ 正在安装 GNOME 桌面环境..."
+# 精准命中 GNOME 桌面底层包组
 chroot rootdir dnf -y install @gnome-desktop
 chroot rootdir dnf -y install gdm
 
@@ -105,18 +107,18 @@ printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 
 
 
 # ==========================================
-# 🚨 Fedora 桌面防崩溃与登录修复
+# 🚨 Fedora 桌面防崩溃与登录循环修复
 # ==========================================
-echo "🩹 正在处理 SELinux 权限与 GDM 登录配置..."
+echo "🩹 正在注入 Fedora 专属桌面防崩溃补丁..."
 
-# 1. 彻底禁用 SELinux (防止 Tarball 解压导致的权限标签缺失，解决登录无限循环)
+# 1. 彻底禁用 SELinux (防止登录无限循环)
 mkdir -p rootdir/etc/selinux
 echo "SELINUX=disabled" > rootdir/etc/selinux/config
 echo "SELINUXTYPE=targeted" >> rootdir/etc/selinux/config
 
-# 2. GDM 自动登录配置 (保留原生 Wayland 以获取最佳平板触控体验)
+# 2. GDM 自动登录配置 + 强制回退 X11 (防止高通驱动跑 Wayland 闪退)
 mkdir -p rootdir/etc/gdm
-printf "[daemon]\nAutomaticLoginEnable=True\nAutomaticLogin=luser\n" > rootdir/etc/gdm/custom.conf
+printf "[daemon]\nAutomaticLoginEnable=True\nAutomaticLogin=luser\nWaylandEnable=false\n" > rootdir/etc/gdm/custom.conf
 chroot rootdir systemctl enable gdm
 chroot rootdir systemctl set-default graphical.target
 # ==========================================
