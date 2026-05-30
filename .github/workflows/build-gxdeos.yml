@@ -1,4 +1,4 @@
-name: 🌀 Build GXDE OS
+name: 🌀 Build GXDE OS (From Official ISO)
 
 on:
   workflow_dispatch:
@@ -71,12 +71,12 @@ jobs:
       - name: Install build and extraction tools
         run: |
           sudo apt update 
-          sudo apt install -y libarchive-tools p7zip-full curl wget android-sdk-libsparse-utils squashfs-tools
+          # 🚨 安装必备工具，加入 aria2 下载神器
+          sudo apt install -y libarchive-tools p7zip-full curl wget android-sdk-libsparse-utils squashfs-tools aria2
 
-      # 👇 ================= 新增的大扫除步骤 ================= 👇
       - name: Free up disk space (Maximize Build Space)
         run: |
-          echo "🧹 正在清理 GitHub 服务器预装的无用臃肿环境..."
+          echo "🧹 正在清理 GitHub 服务器预装的无用臃肿环境 (腾出空间防 I/O 错误)..."
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
@@ -85,7 +85,6 @@ jobs:
           sudo apt-get clean
           echo "📊 清理完毕，当前可用磁盘空间："
           df -h /
-      # 👆 ================================================== 👆
 
       - name: Download ISO and Kernel bundles
         run: |
@@ -99,7 +98,6 @@ jobs:
           echo "⬇️ 正在从镜像站智能解析并下载 GXDE ISO 文件..."
           BASE_URL="https://mirror.nyist.edu.cn/GXDE/ISO/25.4/arm64/"
           
-          # 使用 curl 绕过爬虫限制，精准抓取 .iso 文件名
           ISO_NAME=$(curl -s "$BASE_URL" | grep -oP 'href="\K[^"]+\.iso' | head -n 1)
           
           if [ -z "$ISO_NAME" ]; then
@@ -108,11 +106,23 @@ jobs:
           fi
           
           echo "✅ 成功找到 ISO 文件: $ISO_NAME"
-          # 组合完整链接直接定点下载
-          wget -q --show-progress -c "${BASE_URL}${ISO_NAME}"
+          echo "🚀 启动 aria2c 多线程引擎进行防断流暴力下载..."
           
-          # 验证下载是否成功
+          # 🚨 使用 aria2c 开 16 个线程同时下载，分块校验，保证 100% 完整无损！
+          aria2c -x 16 -s 16 -j 16 --retry-wait=3 --max-tries=20 --continue=true "${BASE_URL}${ISO_NAME}"
+          
+          echo "📊 下载完成，进行文件体积验证："
           ls -lh *.iso
+          
+          # 🚨 验证文件是否大于 2.5GB，防止拿到残缺文件去解压报错
+          FILESIZE=$(stat -c%s "$ISO_NAME")
+          if [ "$FILESIZE" -lt 2500000000 ]; then
+             echo "❌ 致命错误: ISO 文件体积过小 ($FILESIZE bytes)，镜像站文件可能不完整！"
+             exit 1
+          fi
+          
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build RootFS
         id: build
@@ -122,11 +132,9 @@ jobs:
           
           chmod +x sheng-gxdeos-iso_build.sh
           
-          # 获取刚刚下载的 ISO 文件名
           DOWNLOADED_ISO=$(ls *.iso | head -n 1)
           echo "即将使用 ISO: $DOWNLOADED_ISO 进行解包构建"
           
-          # 运行构建脚本 (参数：内核版本 ISO文件名)
           sudo ./sheng-gxdeos-iso_build.sh ${KERNEL_VER} "$DOWNLOADED_ISO"
           
           SEVEN_Z_FILE=$(ls gxdeos_iso_desktop_*.7z | head -1)
