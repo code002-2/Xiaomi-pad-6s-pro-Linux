@@ -26,7 +26,7 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 ROOTFS_IMG="kali_${DESKTOP}_desktop_${TIMESTAMP}.img"
 
 echo "=========================================="
-echo "⏳ 开始构建渗透测试版 Kali Linux ARM RootFS"
+echo "⏳ 开始构建渗透测试版 Kali Linux ARM RootFS (防看门狗版)"
 echo "内核版本: $KERNEL | 桌面环境: ${DESKTOP^^}"
 echo "=========================================="
 
@@ -56,17 +56,16 @@ export DEBIAN_FRONTEND=noninteractive
 echo "📦 正在更新 Kali 系统并安装核心组件与 ${DESKTOP^^} 桌面..."
 chroot rootdir apt-get update
 
-# 🌟 核心分流：直接使用官方 qrtr-tools，抛弃源码编译！
-# 🚨 极客急救：在末尾强行加上了 init 包，防止极简底包阉割导致内核死机！
+# 🌟 核心分流：强制加入 udev 和 systemd-sysv 保障底层引导
 if [ "$DESKTOP" == "gnome" ]; then
     chroot rootdir apt-get install -y --no-install-recommends \
         kali-linux-core kali-desktop-gnome gdm3 \
-        systemd sudo vim wget curl tar xz-utils pciutils findutils \
+        systemd systemd-sysv udev sudo vim wget curl tar xz-utils pciutils findutils \
         network-manager wpasupplicant dialog kmod qrtr-tools ca-certificates init
 elif [ "$DESKTOP" == "kde" ]; then
     chroot rootdir apt-get install -y --no-install-recommends \
         kali-linux-core kali-desktop-kde sddm \
-        systemd sudo vim wget curl tar xz-utils pciutils findutils \
+        systemd systemd-sysv udev sudo vim wget curl tar xz-utils pciutils findutils \
         network-manager wpasupplicant dialog kmod qrtr-tools ca-certificates init
 else
     echo "❌ 错误的桌面环境参数: $DESKTOP"
@@ -99,16 +98,19 @@ chroot rootdir usermod -aG sudo,audio,video,input,netdev luser
 echo "%sudo ALL=(ALL:ALL) NOPASSWD: ALL" > rootdir/etc/sudoers.d/sudo-nopasswd
 chmod 440 rootdir/etc/sudoers.d/sudo-nopasswd
 
-
 # ==========================================
-# 🚨 极其关键：欺骗 Android/高通内核，防止因权限瞬间死机重启
+# 🚨 极其关键：防高通看门狗崩溃与内核权限阻断
 # ==========================================
-echo "🩹 彻底禁用 SELinux (骗过高通内核，防止其拒绝执行 init)..."
+echo "🩹 彻底禁用 SELinux (骗过高通内核)..."
 mkdir -p rootdir/etc/selinux
 echo "SELINUX=disabled" > rootdir/etc/selinux/config
 echo "SELINUXTYPE=targeted" >> rootdir/etc/selinux/config
-# ==========================================
 
+echo "🩹 彻底拉黑 ModemManager 和 fwupd (防止扫描导致高通固件崩溃重启)..."
+chroot rootdir systemctl mask ModemManager.service || true
+chroot rootdir systemctl mask fwupd.service || true
+chroot rootdir systemctl mask systemd-networkd-wait-online.service || true
+# ==========================================
 
 echo "🩹 注入底层自愈补丁..."
 ln -sf /lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
