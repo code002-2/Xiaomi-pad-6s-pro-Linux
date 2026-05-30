@@ -83,15 +83,23 @@ jobs:
           gh release download "kernel-bundle-${KERNEL_VER}" \
             --repo "${{ github.repository }}" --clobber || true
             
-          echo "⬇️ 正在从镜像站智能下载 GXDE ISO 文件..."
-          # 使用 wget 递归查找并只下载该目录下的 1 个 ISO 文件
-          wget -r -l1 -nd -A ".iso" https://mirror.nyist.edu.cn/GXDE/ISO/25.4/arm64/
+          echo "⬇️ 正在从镜像站智能解析并下载 GXDE ISO 文件..."
+          BASE_URL="https://mirror.nyist.edu.cn/GXDE/ISO/25.4/arm64/"
+          
+          # 使用 curl 绕过爬虫限制，精准抓取 .iso 文件名
+          ISO_NAME=$(curl -s "$BASE_URL" | grep -oP 'href="\K[^"]+\.iso' | head -n 1)
+          
+          if [ -z "$ISO_NAME" ]; then
+            echo "❌ 无法解析到 ISO 文件名，请检查链接或镜像站状态！"
+            exit 1
+          fi
+          
+          echo "✅ 成功找到 ISO 文件: $ISO_NAME"
+          # 组合完整链接直接定点下载
+          wget -q --show-progress -c "${BASE_URL}${ISO_NAME}"
           
           # 验证下载是否成功
           ls -lh *.iso
-          
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build RootFS
         id: build
