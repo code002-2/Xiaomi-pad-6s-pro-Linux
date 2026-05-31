@@ -27,7 +27,7 @@ ROOTFS_IMG="deepin25_1_0_desktop_${TIMESTAMP}.img"
 
 echo "=========================================="
 echo "⏳ 开始构建最前沿版 Deepin 25.1.0 RootFS"
-echo "🌟 模式: 完整全家桶桌面 + 纯血中文环境 + 智能双底座(Wayland/X11)"
+echo "🌟 模式: 完整全家桶桌面 + 纯血中文环境 + 智能双底座"
 echo "内核版本: $KERNEL"
 echo "=========================================="
 
@@ -80,9 +80,9 @@ chroot rootdir locale-gen zh_CN.UTF-8
 chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
 echo "deepin-sheng" > rootdir/etc/hostname
 
-# 🚨 终极修复：去掉精简参数，强行拉取 Deepin 完整桌面全家桶、Xorg底层与中文字体！
+# 🚨 终极修复：使用必定存在的 core 包，但不加精简参数，让 apt 自动拉取任务栏和壁纸！并且加上双重保险！
 echo "🖥️ 正在拉取 Deepin 完整桌面生态与中文字体..."
-chroot rootdir apt install -y deepin-desktop-environment lightdm xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei
+chroot rootdir bash -c "apt install -y deepin-desktop-environment-core dde-session-shell dde-dock dde-launcher dde-desktop dde-control-center lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei || apt install -y deepin-desktop-environment-core dde-session-shell lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei"
 
 chroot rootdir useradd -m -s /bin/bash luser
 echo "luser:luser" | chroot rootdir chpasswd
