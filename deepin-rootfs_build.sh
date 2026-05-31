@@ -46,7 +46,7 @@ if [ ! -f "/usr/share/debootstrap/scripts/${DEBIAN_SUITE}" ]; then
     ln -sf /usr/share/debootstrap/scripts/sid "/usr/share/debootstrap/scripts/${DEBIAN_SUITE}"
 fi
 
-# 基础系统自举安装 (跳过初期的 GPG 校验，直连官方)
+# 基础系统自举安装 (跳过初期的 GPG 校验, 直连官方)
 debootstrap --no-check-gpg --arch=arm64 "$DEBIAN_SUITE" rootdir "$DEBIAN_MIRROR"
 
 mount --bind /dev rootdir/dev
@@ -57,7 +57,13 @@ mount -t sysfs sys rootdir/sys
 # 写入专属官方源并强制信任 (商业组件和社区组件一并抓取)
 printf "deb [trusted=yes] %s %s main commercial community\n" "$DEBIAN_MIRROR" "$DEBIAN_SUITE" > rootdir/etc/apt/sources.list
 
-cp /etc/resolv.conf rootdir/etc/
+# 🎯 终极网络修复：强制写入全球公共 DNS，彻底解决沙盒内域名解析失败 (Temporary failure resolving) 的问题
+rm -f rootdir/etc/resolv.conf
+echo "nameserver 8.8.8.8" > rootdir/etc/resolv.conf
+echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
+echo "nameserver 114.114.114.114" >> rootdir/etc/resolv.conf
+
+# 更新软件源
 chroot rootdir apt update
 
 # 安装定制的高通内核与驱动包，并自动修复依赖
@@ -75,10 +81,11 @@ chroot rootdir bash -c "echo 'LANG=en_US.UTF-8' > /etc/default/locale"
 chroot rootdir sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
 chroot rootdir locale-gen en_US.UTF-8
 
-# 密码设置
+# 密码设置 (root密码: 1234)
 chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
 echo "deepin-sheng" > rootdir/etc/hostname
 
+# 🎯 终极桌面修复：使用 Deepin 最新的标准包名安装桌面环境，加入双重兜底
 echo "🖥️ 正在拉取 Deepin 官方桌面环境..."
 chroot rootdir bash -c "apt install -y --no-install-recommends deepin-desktop-environment lightdm || apt install -y --no-install-recommends deepin-desktop-environment-core dde-session-shell lightdm"
 
@@ -96,9 +103,11 @@ if [ -f "rootdir/lib/firmware/ath12k/WCN7850/hw2.0/board-2.bin" ]; then
     cp rootdir/lib/firmware/ath12k/WCN7850/hw2.0/board-2.bin rootdir/lib/firmware/ath12k/WCN7850/hw2.0/board.bin
 fi
 
-# 激活 DNS 与触控规则
+# 激活 systemd-resolved 并恢复系统的动态 DNS 解析 (会覆盖掉上面临时写入的 8.8.8.8)
 chroot rootdir systemctl enable systemd-resolved
 ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
+
+# 触控屏幕矩阵校准规则
 mkdir -p rootdir/etc/udev/rules.d/
 printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"\n' > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules
 
@@ -109,10 +118,11 @@ chroot rootdir systemctl enable lightdm
 chroot rootdir systemctl set-default graphical.target
 printf "PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1\n" > rootdir/etc/fstab
 
-# 强制生成引导
+# 强制生成引导镜像
 echo "🔄 强制重新生成 initramfs 引导镜像..."
 chroot rootdir bash -c "update-initramfs -u -k all"
 
+# 清理缓存
 chroot rootdir apt clean
 chroot rootdir rm -rf /tmp/*.deb
 
@@ -130,4 +140,4 @@ echo "🗜️ 正在生成最终 7z 压缩包..."
 7z a "deepin25_1_0_desktop_${TIMESTAMP}.7z" "$ROOTFS_IMG"
 rm -f "$ROOTFS_IMG"
 
-echo "🎉 Deepin 25/23 自动化编译全部圆满成功！"
+echo "🎉 Deepin 25 (Crimson/Beige) 自动化编译全部圆满成功！"
