@@ -27,28 +27,6 @@ jobs:
       - name: 🔄 Update Nix Flake Lock
         run: nix flake update --flake ./nixos-sheng
 
-      - name: 🔍 一次性暴击：批量获取所有哈希值
-        # ✨ 插入的终极魔法脚本：强制连网下载并提取所有包的真实哈希
-        run: |
-          echo "🚀 开始全自动计算剩余所有的真实哈希值..."
-          urls=(
-            "http://ftp.br.debian.org/debian/pool/main/m/mesa/mesa-common-dev_26.0.7-1_arm64.deb"
-            "https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/linux-xiaomi-sheng.deb"
-            "https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/firmware-xiaomi-sheng.deb"
-            "https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/alsa-xiaomi-sheng.deb"
-            "https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/fastrpc_1.0.2-1_arm64.deb"
-            "https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/iio-sensor-proxy_99993.8-6_arm64.deb"
-            "https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/libssc_0.4.2-1_arm64.deb"
-            "https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/sheng-sensors_20240917-1_arm64.deb"
-            "https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/sheng-devauth.deb"
-          )
-          for url in "${urls[@]}"; do
-            echo "📥 正在获取: $url"
-            HASH=$(nix store prefetch-file "$url" --json | jq -r '.hash')
-            echo "✅ 真实哈希: $HASH"
-            echo "---------------------------------------------------"
-          done
-
       - name: 🔨 Build NixOS Tarball
         id: build_nix
         run: nix build ./nixos-sheng#nixosConfigurations.sheng.config.system.build.tarball
