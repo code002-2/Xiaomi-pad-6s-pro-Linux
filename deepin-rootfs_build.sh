@@ -26,7 +26,8 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 ROOTFS_IMG="deepin25_1_0_desktop_${TIMESTAMP}.img"
 
 echo "=========================================="
-echo "⏳ 开始构建最前沿版 Deepin 25.1.0 RootFS (纯血 Wayland 智能探测版)"
+echo "⏳ 开始构建最前沿版 Deepin 25.1.0 RootFS"
+echo "🌟 模式: 纯血 Wayland + X11底层支撑 + 全中文环境"
 echo "内核版本: $KERNEL"
 echo "=========================================="
 
@@ -49,7 +50,7 @@ mount -t sysfs sys rootdir/sys
 
 printf "deb [trusted=yes] %s %s main commercial community\n" "$DEBIAN_MIRROR" "$DEBIAN_SUITE" > rootdir/etc/apt/sources.list
 
-# 强制 DNS
+# 强制 DNS 防断网
 rm -f rootdir/etc/resolv.conf
 echo "nameserver 8.8.8.8" > rootdir/etc/resolv.conf
 echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
@@ -70,16 +71,18 @@ rm -f rootdir/etc/resolv.conf
 echo "nameserver 8.8.8.8" > rootdir/etc/resolv.conf
 echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
 
-chroot rootdir bash -c "echo 'LANG=en_US.UTF-8' > /etc/default/locale"
-chroot rootdir sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
-chroot rootdir locale-gen en_US.UTF-8
+# 🚨 完美中文底座配置
+echo "🇨🇳 正在注入原生中文语言环境..."
+chroot rootdir bash -c "echo 'LANG=zh_CN.UTF-8' > /etc/default/locale"
+chroot rootdir sed -i 's/# zh_CN.UTF-8 UTF-8/zh_CN.UTF-8 UTF-8/' /etc/locale.gen
+chroot rootdir locale-gen zh_CN.UTF-8
 
 chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
 echo "deepin-sheng" > rootdir/etc/hostname
 
-# 🚨 核心修复 1：精准锁定日志中确认存在的包名，不瞎猜了！
-echo "🖥️ 正在拉取 Deepin Wayland 桌面组件..."
-chroot rootdir apt install -y --no-install-recommends deepin-desktop-environment-core dde-session-shell lightdm xwayland deepin-kwin-wayland
+# 🚨 核心图形环境与中文字体（补齐 Xorg 画板，防止方块字）
+echo "🖥️ 正在拉取 Deepin Wayland 组件、Xorg 底层与中文字体库..."
+chroot rootdir apt install -y --no-install-recommends deepin-desktop-environment-core dde-session-shell lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei
 
 chroot rootdir useradd -m -s /bin/bash luser
 echo "luser:luser" | chroot rootdir chpasswd
@@ -108,7 +111,7 @@ export WLR_NO_HARDWARE_CURSORS=1
 EOF
 chmod +x rootdir/etc/profile.d/wayland-force.sh
 
-# 🚨 核心修复 2：智能探测真正的 Wayland 会话代号！
+# 🚨 智能探测真正的 Wayland 会话代号
 mkdir -p rootdir/etc/lightdm/lightdm.conf.d
 cat <<EOF > rootdir/etc/lightdm/lightdm.conf.d/12-autologin.conf
 [Seat:*]
@@ -116,16 +119,15 @@ autologin-user=luser
 autologin-user-timeout=0
 EOF
 
-# 自动去目录里找 .desktop 文件，找到什么填什么
 WAYLAND_SESSION=$(ls rootdir/usr/share/wayland-sessions/*.desktop 2>/dev/null | head -n 1 | awk -F'/' '{print $NF}' | sed 's/\.desktop//' || true)
 
 if [ -n "$WAYLAND_SESSION" ]; then
     echo "user-session=$WAYLAND_SESSION" >> rootdir/etc/lightdm/lightdm.conf.d/12-autologin.conf
     echo "✅ 智能探测成功！检测到 Wayland 会话名为: $WAYLAND_SESSION"
 else
-    # 兜底策略：如果没找到，硬选回 x11 防黑屏
+    # 兜底：如果没找到 Wayland，硬选回 x11
     echo "user-session=dde-x11" >> rootdir/etc/lightdm/lightdm.conf.d/12-autologin.conf
-    echo "⚠️ 警告：未检测到 Wayland 会话，强制回退至 X11 以保证亮屏"
+    echo "⚠️ 警告：未检测到 Wayland 会话，强制回退至 X11"
 fi
 
 chroot rootdir systemctl enable lightdm
@@ -164,4 +166,4 @@ echo "🗜️ 正在生成最终 7z 压缩包..."
 7z a "deepin25_1_0_desktop_${TIMESTAMP}.7z" "$ROOTFS_IMG"
 rm -f "$ROOTFS_IMG"
 
-echo "🎉 Deepin 25 纯血 Wayland 自动化编译全部圆满成功！"
+echo "🎉 终极构建完成！祝一次点亮！"
