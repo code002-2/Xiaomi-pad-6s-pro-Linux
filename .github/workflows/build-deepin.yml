@@ -1,0 +1,100 @@
+name: 🌀 Build Deepin/Debian Desktop (Sheng)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+permissions:
+  contents: write
+
+jobs:
+  build-deepin:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Install Build Tools
+        run: |
+          sudo apt update
+          # 安装 debootstrap(构建根文件系统工具) 以及打包工具
+          sudo apt-get install -y debootstrap e2fsprogs p7zip-full android-sdk-libsparse-utils wget curl
+
+      - name: 📥 Download All Custom .deb Packages
+        run: |
+          mkdir -p custom_debs
+          cd custom_debs
+          echo "⬇️ Downloading drivers, kernels, and firmwares..."
+          wget -q http://ftp.br.debian.org/debian/pool/main/m/mesa/mesa-common-dev_26.0.7-1_arm64.deb
+          wget -q https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/linux-xiaomi-sheng.deb
+          wget -q https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/firmware-xiaomi-sheng.deb
+          wget -q https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/alsa-xiaomi-sheng.deb
+          wget -q https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/fastrpc_1.0.2-1_arm64.deb
+          wget -q https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/iio-sensor-proxy_99993.8-6_arm64.deb
+          wget -q https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/libssc_0.4.2-1_arm64.deb
+          wget -q https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/sheng-sensors_20240917-1_arm64.deb
+          wget -q https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/kernel-bundle-7.0/sheng-devauth.deb
+          cd ..
+
+      - name: 📦 Build Base Rootfs
+        run: |
+          echo "🚀 Bootstrapping Debian Base (ARM64)..."
+          # 注：这里以 Debian bookworm 为底层基础，你刷入后可以直接通过 apt 安装 Deepin 桌面 (dde)
+          # 如果你有专用的 Deepin 根文件系统压缩包，也可以直接用 tar 解压到 rootfs 目录来替代这一步
+          sudo debootstrap --arch=arm64 bookworm rootfs http://deb.debian.org/debian/
+
+      - name: 💉 Inject Custom Drivers into Rootfs
+        run: |
+          echo "🔄 Copying .deb packages into rootfs..."
+          sudo cp -r custom_debs rootfs/tmp/
+
+          echo "⚙️ Chrooting into rootfs to install packages..."
+          # 进入沙盒，安装所有的 deb 包。如果有依赖缺失，自动尝试修复
+          sudo chroot rootfs /bin/bash -c "dpkg -i /tmp/custom_debs/*.deb || apt-get install -f -y"
+
+          echo "🧹 Cleaning up..."
+          sudo rm -rf rootfs/tmp/custom_debs
+
+      - name: 🔧 Apply Device Specific Fixes
+        run: |
+          echo "⚙️ Fixing Qualcomm WiFi Firmware (board-2.bin)..."
+          sudo bash -c '
+            FW_DIR="rootfs/lib/firmware/ath12k/WCN7850/hw2.0"
+            if [ -f "$FW_DIR/board-2.bin" ]; then
+                echo "Found board-2.bin, copying to board.bin..."
+                cp "$FW_DIR/board-2.bin" "$FW_DIR/board.bin"
+            fi
+          '
+
+          echo "👆 Adding Touchscreen Calibration Rules..."
+          sudo mkdir -p rootfs/etc/udev/rules.d/
+          sudo bash -c 'echo "ENV{ID_INPUT_TOUCHSCREEN}==\"1\", ENV{LIBINPUT_CALIBRATION_MATRIX}=\"1 0 0 0 1 0 0 0 1\"" > rootfs/etc/udev/rules.d/99-touchscreen.rules'
+
+      - name: 🗜️ Pack to Ext4 Sparse Image
+        run: |
+          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+          RAW_IMG="deepin_sheng_${TIMESTAMP}.img"
+          SPARSE_IMG="sparse_${RAW_IMG}"
+          
+          echo "💿 Creating 8G raw ext4 image..."
+          truncate -s 8G "$RAW_IMG"
+          # 使用 mke2fs 直接将 rootfs 目录打包进 ext4 镜像 (-d 是神仙参数)
+          sudo mke2fs -t ext4 -O ^has_journal -d rootfs/ "$RAW_IMG" 8G
+          
+          echo "🔄 Converting to fastboot sparse image..."
+          img2simg "$RAW_IMG" "$SPARSE_IMG"
+          
+          echo "📦 Compressing with 7z..."
+          7z a "deepin_sheng_${TIMESTAMP}.7z" "$SPARSE_IMG"
+          
+          echo "FILE_NAME=deepin_sheng_${TIMESTAMP}.7z" >> $GITHUB_ENV
+
+      - name: 🚀 Upload to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "deepin-$(date -u '+%Y%m%d')"
+          files: ${{ env.FILE_NAME }}
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
