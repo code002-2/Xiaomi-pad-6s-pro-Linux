@@ -26,7 +26,7 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 ROOTFS_IMG="deepin25_1_0_desktop_${TIMESTAMP}.img"
 
 echo "=========================================="
-echo "⏳ 开始构建最前沿版 Deepin 25.1.0 RootFS (纯血 Wayland 版)"
+echo "⏳ 开始构建最前沿版 Deepin 25.1.0 RootFS (纯血 Wayland 智能探测版)"
 echo "内核版本: $KERNEL"
 echo "=========================================="
 
@@ -77,9 +77,9 @@ chroot rootdir locale-gen en_US.UTF-8
 chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
 echo "deepin-sheng" > rootdir/etc/hostname
 
-# 🚨 核心修改 1：强行点名安装 Wayland 的全部核心组件！
+# 🚨 核心修复 1：精准锁定日志中确认存在的包名，不瞎猜了！
 echo "🖥️ 正在拉取 Deepin Wayland 桌面组件..."
-chroot rootdir bash -c "apt install -y --no-install-recommends deepin-desktop-environment lightdm xwayland deepin-kwin-wayland || apt install -y --no-install-recommends deepin-desktop-environment-core dde-session-shell lightdm xwayland deepin-kwin-wayland dde-wayland"
+chroot rootdir apt install -y --no-install-recommends deepin-desktop-environment-core dde-session-shell lightdm xwayland deepin-kwin-wayland
 
 chroot rootdir useradd -m -s /bin/bash luser
 echo "luser:luser" | chroot rootdir chpasswd
@@ -98,7 +98,7 @@ ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
 mkdir -p rootdir/etc/udev/rules.d/
 printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"\n' > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules
 
-# ================= 🌌 纯血 Wayland 环境注入 =================
+# ================= 🌌 纯血 Wayland 智能配置 =================
 echo "🌌 配置全局 Wayland 渲染引擎..."
 cat <<EOF > rootdir/etc/profile.d/wayland-force.sh
 export XDG_SESSION_TYPE=wayland
@@ -108,14 +108,25 @@ export WLR_NO_HARDWARE_CURSORS=1
 EOF
 chmod +x rootdir/etc/profile.d/wayland-force.sh
 
-# 🚨 核心修改 2：配置自动登录进入 dde-wayland 会话
+# 🚨 核心修复 2：智能探测真正的 Wayland 会话代号！
 mkdir -p rootdir/etc/lightdm/lightdm.conf.d
 cat <<EOF > rootdir/etc/lightdm/lightdm.conf.d/12-autologin.conf
 [Seat:*]
 autologin-user=luser
 autologin-user-timeout=0
-user-session=dde-wayland
 EOF
+
+# 自动去目录里找 .desktop 文件，找到什么填什么
+WAYLAND_SESSION=$(ls rootdir/usr/share/wayland-sessions/*.desktop 2>/dev/null | head -n 1 | awk -F'/' '{print $NF}' | sed 's/\.desktop//' || true)
+
+if [ -n "$WAYLAND_SESSION" ]; then
+    echo "user-session=$WAYLAND_SESSION" >> rootdir/etc/lightdm/lightdm.conf.d/12-autologin.conf
+    echo "✅ 智能探测成功！检测到 Wayland 会话名为: $WAYLAND_SESSION"
+else
+    # 兜底策略：如果没找到，硬选回 x11 防黑屏
+    echo "user-session=dde-x11" >> rootdir/etc/lightdm/lightdm.conf.d/12-autologin.conf
+    echo "⚠️ 警告：未检测到 Wayland 会话，强制回退至 X11 以保证亮屏"
+fi
 
 chroot rootdir systemctl enable lightdm
 chroot rootdir systemctl set-default graphical.target
@@ -125,7 +136,7 @@ chroot rootdir systemctl mask deepin-login-sound.service || true
 chroot rootdir systemctl mask deepin-login-sound-service.service || true
 chroot rootdir bash -c "sed -i 's/quiet splash//g' /etc/default/grub" 2>/dev/null || true
 
-# 强制在 initramfs 极早期加载高通显示驱动 (KMS)，这是 Wayland 顺畅运行的基石！
+# 强制在 initramfs 极早期加载高通显示驱动 (KMS)
 echo "msm" >> rootdir/etc/initramfs-tools/modules
 echo "gpu_sched" >> rootdir/etc/initramfs-tools/modules
 echo "panel_edp" >> rootdir/etc/initramfs-tools/modules
