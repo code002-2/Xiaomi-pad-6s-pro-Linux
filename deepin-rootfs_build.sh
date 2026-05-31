@@ -27,7 +27,7 @@ ROOTFS_IMG="deepin25_1_0_desktop_${TIMESTAMP}.img"
 
 echo "=========================================="
 echo "⏳ 开始构建最前沿版 Deepin 25.1.0 RootFS"
-echo "🌟 模式: 完整全家桶桌面 + 纯血中文环境 + 智能双底座"
+echo "🌟 模式: 完整全家桶桌面 + 纯血中文环境 + 指定上游 Mesa 注入"
 echo "内核版本: $KERNEL"
 echo "=========================================="
 
@@ -71,7 +71,7 @@ rm -f rootdir/etc/resolv.conf
 echo "nameserver 8.8.8.8" > rootdir/etc/resolv.conf
 echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
 
-# 🚨 完美中文底座配置
+# 完美中文底座配置
 echo "🇨🇳 正在注入原生中文语言环境..."
 chroot rootdir bash -c "echo 'LANG=zh_CN.UTF-8' > /etc/default/locale"
 chroot rootdir sed -i 's/# zh_CN.UTF-8 UTF-8/zh_CN.UTF-8 UTF-8/' /etc/locale.gen
@@ -80,9 +80,18 @@ chroot rootdir locale-gen zh_CN.UTF-8
 chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
 echo "deepin-sheng" > rootdir/etc/hostname
 
-# 🚨 终极修复：使用必定存在的 core 包，但不加精简参数，让 apt 自动拉取任务栏和壁纸！并且加上双重保险！
+# 🚨 使用 core 包拉取完整桌面生态
 echo "🖥️ 正在拉取 Deepin 完整桌面生态与中文字体..."
 chroot rootdir bash -c "apt install -y deepin-desktop-environment-core dde-session-shell dde-dock dde-launcher dde-desktop dde-control-center lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei || apt install -y deepin-desktop-environment-core dde-session-shell lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei"
+
+# 🎮 注入高通专有 GPU 固件与基础 Mesa 3D 运行时
+echo "🎮 正在注入骁龙 Adreno GPU 固件与基础 3D 图形栈..."
+chroot rootdir apt install -y firmware-qcom libgl1-mesa-dri libglx-mesa0 libegl-mesa0 mesa-vulkan-drivers mesa-utils
+
+# 🔗 注入用户指定的 Debian 官方最新 Mesa 包
+echo "📥 正在拉取并注入指定的外部 Mesa 包..."
+wget -qO rootdir/tmp/mesa-common-dev.deb "http://ftp.us.debian.org/debian/pool/main/m/mesa/mesa-common-dev_26.0.8-1_arm64.deb"
+chroot rootdir bash -c "apt install -y /tmp/mesa-common-dev.deb || apt-get install -f -y"
 
 chroot rootdir useradd -m -s /bin/bash luser
 echo "luser:luser" | chroot rootdir chpasswd
@@ -111,7 +120,6 @@ export WLR_NO_HARDWARE_CURSORS=1
 EOF
 chmod +x rootdir/etc/profile.d/wayland-force.sh
 
-# 智能探测真正的会话代号
 mkdir -p rootdir/etc/lightdm/lightdm.conf.d
 cat <<EOF > rootdir/etc/lightdm/lightdm.conf.d/12-autologin.conf
 [Seat:*]
@@ -125,7 +133,6 @@ if [ -n "$WAYLAND_SESSION" ]; then
     echo "user-session=$WAYLAND_SESSION" >> rootdir/etc/lightdm/lightdm.conf.d/12-autologin.conf
     echo "✅ 智能探测成功！检测到 Wayland 会话名为: $WAYLAND_SESSION"
 else
-    # 兜底：如果没找到 Wayland，硬选回 x11
     echo "user-session=dde-x11" >> rootdir/etc/lightdm/lightdm.conf.d/12-autologin.conf
     echo "⚠️ 警告：未检测到 Wayland 会话，强制回退至 X11 保证亮屏"
 fi
@@ -133,7 +140,6 @@ fi
 chroot rootdir systemctl enable lightdm
 chroot rootdir systemctl set-default graphical.target
 
-# 禁用易引发卡死的周边服务
 chroot rootdir systemctl mask deepin-login-sound.service || true
 chroot rootdir systemctl mask deepin-login-sound-service.service || true
 chroot rootdir bash -c "sed -i 's/quiet splash//g' /etc/default/grub" 2>/dev/null || true
@@ -166,4 +172,4 @@ echo "🗜️ 正在生成最终 7z 压缩包..."
 7z a "deepin25_1_0_desktop_${TIMESTAMP}.7z" "$ROOTFS_IMG"
 rm -f "$ROOTFS_IMG"
 
-echo "🎉 终极全包版构建完成！坐等进桌面！"
+echo "🎉 终极全包版（含指定上游 Mesa）构建完成！"
