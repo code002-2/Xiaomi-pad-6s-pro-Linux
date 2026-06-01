@@ -27,7 +27,7 @@ ROOTFS_IMG="deepin25_1_0_desktop_${TIMESTAMP}.img"
 
 echo "=========================================="
 echo "⏳ 开始构建最前沿版 Deepin 25.1.0 RootFS"
-echo "🌟 模式: 完整全家桶桌面 + Kernel官方上游固件级注入 + 外部Mesa"
+echo "🌟 模式: 完整桌面 + Kernel上游固件 + Debian Sid 最新 Mesa 3D驱动"
 echo "内核版本: $KERNEL"
 echo "=========================================="
 
@@ -84,26 +84,26 @@ echo "deepin-sheng" > rootdir/etc/hostname
 echo "🖥️ 正在拉取 Deepin 完整桌面生态与中文字体..."
 chroot rootdir bash -c "apt install -y deepin-desktop-environment-core dde-session-shell dde-dock dde-launcher dde-desktop dde-control-center lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei || apt install -y deepin-desktop-environment-core dde-session-shell lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei"
 
-# 🎮 仅拉取 3D 图形栈基础库（去掉了找不到的 firmware-qcom）
-echo "🎮 正在注入 3D 图形栈基础库..."
-chroot rootdir apt install -y libgl1-mesa-dri libglx-mesa0 libegl-mesa0 mesa-vulkan-drivers mesa-utils
-
-# 🚀 [核弹级修复] 直接从 Kernel.org 官方源码树拉取最新的骁龙闭源固件！
+# 🚀 [立大功的核弹级修复] 提取骁龙专属闭源固件 (事实证明这个已经成功唤醒了你的GPU！)
 echo "📥 正在从 Kernel.org 上游提取骁龙 8 Gen 2 (sm8550) 专属闭源固件..."
 mkdir -p rootdir/tmp/linux-fw
-# 使用 git sparse-checkout 极速拉取，只下载 qcom 目录，既快又稳！
 git clone --depth 1 --filter=blob:none --sparse https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git rootdir/tmp/linux-fw
 git -C rootdir/tmp/linux-fw sparse-checkout set qcom
 mkdir -p rootdir/lib/firmware/
-# 必须用 cp -a 保留里面的软链接
 cp -a rootdir/tmp/linux-fw/qcom rootdir/lib/firmware/
 rm -rf rootdir/tmp/linux-fw
 echo "✅ 骁龙核心固件注入完成！"
 
-# 🔗 注入用户指定的 Debian 官方最新 Mesa 包
-echo "📥 正在拉取并注入指定的外部 Mesa 包..."
-wget -qO rootdir/tmp/mesa-common-dev.deb "http://ftp.us.debian.org/debian/pool/main/m/mesa/mesa-common-dev_26.0.8-1_arm64.deb"
-chroot rootdir bash -c "apt install -y /tmp/mesa-common-dev.deb || apt-get install -f -y"
+# 🚀 [终极杀招] 临时跨源拉取 Debian Sid (不稳定版) 的最新 Mesa 驱动
+echo "📥 正在跨源拉取最新版 Mesa 3D 图形栈，以点亮 Adreno 740..."
+echo "deb http://deb.debian.org/debian sid main" > rootdir/etc/apt/sources.list.d/sid.list
+chroot rootdir apt update
+# 强制使用 -t sid 安装最新的显卡驱动和 Vulkan 支持
+chroot rootdir apt install -y -t sid libgl1-mesa-dri libglx-mesa0 libegl-mesa0 mesa-vulkan-drivers mesa-utils
+# 拔树寻根：用完立刻删掉 sid 源，防止后续 apt upgrade 搞崩 Deepin
+rm -f rootdir/etc/apt/sources.list.d/sid.list
+chroot rootdir apt update
+echo "✅ 满血版 Mesa 3D 驱动注入完毕！"
 
 chroot rootdir useradd -m -s /bin/bash luser
 echo "luser:luser" | chroot rootdir chpasswd
@@ -184,4 +184,4 @@ echo "🗜️ 正在生成最终 7z 压缩包..."
 7z a "deepin25_1_0_desktop_${TIMESTAMP}.7z" "$ROOTFS_IMG"
 rm -f "$ROOTFS_IMG"
 
-echo "🎉 终极全包版（含Kernel上游固件+外部Mesa）构建完成！"
+echo "🎉 终极满血 3D 硬件加速版构建完成！"
