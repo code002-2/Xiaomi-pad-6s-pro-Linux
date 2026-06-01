@@ -27,7 +27,7 @@ ROOTFS_IMG="deepin25_1_0_desktop_${TIMESTAMP}.img"
 
 echo "=========================================="
 echo "⏳ 开始构建最前沿版 Deepin 25.1.0 RootFS"
-echo "🌟 模式: 完整桌面 + Kernel上游固件 + Debian Sid 最新 Mesa 3D驱动"
+echo "🌟 模式: 纯血完整桌面 + Kernel 官方上游固件级注入 (放弃高危跨源)"
 echo "内核版本: $KERNEL"
 echo "=========================================="
 
@@ -48,7 +48,6 @@ mount --bind /dev/pts rootdir/dev/pts
 mount -t proc proc rootdir/proc
 mount -t sysfs sys rootdir/sys
 
-# 主源也使用了 trusted=yes
 printf "deb [trusted=yes] %s %s main commercial community\n" "$DEBIAN_MIRROR" "$DEBIAN_SUITE" > rootdir/etc/apt/sources.list
 
 # 强制 DNS 防断网
@@ -81,11 +80,11 @@ chroot rootdir locale-gen zh_CN.UTF-8
 chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
 echo "deepin-sheng" > rootdir/etc/hostname
 
-# 🚨 使用 core 包拉取完整桌面生态
-echo "🖥️ 正在拉取 Deepin 完整桌面生态与中文字体..."
-chroot rootdir bash -c "apt install -y deepin-desktop-environment-core dde-session-shell dde-dock dde-launcher dde-desktop dde-control-center lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei || apt install -y deepin-desktop-environment-core dde-session-shell lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei"
+# 🚨 强行拉取 Deepin 原生 Mesa 驱动和完整桌面生态
+echo "🖥️ 正在拉取 Deepin 原生完整桌面生态与 3D 驱动..."
+chroot rootdir bash -c "apt install -y deepin-desktop-environment-core dde-session-shell dde-dock dde-launcher dde-desktop dde-control-center lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei libgl1-mesa-dri libglx-mesa0 libegl-mesa0 mesa-vulkan-drivers mesa-utils || apt install -y deepin-desktop-environment-core dde-session-shell lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei libgl1-mesa-dri libglx-mesa0 libegl-mesa0 mesa-vulkan-drivers mesa-utils"
 
-# 🚀 [立大功的核弹级修复] 提取骁龙专属闭源固件
+# 🚀 [保留大功臣] 提取骁龙专属闭源固件，补齐 Deepin 的短板！
 echo "📥 正在从 Kernel.org 上游提取骁龙 8 Gen 2 (sm8550) 专属闭源固件..."
 mkdir -p rootdir/tmp/linux-fw
 git clone --depth 1 --filter=blob:none --sparse https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git rootdir/tmp/linux-fw
@@ -94,18 +93,6 @@ mkdir -p rootdir/lib/firmware/
 cp -a rootdir/tmp/linux-fw/qcom rootdir/lib/firmware/
 rm -rf rootdir/tmp/linux-fw
 echo "✅ 骁龙核心固件注入完成！"
-
-# 🚀 [终极杀招修正] 临时跨源拉取 Debian Sid，强制信任！
-echo "📥 正在跨源拉取最新版 Mesa 3D 图形栈，以点亮 Adreno 740..."
-# 🚨 关键修复：加入 [trusted=yes] 强行绕过 GPG 密钥检查
-echo "deb [trusted=yes] http://deb.debian.org/debian sid main" > rootdir/etc/apt/sources.list.d/sid.list
-chroot rootdir apt update
-# 强制使用 -t sid 安装最新的显卡驱动
-chroot rootdir apt install -y -t sid libgl1-mesa-dri libglx-mesa0 libegl-mesa0 mesa-vulkan-drivers mesa-utils
-# 拔树寻根：用完立刻删掉 sid 源，防止后续 apt upgrade 搞崩 Deepin
-rm -f rootdir/etc/apt/sources.list.d/sid.list
-chroot rootdir apt update
-echo "✅ 满血版 Mesa 3D 驱动注入完毕！"
 
 chroot rootdir useradd -m -s /bin/bash luser
 echo "luser:luser" | chroot rootdir chpasswd
@@ -186,4 +173,4 @@ echo "🗜️ 正在生成最终 7z 压缩包..."
 7z a "deepin25_1_0_desktop_${TIMESTAMP}.7z" "$ROOTFS_IMG"
 rm -f "$ROOTFS_IMG"
 
-echo "🎉 终极满血 3D 硬件加速版构建完成！"
+echo "🎉 纯血 Deepin 固件修复版构建完成！"
