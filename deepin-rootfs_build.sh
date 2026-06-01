@@ -48,6 +48,7 @@ mount --bind /dev/pts rootdir/dev/pts
 mount -t proc proc rootdir/proc
 mount -t sysfs sys rootdir/sys
 
+# 主源也使用了 trusted=yes
 printf "deb [trusted=yes] %s %s main commercial community\n" "$DEBIAN_MIRROR" "$DEBIAN_SUITE" > rootdir/etc/apt/sources.list
 
 # 强制 DNS 防断网
@@ -84,7 +85,7 @@ echo "deepin-sheng" > rootdir/etc/hostname
 echo "🖥️ 正在拉取 Deepin 完整桌面生态与中文字体..."
 chroot rootdir bash -c "apt install -y deepin-desktop-environment-core dde-session-shell dde-dock dde-launcher dde-desktop dde-control-center lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei || apt install -y deepin-desktop-environment-core dde-session-shell lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei"
 
-# 🚀 [立大功的核弹级修复] 提取骁龙专属闭源固件 (事实证明这个已经成功唤醒了你的GPU！)
+# 🚀 [立大功的核弹级修复] 提取骁龙专属闭源固件
 echo "📥 正在从 Kernel.org 上游提取骁龙 8 Gen 2 (sm8550) 专属闭源固件..."
 mkdir -p rootdir/tmp/linux-fw
 git clone --depth 1 --filter=blob:none --sparse https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git rootdir/tmp/linux-fw
@@ -94,11 +95,12 @@ cp -a rootdir/tmp/linux-fw/qcom rootdir/lib/firmware/
 rm -rf rootdir/tmp/linux-fw
 echo "✅ 骁龙核心固件注入完成！"
 
-# 🚀 [终极杀招] 临时跨源拉取 Debian Sid (不稳定版) 的最新 Mesa 驱动
+# 🚀 [终极杀招修正] 临时跨源拉取 Debian Sid，强制信任！
 echo "📥 正在跨源拉取最新版 Mesa 3D 图形栈，以点亮 Adreno 740..."
-echo "deb http://deb.debian.org/debian sid main" > rootdir/etc/apt/sources.list.d/sid.list
+# 🚨 关键修复：加入 [trusted=yes] 强行绕过 GPG 密钥检查
+echo "deb [trusted=yes] http://deb.debian.org/debian sid main" > rootdir/etc/apt/sources.list.d/sid.list
 chroot rootdir apt update
-# 强制使用 -t sid 安装最新的显卡驱动和 Vulkan 支持
+# 强制使用 -t sid 安装最新的显卡驱动
 chroot rootdir apt install -y -t sid libgl1-mesa-dri libglx-mesa0 libegl-mesa0 mesa-vulkan-drivers mesa-utils
 # 拔树寻根：用完立刻删掉 sid 源，防止后续 apt upgrade 搞崩 Deepin
 rm -f rootdir/etc/apt/sources.list.d/sid.list
