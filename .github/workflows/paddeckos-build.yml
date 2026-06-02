@@ -1,0 +1,108 @@
+name: 🎮 Build PadDeck OS
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_version:
+        description: '内核版本 (如 7.0)'
+        required: true
+        default: '7.0'
+      skip_release:
+        description: '跳过创建GitHub Release'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      release_tag: ${{ steps.tag.outputs.release_tag }}
+    steps:
+      - name: Generate release tag
+        id: tag
+        run: |
+          TAG="paddeck-os-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        if: ${{ !github.event.inputs.skip_release }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          name: "PadDeck OS - ${{ steps.tag.outputs.release_tag }}"
+          body: |
+            🎮 **PadDeck OS For Xiaomi Pad 6S Pro (SM8550)**
+            
+            开机直达 Steam 大屏幕模式的掌机系统。
+            已预载 Steam 原生 ARM64 客户端与 Proton 11 ARM64 兼容层。
+            
+            ---
+            
+            ### 📋 构建信息
+            | 项目 | 详情 |
+            |------|------|
+            | 架构 | ARM64 |
+            | 内核版本 | ${{ github.event.inputs.kernel_version || '7.0' }} |
+            | 核心驱动 | Gamescope + Turnip Vulkan |
+            
+            ---
+            
+            ### 🔐 默认凭据
+            - 玩家用户: `luser` / 密码: `luser`
+            - 管理员: `root` / 密码: `1234`
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-paddeck:
+    name: Build PadDeck OS
+    runs-on: ubuntu-24.04-arm
+    needs: prepare-release
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install build tools
+        run: sudo apt update && sudo apt install -y debootstrap p7zip-full curl git
+
+      - name: Download kernel bundle
+        run: |
+          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
+          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.0"; fi
+          
+          gh release download "kernel-bundle-${KERNEL_VER}" \
+            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
+          ls -la *.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build RootFS
+        id: build
+        run: |
+          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
+          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.0"; fi
+          
+          chmod +x paddeck-rootfs_build.sh
+          sudo ./paddeck-rootfs_build.sh paddeck ${KERNEL_VER}
+          
+          SEVEN_Z_FILE=$(ls paddeck_os_sm8550_*.7z | head -1)
+          echo "filename=$(basename "$SEVEN_Z_FILE")" >> $GITHUB_OUTPUT
+          echo "path=$SEVEN_Z_FILE" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: paddeck-os-image
+          path: ${{ steps.build.outputs.path }}
+          retention-days: 7
+
+      - name: Upload to Release
+        if: ${{ !github.event.inputs.skip_release }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          files: ${{ steps.build.outputs.path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
