@@ -47,7 +47,7 @@ printf "deb %s %s main contrib non-free non-free-firmware\n" "$DEBIAN_MIRROR" "$
 printf "deb %s %s-updates main contrib non-free non-free-firmware\n" "$DEBIAN_MIRROR" "$DEBIAN_SUITE" >> rootdir/etc/apt/sources.list
 chroot rootdir apt update
 
-# 🚨 极度精简：只拉取 Wayland 核心组件 (Sway), 确保依赖干净
+# 🚨 精准拉取依赖：加入 Sway, Xwayland 和 Greetd
 chroot rootdir apt install -y --no-install-recommends \
     systemd systemd-resolved sudo vim-tiny wget curl network-manager wpasupplicant dbus locales git 7zip unzip tar \
     libsdl2-2.0-0 libsdl2-mixer-2.0-0 libvpx9 steam-devices joystick python3-pyqt5 \
@@ -70,16 +70,16 @@ cp -a rootdir/tmp/linux-fw/qcom rootdir/lib/firmware/
 rm -rf rootdir/tmp/linux-fw
 
 # ================= 🚨 硬件补丁区 =================
-echo "🔧 正在注入小米 Pad 6S Pro Wi-Fi 修复补丁..."
+echo "🔧 正在注入小米 Pad 6S ProWi-Fi 修复补丁..."
 wget -qO rootdir/tmp/firmware-sheng-wififix.deb "https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/fix/firmware-sheng-wififix.deb"
 chroot rootdir apt install -y /tmp/firmware-sheng-wififix.deb
 echo "✅ Wi-Fi 补丁安装完毕！"
 # =================================================
 
-# 创建玩家账户
+# 创建玩家账户 (🚨已修复权限组，移除不存在的 seat 组)
 chroot rootdir useradd -m -s /bin/bash luser
 echo "luser:luser" | chroot rootdir chpasswd
-chroot rootdir usermod -aG sudo,audio,video,render,input,seat,video luser
+chroot rootdir usermod -aG sudo,audio,video,render,input luser
 
 # ================= 🚨 Steam ARM64 原生注入区 =================
 echo "🚀 正在植入 Valve 官方 ARM64 Steam 客户端..."
@@ -91,7 +91,6 @@ mkdir -p rootdir/home/luser/.local/share/Steam/compatibilitytools.d
 mkdir -p rootdir/home/luser/.steam
 mkdir -p rootdir/home/luser/.config/MangoHud
 
-# 📊 注入 Steam Deck 风格的性能浮窗配置
 cat <<EOF > rootdir/home/luser/.config/MangoHud/MangoHud.conf
 legacy_layout=false
 horizontal
@@ -124,10 +123,10 @@ chroot rootdir chown -R luser:luser /home/luser/.steam
 chroot rootdir chown -R luser:luser /home/luser/.config
 # ==============================================================
 
-# ================= 🚀 OOBE 与 Sway 容器配置区 =================
-echo "🎨 正在注入 PadDeck OS 引导与 Sway 容器..."
+# ================= 🚀 OOBE 与 双轨混合容器配置区 =================
+echo "🎨 正在注入 PadDeck OS 引导与 Sway 双轨容器..."
 
-# 1. 写入 Python 激活界面脚本 (代码逻辑不变)
+# 1. 写入 Python 激活界面脚本 (代码不变，纯 Wayland 原生运行)
 cat << 'EOF' > rootdir/usr/local/bin/paddeck-oobe.py
 #!/usr/bin/env python3
 import sys, os, subprocess
@@ -137,14 +136,13 @@ from PyQt5.QtCore import Qt
 class PadDeckOOBE(QWidget):
     def __init__(self):
         super().__init__()
-        # 在 Sway 环境下，FramelessWindowHint 能让它完美作为独立平铺窗口显示
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.showFullScreen()
         self.setStyleSheet("background-color: #1a1a1a; color: white; font-size: 18px;")
         
         self.stack = QStackedWidget(self)
         
-        # 页面 1: Wi-Fi 连接
+        # 页面 1: Wi-Fi
         self.page_wifi = QWidget()
         wifi_layout = QVBoxLayout()
         title_wifi = QLabel("连接到 Wi-Fi 网络")
@@ -175,14 +173,14 @@ class PadDeckOOBE(QWidget):
         wifi_layout.addWidget(btn_connect)
         self.page_wifi.setLayout(wifi_layout)
         
-        # 页面 2: 欢迎界面
+        # 页面 2: 欢迎
         self.page_welcome = QWidget()
         welcome_layout = QVBoxLayout()
         title_welcome = QLabel("🎉 欢迎来到 PadDeck OS")
         title_welcome.setAlignment(Qt.AlignCenter)
         title_welcome.setStyleSheet("font-size: 48px; font-weight: bold; color: #1a9fff;")
         
-        subtitle = QLabel("您的骁龙 8 Gen 2 游戏掌机已准备就绪。")
+        subtitle = QLabel("您的骁龙 8 Gen 2 双轨掌机已准备就绪。")
         subtitle.setAlignment(Qt.AlignCenter)
         subtitle.setStyleSheet("font-size: 24px; color: #a0a0a0; margin-bottom: 40px;")
         
@@ -211,17 +209,17 @@ class PadDeckOOBE(QWidget):
             pwd = self.pwd_input.text()
             if pwd:
                 subprocess.Popen(['nmcli', 'dev', 'wifi', 'connect', ssid, 'password', pwd])
-        self.stack.setCurrentIndex(1) # 前往欢迎页
+        self.stack.setCurrentIndex(1)
         
     def finish_oobe(self):
         config_dir = os.path.expanduser('~/.config')
         os.makedirs(config_dir, exist_ok=True)
         with open(os.path.join(config_dir, 'oobe_done'), 'w') as f:
             f.write("done")
-        QApplication.quit() # 优雅退出，Sway 配置将接管并重启自己
+        QApplication.quit()
 
 if __name__ == '__main__':
-    # 强制在 Wayland 模式下运行 PyQt5
+    # OOBE 界面强制使用纯血 Wayland 运行
     os.environ['QT_QPA_PLATFORM'] = 'wayland'
     app = QApplication(sys.argv)
     ex = PadDeckOOBE()
@@ -229,41 +227,53 @@ if __name__ == '__main__':
 EOF
 chmod +x rootdir/usr/local/bin/paddeck-oobe.py
 
-# 2. 为 Sway 创建激进的极简容器配置 (隐藏一切 UI 元素)
+# 2. 写入极其关键的 PadDeck Session 双轨分流路由
+cat << 'EOF' > rootdir/usr/local/bin/paddeck-session
+#!/bin/bash
+# 【环境路由策略：引导游戏走向 Wayland，拦截 Steam 走向 X11】
+export SDL_VIDEODRIVER=wayland
+export QT_QPA_PLATFORM=wayland
+export PROTON_ENABLE_WAYLAND=1
+# 防止高通 GPU 在 wlroots 下丢鼠标
+export WLR_NO_HARDWARE_CURSORS=1
+
+if [ ! -f "$HOME/.config/oobe_done" ]; then
+    # 拉起原生 Wayland OOBE
+    python3 /usr/local/bin/paddeck-oobe.py
+fi
+
+# 关键越狱逻辑：强制把 Steam 客户端本身的环境变量打回 X11
+export GDK_BACKEND=x11
+export SDL_VIDEODRIVER=x11
+exec mangohud /home/luser/.local/share/Steam/steamrtarm64/steam -gamepadui -steamos3 -steampal -steamdeck
+EOF
+chmod +x rootdir/usr/local/bin/paddeck-session
+
+# 3. 为 Sway 创建双轨运行容器配置
 mkdir -p rootdir/home/luser/.config/sway
 cat << 'EOF' > rootdir/home/luser/.config/sway/config
-# PadDeck OS - 极简 Sway 容器配置
+# PadDeck OS - Sway 容器化配置
 
-# 1. 禁用所有窗口装饰和边框
+# 显式开启 Xwayland (Steam 客户端续命的关键)
+xwayland enable
+
+# 去除所有桌面元素，营造沉浸掌机感
 default_border none
 default_floating_border none
-
-# 2. 隐藏 Sway 状态栏
 bar {
     mode invisible
 }
-
-# 3. 强制背景为纯黑，掩盖所有加载痕迹
 output * bg #000000 solid_color
 
-# 4. 自动熄屏与电源管理规避
+# 自动息屏管理
 exec swayidle -w timeout 600 'swaymsg "output * dpms off"' resume 'swaymsg "output * dpms on"'
 
-# 5. 核心路由逻辑：判断跑 OOBE 还是 Steam
-exec_always {
-    if [ ! -f "$HOME/.config/oobe_done" ]; then
-        python3 /usr/local/bin/paddeck-oobe.py
-        # OOBE 退出后，通过重新加载 Sway 触发 Steam 启动
-        swaymsg reload
-    else
-        # 霸屏启动 SteamOS 界面
-        mangohud /home/luser/.local/share/Steam/steamrtarm64/steam -gamepadui -steamos3 -steampal -steamdeck
-    fi
-}
+# 接管权移交给分流路由脚本
+exec /usr/local/bin/paddeck-session
 EOF
 chroot rootdir chown -R luser:luser /home/luser/.config/sway
 
-# 3. 配置 Greetd 登录管理器 (专门为 Wayland 设计的极简自动登录器)
+# 4. 配置 Greetd 极简显示管理器
 mkdir -p rootdir/etc/greetd
 cat <<EOF > rootdir/etc/greetd/config.toml
 [terminal]
@@ -284,7 +294,6 @@ ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
 mkdir -p rootdir/etc/udev/rules.d/
 printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"\n' > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules
 
-# 启用 greetd 作为默认显示管理器
 chroot rootdir systemctl enable greetd
 chroot rootdir systemctl set-default graphical.target
 
@@ -306,4 +315,4 @@ echo "✅ 镜像生成完成: $ROOTFS_IMG"
 7z a "paddeck_os_sm8550_${TIMESTAMP}.7z" "$ROOTFS_IMG"
 rm -f "$ROOTFS_IMG"
 
-echo "🎉 PadDeck OS 纯血 Wayland 版构建成功！"
+echo "🎉 PadDeck OS (双轨混合架构版) 构建成功！"
