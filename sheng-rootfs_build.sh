@@ -99,7 +99,7 @@ chroot rootdir systemctl enable gdm3
 chroot rootdir systemctl set-default graphical.target
 
 # 文件系统挂载对齐
-printf "PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1\n" > rootdir/etc/fstab
+printf "PARTLABEL=userdata / ext4 defaults,noatime,errors=remount-ro 0 1\n" > rootdir/etc/fstab
 
 # 清理构建缓存
 chroot rootdir apt clean
