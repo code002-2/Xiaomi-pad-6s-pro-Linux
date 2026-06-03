@@ -66,8 +66,8 @@ chroot rootdir pacman -Rdd --noconfirm linux-aarch64 linux-firmware || true
 echo "📦 正在更新系统并安装基础组件..."
 chroot rootdir pacman -Syu --noconfirm base kmod glibc systemd sudo vim wget curl networkmanager wpa_supplicant dbus qrtr dialog
 
-echo "🖥️ 正在安装 GNOME 桌面环境及依赖 (精简模式)..."
-chroot rootdir pacman -S --noconfirm --needed gdm gnome-shell gnome-control-center gnome-tweaks nautilus gnome-console xdg-user-dirs-gtk
+echo "🖥️ 正在安装 GNOME .."
+chroot rootdir bash -c "pacman -Sgq gnome | grep -vE 'gnome-books|gnome-boxes' | pacman -S --noconfirm --needed - gdm gnome-tweaks"
 
 echo "🔨 正在扫描并注入本地内核与系统固件包 (鸠占鹊巢：覆盖官方组件)..."
 
