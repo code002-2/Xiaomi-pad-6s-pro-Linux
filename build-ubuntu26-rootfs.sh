@@ -60,16 +60,27 @@ printf "deb %s %s-security main restricted universe multiverse\n" "$UBUNTU_MIRRO
 
 chroot rootdir apt update
 
-if ls *.deb 1> /dev/null 2>&1; then
-    cp *.deb rootdir/tmp/
-    chroot rootdir bash -c "apt install -y /tmp/*.deb || true"
-fi
-
-# 基础核心依赖
+# ========================================================
+# 🔧 修复点1：先安装系统核心依赖，再安装内核！
+# ========================================================
 chroot rootdir apt install -y --no-install-recommends \
     systemd sudo vim-tiny wget curl \
     network-manager openssh-server \
-    wpasupplicant dbus
+    wpasupplicant dbus kmod initramfs-tools
+
+if ls *.deb 1> /dev/null 2>&1; then
+    cp *.deb rootdir/tmp/
+    # 此时系统有了 kmod 和 initramfs-tools，内核 deb 的 post-install 脚本才能正常运行
+    chroot rootdir bash -c "apt install -y /tmp/*.deb || true"
+    
+    # 终极保险：动态侦测真实版本并强制生成模块索引
+    echo "   正在强制更新内核模块依赖..."
+    KERNEL_MODULE_DIR=$(ls rootdir/lib/modules/ | head -n 1)
+    if [ -n "$KERNEL_MODULE_DIR" ]; then
+        echo "   ✅ 动态识别到真实内核版本目录: $KERNEL_MODULE_DIR"
+        chroot rootdir /sbin/depmod -a "$KERNEL_MODULE_DIR" || true
+    fi
+fi
 
 # 设置英文语言环境
 chroot rootdir bash -c "echo 'LANG=en_US.UTF-8' > /etc/default/locale"
@@ -108,6 +119,18 @@ ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
 
 mkdir -p rootdir/etc/udev/rules.d/
 printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"\n' > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules
+
+# ========================================================
+# 📶 修复点2：移植高通 8 Gen 2 WiFi 修复逻辑
+# ========================================================
+echo "⚙️ 正在预配置高通 WiFi 固件修复与驱动适配..."
+FW_DIR="rootdir/lib/firmware/ath12k/WCN7850/hw2.0"
+if [ -f "$FW_DIR/board-2.bin" ]; then
+    cp "$FW_DIR/board-2.bin" "$FW_DIR/board.bin"
+    echo "✅ board.bin 伪装成功！"
+fi
+chroot rootdir apt install -y qrtr-tools || true
+chroot rootdir systemctl enable qrtr-ns || true
 
 # ========================================================
 # 🔒 自动登录与桌面加固配置（完全展平，杜绝任何 case 嵌套漏洞）
@@ -161,7 +184,16 @@ rm -rf rootdir
 
 tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
 
-echo "✅ 镜像生成完成: $ROOTFS_IMG"
-echo "🗜️ 正在生成压缩包..."
-7z a "ubuntu26_${DESKTOP_ENV}_${TIMESTAMP}.7z" "$ROOTFS_IMG"
-rm -f "$ROOTFS_IMG"
+echo "✅ 原始镜像生成完成: $ROOTFS_IMG"
+# ========================================================
+# ⚡ 修复点3：增加 sparse image 极速刷机转换
+# ========================================================
+echo "🔄 正在将其转换为 Fastboot 专用的稀疏镜像 (Sparse Image)..."
+SPARSE_IMG="sparse_${ROOTFS_IMG}"
+img2simg "$ROOTFS_IMG" "$SPARSE_IMG"
+
+echo "🗜️ 正在生成最终 7z 压缩包..."
+7z a "ubuntu26_${DESKTOP_ENV}_${TIMESTAMP}.7z" "$SPARSE_IMG"
+
+rm -f "$ROOTFS_IMG" "$SPARSE_IMG"
+echo "🎉 终极修砖版 Ubuntu 构建成功！"
