@@ -1,4 +1,4 @@
-name: 🎮 Build PadDeck OS
+name: 🎮 Build PadDeck OS （no use）
 
 on:
   workflow_dispatch:
