@@ -56,11 +56,11 @@ chroot rootdir dnf -y install git gcc make kernel-headers
 
 echo "📦 正在更新 Fedora 系统并安装基础组件..."
 # 这一步仅仅精准排除 kernel-core（这是触发 dracut 报错的唯一元凶）
+# ✨ 修复点：加入了 qrtr 安装，确保稍后的守护进程有可执行文件！
 chroot rootdir dnf -y update --exclude=kernel-core
 chroot rootdir dnf -y install --exclude=kernel-core \
     systemd sudo vim wget curl tar xz pciutils findutils \
-    NetworkManager wpa_supplicant dialog
-
+    NetworkManager wpa_supplicant dialog qrtr
 
 echo "🖥️ 正在安装 GNOME 桌面环境..."
 chroot rootdir dnf -y install @gnome-desktop --exclude=kernel-core
@@ -74,8 +74,10 @@ if ls *.deb 1> /dev/null 2>&1; then
     done
     
     echo "   正在更新内核模块依赖..."
-    KERNEL_MODULE_DIR=$(ls rootdir/usr/lib/modules/ | head -n 1)
+    # ✨ 修复点：精准抓取最新植入的 7.1 内核目录，避免抓到老的
+    KERNEL_MODULE_DIR=$(ls -1t rootdir/usr/lib/modules/ | head -n 1)
     if [ -n "$KERNEL_MODULE_DIR" ]; then
+        echo "   ✅ 动态识别到真实内核版本目录: $KERNEL_MODULE_DIR"
         chroot rootdir /usr/sbin/depmod -a "$KERNEL_MODULE_DIR" || true
     fi
 fi
@@ -132,20 +134,10 @@ echo "⚙️ 正在预配置高通 WiFi 固件修复与驱动适配..."
 FW_DIR="rootdir/usr/lib/firmware/ath12k/WCN7850/hw2.0"
 if [ -f "$FW_DIR/board-2.bin" ]; then
     cp "$FW_DIR/board-2.bin" "$FW_DIR/board.bin"
+    echo "✅ board.bin 伪装成功！"
 fi
 
-MOD_DIR="rootdir/usr/lib/modules"
-TARGET_VER="7.0.0-sm8550-gf273227fab85"
-
-if [ -d "$MOD_DIR" ]; then
-    for dir in "$MOD_DIR"/*; do
-        if [ -d "$dir" ] && [ "$(basename "$dir")" != "$TARGET_VER" ]; then
-            mv "$dir" "$MOD_DIR/$TARGET_VER"
-            chroot rootdir /usr/sbin/depmod -a "$TARGET_VER" || true
-            break
-        fi
-    done
-fi
+# (已彻底移除导致黑屏死机的强制内核版本改名代码)
 
 echo "⚙️ 正在创建 qrtr 守护进程开机自启服务..."
 cat << 'EOF' > rootdir/etc/systemd/system/qrtr-force.service
@@ -182,6 +174,7 @@ rm -rf rootdir
 
 tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
 
+echo "🔄 正在转换为 Sparse 格式加速刷机..."
 SPARSE_IMG="sparse_${ROOTFS_IMG}"
 img2simg "$ROOTFS_IMG" "$SPARSE_IMG"
 7z a "fedora_desktop_${TIMESTAMP}.7z" "$SPARSE_IMG"
