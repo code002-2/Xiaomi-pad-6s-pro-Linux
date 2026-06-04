@@ -89,30 +89,28 @@ jobs:
       - name: Build RootFS
         id: build
         run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
-          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.0"; fi
-          
-          # 仅调用纯净 Debian 桌面构建脚本，不再传入任何 matrix 桌面环境参数
           chmod +x sheng-rootfs_build.sh
-          sudo ./sheng-rootfs_build.sh debian ${KERNEL_VER}
+          # 传入你的参数执行构建
+          sudo bash sheng-rootfs_build.sh debian-desktop "${{ github.event.inputs.kernel_version || '7.1' }}"
           
-          # 动态捕捉打包生成的 7z 文件
-          SEVEN_Z_FILE=$(ls debian13_desktop_*.7z | head -1)
-          echo "filename=$(basename "$SEVEN_Z_FILE")" >> $GITHUB_OUTPUT
-          echo "path=$SEVEN_Z_FILE" >> $GITHUB_OUTPUT
+          # 🚨 核心修复 1：统计到底生成了几个 7z 包 (dual和single可能会生成两个)
+          PKG_COUNT=$(ls -1 *.7z 2>/dev/null | wc -l)
+          echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: debian13-desktop-gnome
-          path: ${{ steps.build.outputs.path }}
+          name: debian-desktop-gnome
+          # 🚨 核心修复 2：直接用通配符捕获目录下所有的 .7z 文件，绝对不会抓空！
+          path: "*.7z"
           retention-days: 7
 
       - name: Upload to Release
-        if: ${{ !github.event.inputs.skip_release }}
+        if: ${{ !github.event.inputs.skip_release && steps.build.outputs.pkg_count > 0 }}
         uses: softprops/action-gh-release@v1
         with:
+          # 确保这里用的 tag_name 在前面的步骤里生成好了
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
-          files: ${{ steps.build.outputs.path }}
+          files: "*.7z"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
