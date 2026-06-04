@@ -1,82 +1,130 @@
-name: 🌀 Build Arch Linux RootFS
+name: 🌀 Build Arch Linux Desktop
 
 on:
   workflow_dispatch:
     inputs:
       kernel_version:
-        description: "内核版本号 (需与 Release 中的一致，如: 7.1.0-rc6)"
+        description: '内核版本 (如 7.1)'
         required: true
-        default: "7.1.0-rc6"
+        type: string
+        default: '7.1'
       desktop_env:
-        description: "选择要打包的桌面环境"
+        description: '选择要构建的桌面环境'
         required: true
         type: choice
         options:
-          - all      # 同时打包 GNOME 和 KDE 两个版本
-          - gnome    # 仅打包 GNOME 全家桶
-          - kde      # 仅打包 KDE Plasma
-        default: "all"
+          - all
+          - gnome
+          - kde
+        default: 'all'
+      skip_release:
+        description: '跳过创建GitHub Release'
+        type: boolean
+        default: false
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: write
 
 jobs:
-  build_rootfs:
-    name: "构建 Arch Linux (${{ github.event.inputs.desktop_env }})"
+  prepare-release:
     runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: write
-
+    outputs:
+      release_tag: ${{ steps.tag.outputs.release_tag }}
     steps:
-      - name: "📥 检出脚本代码"
-        uses: actions/checkout@v4
-
-      - name: "🔧 部署构建环境"
+      - name: Generate release tag
+        id: tag
         run: |
-          sudo apt update
-          sudo apt install -y p7zip-full android-sdk-libsparse-utils wget libarchive-tools
+          DE_SUFFIX="${{ github.event.inputs.desktop_env || 'gnome' }}"
+          TAG="archlinux-${DE_SUFFIX}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: "📦 拉取通用内核与固件包"
+      - name: Create GitHub Release
+        if: ${{ !github.event.inputs.skip_release }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          name: "Arch Linux Desktop (${{ github.event.inputs.desktop_env || 'gnome' }}) - ${{ steps.tag.outputs.release_tag }}"
+          body: |
+            🌀 Arch Linux ARM Desktop For SM8550
+            
+            ---
+            
+            ### 📋 构建信息
+            | 项目 | 详情 |
+            |------|------|
+            | 架构 | ARM64 (aarch64) |
+            | 内核版本 | ${{ github.event.inputs.kernel_version || '7.1' }} |
+            | 桌面环境 | ${{ github.event.inputs.desktop_env || 'GNOME' }} |
+            
+            ---
+            
+            ### 🔐 默认凭据
+            - 普通用户: `luser` / 密码: `luser`
+            - 管理员用户: `root` / 密码: `1234`
+            
+            ---
+            
+            ### 📦 镜像文件
+            构建完成后将出现在下方附件中。解压后请直接使用 fastboot flash 刷入。
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-arch:
+    name: Build Arch Linux Desktop
+    runs-on: ubuntu-24.04-arm
+    needs: prepare-release
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install build tools
+        run: sudo apt update && sudo apt install -y libarchive-tools p7zip-full curl wget android-sdk-libsparse-utils
+      
+      - name: Download kernel and system bundles
         run: |
-          echo "正在从 Release 下载通用内核..."
-          # 请确保下面的仓库地址是你的真实仓库！
-          GITHUB_REPO="你的名字/sm8550-mainline"
-          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
+          KERNEL_VER="${{ github.event.inputs.kernel_version || '7.1' }}"
           
-          # 下载之前跑好的内核 .deb
-          wget -q https://github.com/${GITHUB_REPO}/releases/download/unified-kernel-${KERNEL_VER}/linux-xiaomi-sheng.deb
-          wget -q https://github.com/${GITHUB_REPO}/releases/download/unified-kernel-${KERNEL_VER}/firmware-xiaomi-sheng.deb
+          # 从 GitHub Release 拉取内核和固件包 
+          # 🚨注意：如果你的内核Release标签名变了，请同步修改这里的 "kernel-bundle-${KERNEL_VER}"
+          gh release download "kernel-bundle-${KERNEL_VER}" \
+            --repo "${{ github.repository }}" --clobber || true
+          
+          echo "⬇️ 正在下载 Debian Mesa dev 包..."
+          wget -q -O mesa-common-dev_26.0.7-1_arm64.deb "http://ftp.br.debian.org/debian/pool/main/m/mesa/mesa-common-dev_26.0.8-1_arm64.deb"
+          
+          echo "📥 下载的文件列表:"
+          ls -la
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "🔨 执行多桌面智能构建脚本"
+      - name: Build RootFS
+        id: build
         run: |
+          KERNEL_VER="${{ github.event.inputs.kernel_version || '7.1' }}"
+          TARGET_DE="${{ github.event.inputs.desktop_env || 'gnome' }}"
+          
           chmod +x sheng-arch-rootfs_build.sh
-          # 将下拉菜单的选择参数传递给脚本
-          sudo bash sheng-arch-rootfs_build.sh arch "${{ github.event.inputs.kernel_version }}" "${{ github.event.inputs.desktop_env }}"
-
-      - name: "📤 收集构建产物 (.7z)"
-        id: collect_artifacts
-        run: |
+          sudo bash sheng-arch-rootfs_build.sh archlinux "${KERNEL_VER}" "${TARGET_DE}"
+          
           PKG_COUNT=$(ls -1 *.7z 2>/dev/null | wc -l)
           echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
 
-      - name: "🏷️ 自动发布 RootFS Release"
-        if: steps.collect_artifacts.outputs.pkg_count > 0 && github.event_name == 'workflow_dispatch'
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: archlinux-desktop-${{ github.event.inputs.desktop_env || 'gnome' }}
+          path: "*.7z"
+          retention-days: 7
+
+      - name: Upload to Release
+        if: ${{ !github.event.inputs.skip_release && steps.build.outputs.pkg_count > 0 }}
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: arch-rootfs-${{ github.event.inputs.kernel_version }}-${{ github.event.inputs.desktop_env }}
-          name: "🖥️ Arch RootFS v${{ github.event.inputs.kernel_version }} (${{ github.event.inputs.desktop_env }})"
-          body: |
-            🧩 *Arch Linux 刷机包**
-            
-            ### 🔧 构建参数
-            - **内核支持**: 匹配 `v${{ github.event.inputs.kernel_version }}`
-            - **桌面环境**: `${{ github.event.inputs.desktop_env }}` 
-            - **打包状态**: 包含全量 UFS 驱动及高通闭源固件修复。
-            
-            ### 🚀 刷机指南
-            1. 下载对应的 `.7z` 压缩包并解压得到 `.img` 镜像文件。
-            2. 重启平板至 Fastboot 模式。
-            3. 执行: `fastboot flash linux <解压出的.img>`
-            4. **警告**: 切记要配合对应版本的 `boot.img` 食用以防 Kernel Panic！
-          draft: false
-          prerelease: false
+          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
           files: "*.7z"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
