@@ -142,8 +142,33 @@ apply_system_quirks() {
     echo "%wheel ALL=(ALL:ALL) NOPASSWD: ALL" > rootdir/etc/sudoers.d/wheel
     chmod 440 rootdir/etc/sudoers.d/wheel
 
-    ln -sf /usr/lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
-    chroot rootdir systemctl enable systemd-resolved NetworkManager qrtr-ns
+ln -sf /usr/lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
+    chroot rootdir systemctl enable systemd-resolved NetworkManager
+    
+    # ==========================================
+    # 🚨 高通 QMI 通讯服务 (QRTR) 防弹自愈逻辑
+    # ==========================================
+    if chroot rootdir systemctl enable qrtr-ns 2>/dev/null; then
+        echo "   ✅ qrtr-ns 服务已在系统中找到并启用！"
+    else
+        echo "   ⚠️ 未找到官方 qrtr-ns.service，正在为您手动生成守护进程..."
+        cat << 'EOF' > rootdir/etc/systemd/system/qrtr-ns.service
+[Unit]
+Description=Qualcomm IPC Router Service (QRTR)
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/qrtr-ns -f
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        chroot rootdir systemctl enable qrtr-ns
+        echo "   ✅ 手动生成并启用 qrtr-ns 成功！"
+    fi
+    # ==========================================
+
     ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
 
     mkdir -p rootdir/etc/udev/rules.d/
