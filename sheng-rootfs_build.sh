@@ -4,9 +4,11 @@ set -e
 IMAGE_SIZE="8G"
 FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 
-if [ $# -lt 2 ]; then
-    echo "用法: $0 <distro-variant> <kernel_version>"
-    echo "示例: $0 debian-desktop 7.1"
+# 🚨 增加了启动模式和桌面环境两个参数
+if [ $# -lt 2 ] || [ $# -gt 4 ]; then
+    echo "用法: $0 <distro-variant> <kernel_version> [boot_mode] [desktop_env]"
+    echo "示例: $0 debian-desktop 7.1 dual kde"
+    echo "      $0 debian-desktop 7.1 all all"
     exit 1
 fi
 
@@ -17,6 +19,8 @@ fi
 
 DISTRO=$1
 KERNEL=$2
+TARGET_MODE=${3:-all}
+TARGET_FLAVOUR=${4:-all} # 默认同时打包 GNOME 和 KDE
 
 distro_type=$(echo "$DISTRO" | cut -d'-' -f1)
 distro_variant=$(echo "$DISTRO" | cut -d'-' -f2)
@@ -28,6 +32,27 @@ fi
 
 distro_version="trixie"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+
+# ==========================================
+# 🎛️ 动态解析构建矩阵 (Boot Mode & Desktop)
+# ==========================================
+if [ "$TARGET_MODE" = "all" ]; then
+    BOOTMODES=("dual" "single")
+elif [[ "$TARGET_MODE" =~ ^(dual|single)$ ]]; then
+    BOOTMODES=("$TARGET_MODE")
+else
+    echo "❌ 不支持的启动模式: $TARGET_MODE (仅支持 dual, single, all)"
+    exit 1
+fi
+
+if [ "$TARGET_FLAVOUR" = "all" ]; then
+    FLAVOURS=("gnome" "kde")
+elif [[ "$TARGET_FLAVOUR" =~ ^(gnome|kde|lomiri)$ ]]; then
+    FLAVOURS=("$TARGET_FLAVOUR")
+else
+    echo "❌ 不支持的桌面环境: $TARGET_FLAVOUR (仅支持 gnome, kde, lomiri, all)"
+    exit 1
+fi
 
 # ==========================================
 # 🛡️ 容错防线：无论发生什么，确保安全卸载
@@ -45,16 +70,13 @@ cleanup_mounts() {
 }
 trap cleanup_mounts EXIT ERR INT TERM
 
-# 🔥 定义需要构建的变体
-FLAVOURS=("gnome")
-BOOTMODES=("dual" "single")
-
+# 🚀 启动二维构建矩阵
 for FLAVOUR in "${FLAVOURS[@]}"; do
     for MODE in "${BOOTMODES[@]}"; do
 
         echo ""
         echo "======================================"
-        echo "🚀 开始构建: Debian $distro_version | $FLAVOUR | $MODE"
+        echo "🚀 开始构建: Debian $distro_version | 桌面: ${FLAVOUR^^} | 模式: $MODE"
         echo "======================================"
 
         ROOTFS_IMG="${distro_type}_${distro_version}_${FLAVOUR}_${MODE}_${TIMESTAMP}.img"
@@ -79,7 +101,7 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         rm -f rootdir/etc/resolv.conf
         echo "nameserver 8.8.8.8" > rootdir/etc/resolv.conf
         echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
-        echo "nameserver 223.5.5.5" >> rootdir/etc/resolv.conf # 加入阿里云DNS加速国内解析
+        echo "nameserver 223.5.5.5" >> rootdir/etc/resolv.conf
 
         echo "📦 正在安装基础环境组件..."
         chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends systemd sudo vim wget curl network-manager openssh-server wpasupplicant dbus locales dialog"
@@ -89,28 +111,22 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         # ==========================================
         echo "🌏 正在配置系统中文语言、字体与输入法..."
         
-        # 开启中英文双语 Locale
         sed -i 's/^# *\(en_US.UTF-8\)/\1/' rootdir/etc/locale.gen
         sed -i 's/^# *\(zh_CN.UTF-8\)/\1/' rootdir/etc/locale.gen
         chroot rootdir locale-gen
         
-        # 设置系统默认语言为简体中文
         echo "LANG=zh_CN.UTF-8" > rootdir/etc/default/locale
         echo "LANG=zh_CN.UTF-8" > rootdir/etc/locale.conf
         
-        # 设置时区为上海 (CST)
         chroot rootdir ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
         
-        # 安装中文字体与 Fcitx5 输入法全家桶
         chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei fcitx5 fcitx5-chinese-addons fcitx5-frontend-gtk3 fcitx5-frontend-qt5"
         
-        # 配置输入法环境变量
         cat > rootdir/etc/environment <<EOF
 GTK_IM_MODULE=fcitx
 QT_IM_MODULE=fcitx
 XMODIFIERS=@im=fcitx
 EOF
-        # ==========================================
 
         echo "📦 正在注入并安装设备专属 .deb 驱动包..."
         wget -q https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/mipps/xiaomi-mipps-auth_0.11_arm64.deb
@@ -125,7 +141,7 @@ EOF
         echo "debian-$FLAVOUR-$MODE" > rootdir/etc/hostname
 
         # =========================
-        # 🖥️ 桌面环境部署
+        # 🖥️ 桌面环境部署分发器
         # =========================
         if [ "$distro_variant" = "desktop" ]; then
             
@@ -160,6 +176,20 @@ EOF
 [daemon]
 AutomaticLoginEnable=true
 AutomaticLogin=luser
+EOF
+
+            # 🚨 新增：KDE Plasma 注入逻辑
+            elif [ "$FLAVOUR" = "kde" ]; then
+                echo "🖥️ 安装 KDE Plasma 桌面环境 (支持 Wayland)..."
+                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y kde-plasma-desktop plasma-workspace-wayland sddm konsole dolphin ark gwenview firefox-esr"
+                chroot rootdir systemctl enable sddm
+                
+                # 配置 SDDM 自动登录 Wayland 桌面
+                mkdir -p rootdir/etc/sddm.conf.d
+                cat > rootdir/etc/sddm.conf.d/autologin.conf <<EOF
+[Autologin]
+User=luser
+Session=plasma
 EOF
             fi
 
