@@ -1,0 +1,19 @@
+# 1. 基础架构定义 (ARM64)
+BR2_aarch64=y
+BR2_cortex_a710=y
+
+# 2. 骗过内核依赖检查，但不真正编译内核 (因为我们要用你的旧内核)
+BR2_LINUX_KERNEL=y
+BR2_LINUX_KERNEL_USE_ARCH_DEFAULT_CONFIG=y
+
+# 3. 开启高通 GPU 加速命脉 (Mesa Turnip Vulkan)
+BR2_PACKAGE_MESA3D=y
+BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_FREEDRENO=y
+BR2_PACKAGE_MESA3D_VULKAN_DRIVER_FREEDRENO=y
+
+# 4. 🚨 核心指令：只输出文件系统，禁用整体镜像打包
+BR2_TARGET_ROOTFS_EXT2=n
+BR2_TARGET_ROOTFS_SQUASHFS=y
+BR2_TARGET_ROOTFS_CPIO=y
+BR2_TARGET_ROOTFS_CPIO_GZIP=y
+# 不需要 genimage，我们自己用 bash 脚本打包！
