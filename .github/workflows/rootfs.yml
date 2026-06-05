@@ -7,23 +7,23 @@ on:
         description: '内核版本 (如 7.1)'
         required: true
         default: '7.1'
-      desktop_env:
-        description: '选择桌面环境'
-        required: true
-        type: choice
-        options:
-          - all
-          - gnome
-          - kde
-        default: 'all'
       boot_mode:
-        description: '选择启动模式'
+        description: '选择启动模式 (双启/单启)'
         required: true
         type: choice
         options:
           - all
           - dual
           - single
+        default: 'all'
+      desktop_env:
+        description: '选择桌面环境 (GNOME/KDE)'
+        required: true
+        type: choice
+        options:
+          - all
+          - gnome
+          - kde
         default: 'all'
       skip_release:
         description: '跳过创建GitHub Release'
@@ -46,7 +46,7 @@ jobs:
       - name: Generate release tag
         id: tag
         run: |
-          DE_SUFFIX="${{ github.event.inputs.desktop_env || 'all' }}"
+          DE_SUFFIX="${{ github.event.inputs.desktop_env || 'gnome' }}"
           TAG="debian13-${DE_SUFFIX}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
           echo "release_tag=$TAG" >> $GITHUB_OUTPUT
 
@@ -61,12 +61,12 @@ jobs:
             
             ---
             
-            ### 📋 构建组合
-            | 参数 | 详情 |
+            ### 📋 构建信息
+            | 项目 | 详情 |
             |------|------|
             | 架构 | ARM64 (arm64) |
             | 内核版本 | ${{ github.event.inputs.kernel_version || '7.1' }} |
-            | 包含桌面 | ${{ github.event.inputs.desktop_env || 'all' }} |
+            | 桌面环境 | ${{ github.event.inputs.desktop_env || 'all' }} |
             | 启动模式 | ${{ github.event.inputs.boot_mode || 'all' }} |
             
             ---
@@ -78,30 +78,15 @@ jobs:
             ---
             
             ### 📦 镜像文件
-            如果你选择了 'all'，云端矩阵将并发生成全部组合的 `.7z` 镜像。
+            构建完成后将出现在下方附件中。解压后请直接使用 fastboot flash 刷入对应分区。
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ==========================================
-  # 🚀 云端多路并发构建矩阵
-  # ==========================================
   build-debian:
-    name: Build (${{ matrix.desktop }} | ${{ matrix.boot }})
+    name: Build Debian 13 Desktop
     runs-on: ubuntu-24.04-arm
     needs: prepare-release
-    strategy:
-      # 即使其中一个（如KDE）失败了，也不要取消其他正在运行的任务
-      fail-fast: false 
-      matrix:
-        desktop: [gnome, kde]
-        boot: [dual, single]
-    
-    # 🚨 核心过滤黑科技：根据你在网页上的选择，智能决定唤醒几台服务器
-    if: >
-      (github.event.inputs.desktop_env == 'all' || github.event.inputs.desktop_env == matrix.desktop) &&
-      (github.event.inputs.boot_mode == 'all' || github.event.inputs.boot_mode == matrix.boot)
-
     steps:
       - uses: actions/checkout@v4
       
@@ -117,6 +102,7 @@ jobs:
           
           gh release download "kernel-bundle-${KERNEL_VER}" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
+          ls -la *.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -124,17 +110,18 @@ jobs:
         id: build
         run: |
           chmod +x sheng-rootfs_build.sh
-          # 🚨 极速模式：把当前矩阵分配到的唯一任务（例如 kde single）传给脚本
-          sudo bash sheng-rootfs_build.sh debian-desktop "${{ github.event.inputs.kernel_version || '7.1' }}" "${{ matrix.boot }}" "${{ matrix.desktop }}"
+          # 🚨 传入四个核心参数：系统版本、内核版本、启动模式、桌面环境
+          sudo bash sheng-rootfs_build.sh debian-desktop "${{ github.event.inputs.kernel_version || '7.1' }}" "${{ github.event.inputs.boot_mode || 'all' }}" "${{ github.event.inputs.desktop_env || 'all' }}"
           
+          # 统计到底生成了几个 7z 包
           PKG_COUNT=$(ls -1 *.7z 2>/dev/null | wc -l)
           echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          # 每个包用自己的专属名字存放，避免覆盖
-          name: debian-${{ matrix.desktop }}-${{ matrix.boot }}
+          name: debian-desktop-${{ github.event.inputs.desktop_env || 'all' }}
+          # 直接用通配符捕获目录下所有的 .7z 文件
           path: "*.7z"
           retention-days: 7
 
