@@ -1,0 +1,77 @@
+name: 🎮 Build Batocera
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_version:
+        description: '使用的内核版本号 (需对应你仓库已发布的 Release，如 7.1)'
+        required: true
+        default: '7.1'
+  push:
+    paths:
+      - 'configs/batocera-xiaomi-sheng_defconfig'
+      - 'sheng-batocera_build.sh'
+
+jobs:
+  build:
+    name: Compile & Pack Batocera
+    runs-on: ubuntu-24.04
+    steps:
+      - name: "🧹 释放服务器空间"
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo docker image prune --all --force
+
+      - name: "📦 安装 Buildroot 与打包依赖"
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential git wget python3 unzip bzip2 cpio rsync bc libncurses5-dev libncursesw5-dev android-sdk-libsparse-utils p7zip-full libarchive-tools
+
+      - name: "📥 检出你仓库的代码 (获取配置和脚本)"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: "📥 浅克隆官方 Batocera 源码"
+        run: |
+          git clone --depth 1 https://github.com/batocera-linux/batocera.linux.git batocera
+          # 将你的配置文件覆盖进源码目录
+          mkdir -p batocera/configs
+          cp configs/batocera-xiaomi-sheng_defconfig batocera/configs/
+
+      - name: "🔥 第一阶段：仅编译 Batocera RootFS"
+        run: |
+          cd batocera
+          make batocera-xiaomi-sheng_defconfig
+          make -j$(nproc)
+
+      - name: "📥 第二阶段：同仓库极速拉取内核包"
+        run: |
+          # 🚨 直接使用 github.repository 自动定位当前仓库，无需手动填名字！
+          gh release download "kernel-bundle-${{ github.event.inputs.kernel_version }}" \
+            --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
+            
+          mkdir -p kernel_ext
+          for deb in *.deb; do
+            dpkg-deb -x "$deb" kernel_ext/ || true
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "🗜️ 第三阶段：运行组装脚本"
+        run: |
+          # 把上一阶段产出的核心系统包移出来备用
+          mkdir -p output/images
+          cp batocera/output/images/rootfs.squashfs output/images/
+          cp batocera/output/images/rootfs.cpio.gz output/images/
+          
+          # 执行同目录下的组装脚本
+          chmod +x sheng-batocera_build.sh
+          sudo bash sheng-batocera_build.sh
+
+      - name: "📤 上传 Batocera 刷机包"
+        uses: actions/upload-artifact@v4
+        with:
+          name: batocera-sheng-sparse-image
+          path: "*.7z"
+          retention-days: 7
