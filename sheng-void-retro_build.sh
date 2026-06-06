@@ -8,21 +8,19 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 ROOTFS_IMG="void_retro_${TIMESTAMP}.img"
 
 echo "=========================================="
-echo "🎮 正在构建 Void Retro Gaming OS (最终修复版)"
+echo "🎮 Void Retro Gaming OS"
 echo "=========================================="
 
+# 基础清理与创建
 rm -rf rootdir || true
 truncate -s $IMAGE_SIZE "$ROOTFS_IMG"
 mkfs.ext4 -F "$ROOTFS_IMG"
 mkdir rootdir
 mount -o loop "$ROOTFS_IMG" rootdir
 
-# ⬇️ 提取底包 (增加重试逻辑)
-echo "⬇️ 正在提取 Void Linux 底包..."
+# 拉取底包
 VOID_REPO="https://repo-default.voidlinux.org/live/current"
-for i in {1..5}; do
-    LATEST_TAR=$(curl -s --retry 3 --connect-timeout 10 "$VOID_REPO/" | grep -o 'void-aarch64-ROOTFS-[0-9]*.tar.xz' | head -n 1) && break || sleep 5
-done
+LATEST_TAR=$(curl -s "$VOID_REPO/" | grep -o 'void-aarch64-ROOTFS-[0-9]*.tar.xz' | head -n 1)
 wget -q "$VOID_REPO/$LATEST_TAR"
 tar -xpf "$LATEST_TAR" -C rootdir/
 rm -f "$LATEST_TAR"
@@ -32,29 +30,28 @@ mount --bind /dev/pts rootdir/dev/pts
 mount -t proc proc rootdir/proc
 mount -t sysfs sys rootdir/sys
 
-# 🚨 强制修复 DNS
-echo "nameserver 1.1.1.1" > rootdir/etc/resolv.conf
+echo "📦 正在强行覆盖安装最新版 xbps..."
+mkdir -p /tmp/xbps-update
+# 这里的 URL 获取最新的 xbps 二进制包
+XBPS_PACKAGE_URL=$(curl -s "https://repo-default.voidlinux.org/current/aarch64/" | grep -o 'xbps-[0-9\.]*_[0-9]*\.aarch64\.xbps' | head -n 1)
+wget -q "https://repo-default.voidlinux.org/current/aarch64/$XBPS_PACKAGE_URL" -O /tmp/xbps-update/xbps.xbps
+# xbps 包本质就是 tar.xz，直接强力解包到 rootdir 根目录，跳过所有校验！
+cd /tmp/xbps-update && xxbps-deb-like-extract-hack() {
+    # xbps 解包工具
+    xbin/xbps-xunpack -f xbps.xbps -C rootdir/
+}
+# 如果系统里没有 xunpack 工具，我们用 bsdtar 暴力拆解 (因为 .xbps 就是个压缩包)
+bsdtar -xf /tmp/xbps-update/xbps.xbps -C rootdir/
+cd -
 
-# 📦 最终绝杀：彻底禁用签名校验，强制安装本地包来升级
-echo "📦 正在执行 xbps 地狱级强制升级..."
-export XBPS_ARCH=aarch64
-
-# 1. 直接修改配置文件，彻底关闭所有签名检查
-mkdir -p rootdir/etc/xbps.d
-echo "repository=https://repo-default.voidlinux.org/current/aarch64" > rootdir/etc/xbps.d/00-repository-main.conf
-echo "nocache=true" >> rootdir/etc/xbps.d/00-repository-main.conf
-
-# 2. 核心中的核心：使用 --ignore-sig-ok 参数彻底无视所有签名错误
-# 这是给旧系统打新补丁的唯一手段
-chroot rootdir xbps-install -y --ignore-sig-ok --force xbps
-
-# 3. 同步仓库并强制忽略签名安装所有组件
-chroot rootdir xbps-install -Syu -y --ignore-sig-ok
-chroot rootdir xbps-install -y --force --ignore-sig-ok \
+# 现在 xbps 已经是最新的了，剩下的安装就顺滑了
+chroot rootdir xbps-install -Syu -y
+chroot rootdir xbps-install -y \
     sudo nano wget curl pciutils findutils \
     NetworkManager wpa_supplicant dbus kmod dracut \
     xorg-minimal xorg-server xinit mesa-dri \
     retroarch qrtr
+
 
 # 🔨 强行注入 Deb 内核 (带绝对版本锁)
 if ls *.deb 1> /dev/null 2>&1; then
