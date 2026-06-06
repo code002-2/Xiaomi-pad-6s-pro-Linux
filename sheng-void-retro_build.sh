@@ -35,15 +35,17 @@ mount -t sysfs sys rootdir/sys
 # 🚨 强制修复 DNS
 echo "nameserver 1.1.1.1" > rootdir/etc/resolv.conf
 
-# 📦 关键修复：先更新 xbps 自身，再同步仓库，使用 --force 跳过包冲突
-echo "📦 正在安装组件..."
+# 📦 强制修复：先单点更新 xbps，然后再进行系统同步
+echo "📦 正在执行 xbps 升级..."
 export XBPS_ARCH=aarch64
-# 循环重试同步仓库
-for i in {1..5}; do
-    chroot rootdir xbps-install -Syu && break || sleep 10
-done
 
-# 安装核心组件 (去掉 retroarch-assets 这种不存在的包)
+# 1. 强制更新 xbps 自身 (跳过所有依赖检查)
+chroot rootdir xbps-install -y --force xbps
+
+# 2. 现在 xbps 新了，可以正常同步仓库了
+chroot rootdir xbps-install -Syu -y
+
+# 3. 正常安装其余组件
 chroot rootdir xbps-install -y --force \
     sudo nano wget curl pciutils findutils \
     NetworkManager wpa_supplicant dbus kmod dracut \
