@@ -70,6 +70,12 @@ jobs:
           echo "📦 共找到 $PKG_COUNT 个 Debian 包文件"
           echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
 
+      - name: "📤 上传生成的配置文件"
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-config
+          path: sm8550.config
+
       - name: "📤 上传系统驱动包 (.deb)"
         uses: actions/upload-artifact@v4
         with:
