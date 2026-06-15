@@ -36,7 +36,7 @@ jobs:
         run: |
           echo "⚙️ 正在安装必要的构建工具..."
           sudo apt update
-          sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils python3
+          sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils
           echo "✅ 构建工具安装完成"
           
           mkdir -p /home/runner/.ccache
@@ -44,90 +44,7 @@ jobs:
           ccache --set-config=cache_dir=/home/runner/.ccache
           ccache --set-config=sloppiness=file_macro,locale,time_macros
 
-      - name: "🛠️ 自动修改 Config 并缝合 7.1 冲突 (核心修复)"
-        run: |
-          echo "1. 暴力修改 Config 文本，堵住 make 卡死..."
-          sed -i 's/Linux\/arm64 7.0.0/Linux\/arm64 7.1.0/g' config-postmarketos-qcom-sm8550.aarch64.txt || true
-          if ! grep -q "CONFIG_DRIVER_DEFERRED_PROBE_TIMEOUT" config-postmarketos-qcom-sm8550.aarch64.txt; then
-            echo "# --- Linux 7.1 Auto-Fix ---" >> config-postmarketos-qcom-sm8550.aarch64.txt
-            echo "# CONFIG_ACPI_APEI_GHES_NVIDIA is not set" >> config-postmarketos-qcom-sm8550.aarch64.txt
-            echo "CONFIG_DRIVER_DEFERRED_PROBE_TIMEOUT=10" >> config-postmarketos-qcom-sm8550.aarch64.txt
-          fi
-
-          echo "2. 提前打入 7.1 补丁 (如果 sh 脚本中已有拉取逻辑，此处忽略报错)..."
-          wget -qO patch-7.1.xz https://cdn.kernel.org/pub/linux/kernel/v7.x/patch-7.1.xz || true
-          xz -d patch-7.1.xz || true
-          patch -p1 --no-backup-if-mismatch < patch-7.1 || true
-
-          echo "3. 自动缝合底层 .rej 代码冲突..."
-          cat << 'EOF' > fix_final.py
-          import os, re
-          # 1. 根目录 Makefile
-          if os.path.exists("Makefile"):
-              with open("Makefile", "r") as f: c = f.read()
-              c = c.replace("PATCHLEVEL = 0", "PATCHLEVEL = 1")
-              c = c.replace("KBUILD_CFLAGS += -std=gnu11\n", "")
-              c = c.replace("AR\t\t= $(LLVM_PREFIX)llvm-ar$(LLVM_SUFFIX)\n", "AR\t\t= $(LLVM_PREFIX)llvm-ar$(LLVM_SUFFIX)\nLLVM_LINK\t= $(LLVM_PREFIX)llvm-link$(LLVM_SUFFIX)\n")
-              with open("Makefile", "w") as f: f.write(c)
-
-          # 2. DTS Makefile 补齐
-          f_dts = "arch/arm64/boot/dts/qcom/Makefile"
-          if os.path.exists(f_dts):
-              with open(f_dts, "r") as f: c = f.read()
-              if "sm8550-hdk-display-card-dtbs" not in c:
-                  c = c.replace("sm8550-hdk-rear-camera-card-dtbs\t:= sm8550-hdk.dtb sm8550-hdk-rear-camera-card.dtbo", 
-                                "sm8550-hdk-display-card-dtbs\t:= sm8550-hdk.dtb sm8550-hdk-display-card.dtbo\nsm8550-hdk-display-card-rear-camera-card-dtbs\t:= sm8550-hdk.dtb sm8550-hdk-display-card.dtbo sm8550-hdk-rear-camera-card.dtbo\nsm8550-hdk-rear-camera-card-dtbs\t:= sm8550-hdk.dtb sm8550-hdk-rear-camera-card.dtbo")
-              with open(f_dts, "w") as f: f.write(c)
-
-          # 3. sm8550.dtsi 重构
-          f_dtsi = "arch/arm64/boot/dts/qcom/sm8550.dtsi"
-          if os.path.exists(f_dtsi):
-              with open(f_dtsi, "r") as f: c = f.read()
-              c = c.replace("capacity-dmips-mhz = <1024>;\n\t\t\tdynamic-power-coefficient = <100>;", "capacity-dmips-mhz = <326>;\n\t\t\tdynamic-power-coefficient = <251>;")
-              c = c.replace("capacity-dmips-mhz = <1792>;\n\t\t\tdynamic-power-coefficient = <270>;", "capacity-dmips-mhz = <693>;\n\t\t\tdynamic-power-coefficient = <447>;")
-              c = c.replace("capacity-dmips-mhz = <1894>;\n\t\t\tdynamic-power-coefficient = <588>;", "capacity-dmips-mhz = <1024>;\n\t\t\tdynamic-power-coefficient = <1057>;")
-              for freq, acd in {"680000000": "<0x882e5ffd>", "615000000": "<0xa82f5ffd>", "550000000": "<0xe0285ffd>", "475000000": "<0xe0285ffd>", "401000000": "<0xc02a5ffd>", "348000000": "<0xe02b5ffd>", "295000000": "<0xe02d5ffd>", "220000000": "<0xc02f5ffd>"}.items():
-                  pat = r"(opp-hz = /bits/ 64 <" + freq + r">;[\s\S]*?opp-peak-kBps = <\d+>;)"
-                  c = re.sub(pat, r"\1\n\t\t\t\t\tqcom,opp-acd-level = " + acd + ";", c)
-              with open(f_dtsi, "w") as f: f.write(c)
-
-          # 4. Audio Kconfig 简化
-          f_audio = "sound/soc/codecs/Kconfig"
-          if os.path.exists(f_audio):
-              with open(f_audio, "r") as f: c = f.read()
-              pat = r'config SND_SOC_WM_ADSP\n\ttristate\n\tselect FW_CS_DSP\n\tselect SND_SOC_COMPRESS\n(?:\tdefault [ym] if [^\n]+\n)+'
-              rep = 'config SND_SOC_WM_ADSP\n\ttristate "Cirrus Logic wm_adsp driver" if KUNIT\n\tselect FW_CS_DSP\n\tselect SND_SOC_COMPRESS\n'
-              c = re.sub(pat, rep, c)
-              with open(f_audio, "w") as f: f.write(c)
-
-          # 5. NTFS3 修复
-          for root, dirs, files in os.walk("fs/ntfs3"):
-              for file in files:
-                  if file.endswith((".c", ".h")):
-                      path = os.path.join(root, file)
-                      with open(path, "r", encoding="utf-8", errors="ignore") as f: c = f.read()
-                      c = c.replace("ntfs_legacy_dir_operations", "ntfs_dir_operations")
-                      c = c.replace("ntfs_legacy_file_operations", "ntfs_file_operations")
-                      c = c.replace("sizeof(\"$$LXDEV\")", "sizeof(\"$LXDEV\")")
-                      if file == "attrib.c":
-                          c = c.replace("if (*pre_alloc)", "if (pre_alloc)")
-                      elif file == "fslog.c":
-                          c = c.replace("name[32];", "name[64];")
-                          c = c.replace("sizeof(struct CLIENT_REC) == 0x60", "sizeof(struct CLIENT_REC) == 0xa0")
-                      elif file == "run.c":
-                          c = c.replace("if (size_size > sizeof(len))\n\t\t\treturn -EINVAL;", "if (size_size > sizeof(len))\n\t\t\treturn -EINVAL;\n\n\t\tif (run_buf + size_size > run_last)\n\t\t\treturn -EINVAL;")
-                      elif file == "frecord.c":
-                          c = re.sub(r"static struct page \*ntfs_lock_new_page\(struct address_space \*mapping,\n\s*pgoff_t index, gfp_t gfp\)\n\{.*?return page;\n\}", 
-                                     "static struct folio *ntfs_lock_new_page(struct address_space *mapping, pgoff_t index, gfp_t gfp)\n{\n\tstruct folio *folio = __filemap_get_folio(mapping, index, FGP_LOCK | FGP_ACCESSED | FGP_CREAT, gfp);\n\tif (IS_ERR(folio)) return folio;\n\tif (!folio_test_uptodate(folio)) {\n\t\tstruct page *page = folio_file_page(folio, index);\n\t\tif (IS_ERR(page)) return ERR_CAST(page);\n\t\treturn page_folio(page);\n\t}\n\tfolio_unlock(folio); folio_put(folio);\n\tfolio = folio_alloc(gfp, 0);\n\tif (!folio) return ERR_PTR(-ENOMEM);\n\t__folio_set_locked(folio);\n\treturn folio;\n}", c, flags=re.DOTALL)
-                          c = c.replace("struct page *pg;", "struct page *pg;\n\tstruct folio *f;")
-                          c = c.replace("pg = ntfs_lock_new_page(mapping, index, gfp_mask);", "f = ntfs_lock_new_page(mapping, index, gfp_mask);\n\t\t\tif (IS_ERR(f)) { err = PTR_ERR(f); goto out1; }\n\t\t\tpages[i] = &f->page;")
-                      with open(path, "w", encoding="utf-8") as f: f.write(c)
-          EOF
-          python3 fix_final.py
-          find . -name "*.rej" -type f -delete || true
-          rm -f fix_final.py patch-7.1
-
-      - name: "🔨 编译内核"
+      - name: "🔨 编译内核 (含环境修复)"
         id: build
         run: |
           echo "🚀 开始编译内核版本 ${{ github.event.inputs.kernel_version || '7.1' }}"
@@ -136,7 +53,22 @@ jobs:
           export CCACHE_MAXSIZE=10G
           export PATH="/usr/lib/ccache:$PATH"
           
-          # 执行我们刚刚合并好的终极编译脚本
+          # ==========================================
+          # 自动修复区 (解决卡死与节点报错)
+          # ==========================================
+          echo "🛠️ 正在暴力修复 Config 文件..."
+          sed -i 's/Linux\/arm64 7.0.0/Linux\/arm64 7.1.0/g' config-postmarketos-qcom-sm8550.aarch64.txt || true
+          if ! grep -q "CONFIG_DRIVER_DEFERRED_PROBE_TIMEOUT" config-postmarketos-qcom-sm8550.aarch64.txt; then
+            echo "# --- Linux 7.1 Auto-Fix ---" >> config-postmarketos-qcom-sm8550.aarch64.txt
+            echo "# CONFIG_ACPI_APEI_GHES_NVIDIA is not set" >> config-postmarketos-qcom-sm8550.aarch64.txt
+            echo "CONFIG_DRIVER_DEFERRED_PROBE_TIMEOUT=10" >> config-postmarketos-qcom-sm8550.aarch64.txt
+          fi
+          
+          echo "🛠️ 正在剔除冲突的 hamoa 开发板设备树..."
+          sed -i '/hamoa-iot-evk.dtb/d' arch/arm64/boot/dts/qcom/Makefile || true
+          # ==========================================
+
+          # 执行你的终极编译脚本
           chmod +x sheng-kernel_build.sh
           bash sheng-kernel_build.sh "${{ github.event.inputs.kernel_version || '7.1' }}"
           
