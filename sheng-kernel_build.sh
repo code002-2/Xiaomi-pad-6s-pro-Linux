@@ -43,21 +43,26 @@ sed -i '/hamoa/d' arch/arm64/boot/dts/qcom/Makefile
 sed -i '/ipq/d' arch/arm64/boot/dts/qcom/Makefile
 
 # ==========================================
-# 🛠️ 终极修复：清理冲突的 KVM 寄存器定义
+# 🛠️ 终极修复：使用补丁修复 sys_regs.c
 # ==========================================
-echo "🛠️ 正在修复 arch/arm64/kvm/sys_regs.c 重定义冲突..."
+echo "🛠️ 正在修补 sys_regs.c 语法错误..."
 
-# 使用 sed 强行删除重复定义的函数体
-# 这会将重复的 access_gicv5_* 和 sanitise_id_aa64pfr2_el1 等函数注释掉或删除
-sed -i '/static bool access_gicv5_idr0/,/}/d' arch/arm64/kvm/sys_regs.c
-sed -i '/static bool access_gicv5_iaffid/,/}/d' arch/arm64/kvm/sys_regs.c
-sed -i '/static bool access_gicv5_ppi_enabler/,/}/d' arch/arm64/kvm/sys_regs.c
-sed -i '/static u64 sanitise_id_aa64pfr2_el1/,/}/d' arch/arm64/kvm/sys_regs.c
-sed -i '/static int set_id_aa64pfr2_el1/,/}/d' arch/arm64/kvm/sys_regs.c
+# 1. 恢复原始文件（防止之前的暴力 sed 破坏了文件结构）
+git checkout arch/arm64/kvm/sys_regs.c
 
-# 既然报错了，说明 KVM 相关支持配置可能太杂，我们在 .config 中禁用掉不需要的 KVM 功能
-echo "# CONFIG_KVM_ARM_VGIC_V3 is not set" >> .config
-echo "# CONFIG_KVM_ARM_VGIC_V2 is not set" >> .config
+# 2. 我们不删除函数，而是修改代码使其通过编译
+# 这里的逻辑是将重复定义的函数标记为 'static inline' 或者改名，
+# 或者如果冲突严重，直接通过预处理宏关闭相关代码段
+
+# 将可能导致重定义的函数名改名（这是 C 语言中最稳妥的解决重定义方式）
+sed -i 's/access_gicv5_idr0/access_gicv5_idr0_unused/g' arch/arm64/kvm/sys_regs.c
+sed -i 's/access_gicv5_iaffid/access_gicv5_iaffid_unused/g' arch/arm64/kvm/sys_regs.c
+sed -i 's/access_gicv5_ppi_enabler/access_gicv5_ppi_enabler_unused/g' arch/arm64/kvm/sys_regs.c
+sed -i 's/sanitise_id_aa64pfr2_el1/sanitise_id_aa64pfr2_el1_unused/g' arch/arm64/kvm/sys_regs.c
+sed -i 's/set_id_aa64pfr2_el1/set_id_aa64pfr2_el1_unused/g' arch/arm64/kvm/sys_regs.c
+
+# 3. 如果编译还是报错，我们强制在 sys_regs.c 中禁止 GICv5 的 KVM 特性
+sed -i 's/#define __KVM_GIC_V5__ 1/\/\/#define __KVM_GIC_V5__ 1/g' arch/arm64/kvm/sys_regs.c
 
 # ==========================================
 # 4. 执行不带交互的编译
