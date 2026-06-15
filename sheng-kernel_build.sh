@@ -40,6 +40,28 @@ make ARCH=arm64 KCONFIG_ALLCONFIG=.config alldefconfig
 # 这一步是为了应对那些内核自动生成无法触及的特定硬件开关
 echo "CONFIG_DRIVER_DEFERRED_PROBE_TIMEOUT=10" >> .config
 echo "# CONFIG_ACPI_APEI_GHES_NVIDIA is not set" >> .config
+
+# ==========================================
+# 🛑 终极重置 (在进入 linux 目录并 copy config 后执行)
+# ==========================================
+cd linux
+cp ../sm8550.config .config
+
+# 强制删除所有可能导致冲突的残留信息
+rm -f .config.old
+rm -f include/config/auto.conf
+rm -f include/config/auto.conf.cmd
+
+# 使用最原始的 make oldconfig，并完全不通过 yes，直接用 echo 喂入一个固定的大量回车
+# 这样即便有 choice 菜单，它也会自动选第一项 (通常是默认项)
+# 我们生成一个包含 1000 个回车的输入流给它
+perl -e 'print "\n" x 1000' | make ARCH=arm64 oldconfig
+
+# 再次运行一次，确保所有依赖更新完全生效
+make ARCH=arm64 olddefconfig
+
+
+# ==========================================
 # ==========================================
 # ==========================================
 # ==========================================
