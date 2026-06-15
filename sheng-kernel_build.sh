@@ -43,26 +43,26 @@ sed -i '/hamoa/d' arch/arm64/boot/dts/qcom/Makefile
 sed -i '/ipq/d' arch/arm64/boot/dts/qcom/Makefile
 
 # ==========================================
-# 🛠️ 终极修复：使用补丁修复 sys_regs.c
+# 🛠️ 终极止血：彻底禁用 KVM，避开架构冲突
 # ==========================================
-echo "🛠️ 正在修补 sys_regs.c 语法错误..."
+echo "⚙️ 正在应用配置并彻底禁用 KVM..."
 
-# 1. 恢复原始文件（防止之前的暴力 sed 破坏了文件结构）
-git checkout arch/arm64/kvm/sys_regs.c
+# 1. 注入配置，确保 KVM 和相关 GIC 虚拟化全部关闭
+cp ../config-postmarketos-qcom-sm8550.aarch64 .config
 
-# 2. 我们不删除函数，而是修改代码使其通过编译
-# 这里的逻辑是将重复定义的函数标记为 'static inline' 或者改名，
-# 或者如果冲突严重，直接通过预处理宏关闭相关代码段
+# 强制禁用 KVM 及其相关所有组件
+{
+    echo "# CONFIG_KVM is not set"
+    echo "# CONFIG_KVM_ARM_VGIC_V3 is not set"
+    echo "# CONFIG_KVM_ARM_VGIC_V2 is not set"
+    echo "# CONFIG_ARM64_VIRT is not set"
+} >> .config
 
-# 将可能导致重定义的函数名改名（这是 C 语言中最稳妥的解决重定义方式）
-sed -i 's/access_gicv5_idr0/access_gicv5_idr0_unused/g' arch/arm64/kvm/sys_regs.c
-sed -i 's/access_gicv5_iaffid/access_gicv5_iaffid_unused/g' arch/arm64/kvm/sys_regs.c
-sed -i 's/access_gicv5_ppi_enabler/access_gicv5_ppi_enabler_unused/g' arch/arm64/kvm/sys_regs.c
-sed -i 's/sanitise_id_aa64pfr2_el1/sanitise_id_aa64pfr2_el1_unused/g' arch/arm64/kvm/sys_regs.c
-sed -i 's/set_id_aa64pfr2_el1/set_id_aa64pfr2_el1_unused/g' arch/arm64/kvm/sys_regs.c
+# 2. 重新进行最小化配置更新
+make ARCH=arm64 alldefconfig
 
-# 3. 如果编译还是报错，我们强制在 sys_regs.c 中禁止 GICv5 的 KVM 特性
-sed -i 's/#define __KVM_GIC_V5__ 1/\/\/#define __KVM_GIC_V5__ 1/g' arch/arm64/kvm/sys_regs.c
+# 3. 物理删除所有会导致冲突的内核文件 (KVM 相关的都删掉)
+rm -rf arch/arm64/kvm/
 
 # ==========================================
 # 4. 执行不带交互的编译
