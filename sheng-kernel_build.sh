@@ -28,7 +28,7 @@ make ARCH=arm64 defconfig
 
 # B. 将你的底板内容注入到底座中
 # 我们直接用 sed 批量修改或追加关键选项，不再调用 make oldconfig
-cp ../config-postmarketos-qcom-sm8550.aarch64.txt .config
+cp ../config-postmarketos-qcom-sm8550.aarch64 .config
 
 # C. 强制开启内核必须的编译器开关，解决 Error in reading
 echo "CONFIG_COMPAT=y" >> .config
