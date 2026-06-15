@@ -2,7 +2,7 @@
 set -e
 
 # ==========================================
-# 1. 编译缓存 (ccache) 与 LLVM 工具链配置
+# 1. 编译环境与工具链配置
 # ==========================================
 export CCACHE_DIR="/home/runner/.ccache"
 export CCACHE_MAXSIZE="10G"
@@ -25,33 +25,81 @@ git clone https://github.com/code002-2/sm8550-mainline.git --branch sheng-mainli
 cd linux
 
 # ==========================================
-# 3. 自动生成并命名 sm8550.config (核心逻辑)
+# 3. 智能定位并应用 sm8550.config
 # ==========================================
-echo "⚙️ 正在定位基准配置..."
-# 优先查找你仓库里的 config 文件
-CONFIG_PATH=$(find "$GITHUB_WORKSPACE" ../ -maxdepth 2 -name "config*.aarch64*" 2>/dev/null | head -n 1)
+echo "⚙️ 正在定位并应用配置文件..."
 
-if [ -n "$CONFIG_PATH" ]; then
-    echo "✅ 发现基准配置，正在复制..."
+if [ -f "../sm8550.config" ]; then
+    echo "✅ 优先检测到根目录配置: ../sm8550.config，正在应用..."
+    cp ../sm8550.config .config
+elif [ -n "$(find "$GITHUB_WORKSPACE" ../ -maxdepth 2 -name "config*.aarch64*" 2>/dev/null | head -n 1)" ]; then
+    CONFIG_PATH=$(find "$GITHUB_WORKSPACE" ../ -maxdepth 2 -name "config*.aarch64*" 2>/dev/null | head -n 1)
+    echo "✅ 使用备用配置: $CONFIG_PATH"
     cp "$CONFIG_PATH" .config
 else
-    echo "⚠️ 未找到基准配置，请检查仓库路径。"
+    echo "❌ 致命错误: 找不到任何配置文件！"
     exit 1
 fi
 
-echo "🛠️ 执行 olddefconfig 以适配 7.1 并剔除无效设备树..."
-# 自动填补 7.1 新增项，彻底消灭 Error in reading
+# 核心：自动适配 7.1 版本差异，防止 Error in reading
 make ARCH=arm64 olddefconfig
 
-# 踢掉报错的无效开发板设备树
+# 剔除导致编译崩溃的无效开发板设备树节点
 sed -i '/hamoa-iot-evk.dtb/d' arch/arm64/boot/dts/qcom/Makefile || true
 
-# 导出生成的配置
-cp .config ../sm8550.config
-echo "🎉 成功生成配置: sm8550.config 已存入仓库根目录"
+# ==========================================
+# 4. 执行多线程编译
+# ==========================================
+echo "🔨 开始极速编译..."
+make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1
+_kernel_version="$(make kernelrelease -s)"
+
+# 更新 DEBIAN 版本
+sed -i "s/Version:.*/Version: ${_kernel_version}/" ../linux-xiaomi-sheng/DEBIAN/control
 
 # ==========================================
-# 🛑 强制终止：不再往下编译
+# 5. 提取产物与打包
 # ==========================================
-echo "🛑 任务完成：已生成 sm8550.config，停止编译。"
-exit 0
+PKGDIR=../linux-xiaomi-sheng
+mkdir -p $PKGDIR/boot
+
+install -Dm644 arch/arm64/boot/Image.gz $PKGDIR/boot/Image.gz
+install -Dm644 arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb $PKGDIR/boot/sm8550-xiaomi-sheng.dtb
+install -Dm644 .config $PKGDIR/boot/config-${_kernel_version}
+install -Dm644 System.map $PKGDIR/boot/System.map-${_kernel_version}
+
+chmod +x ../mkbootimg
+
+# 打包 boot.img
+cat arch/arm64/boot/Image.gz arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb > Image.gz-dtb_sheng
+install -Dm644 Image.gz-dtb_sheng $PKGDIR/boot/Image.gz-dtb_sheng
+mv Image.gz-dtb_sheng zImage_sheng
+
+../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=linux rootwait rw" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_dualboot.img
+../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=userdata rootwait rw" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_singleboot.img
+
+# 编译内核模块
+make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=../linux-xiaomi-sheng modules_install
+
+# 清理冗余链接
+rm -rf ../linux-xiaomi-sheng/lib/modules/*/build || true
+rm -rf ../linux-xiaomi-sheng/lib/modules/*/source || true
+
+cd ..
+
+# ==========================================
+# 6. 打包固件与驱动
+# ==========================================
+git clone https://github.com/map220v/sheng-firmware
+mkdir -p firmware-xiaomi-sheng/usr/lib/firmware
+cp -r sheng-firmware/* firmware-xiaomi-sheng/usr/lib/firmware/
+
+git clone https://github.com/alghiffaryfa19/alsa-sheng
+cp -r alsa-sheng/* alsa-xiaomi-sheng/
+
+dpkg-deb --build --root-owner-group linux-xiaomi-sheng
+dpkg-deb --build --root-owner-group firmware-xiaomi-sheng
+dpkg-deb --build --root-owner-group alsa-xiaomi-sheng
+dpkg-deb --build --root-owner-group sheng-devauth
+
+echo "🎉 所有任务圆满完成！"
