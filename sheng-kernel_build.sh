@@ -27,26 +27,17 @@ cd linux
 # ==========================================
 # 3. 智能定位并应用 sm8550.config
 # ==========================================
-echo "⚙️ 正在定位并应用配置文件..."
+echo "⚙️ 正在应用并强行补全配置..."
+cp ../sm8550.config .config
 
-if [ -f "../sm8550.config" ]; then
-    echo "✅ 优先检测到根目录配置: ../sm8550.config，正在应用..."
-    cp ../sm8550.config .config
-elif [ -n "$(find "$GITHUB_WORKSPACE" ../ -maxdepth 2 -name "config*.aarch64*" 2>/dev/null | head -n 1)" ]; then
-    CONFIG_PATH=$(find "$GITHUB_WORKSPACE" ../ -maxdepth 2 -name "config*.aarch64*" 2>/dev/null | head -n 1)
-    echo "✅ 使用备用配置: $CONFIG_PATH"
-    cp "$CONFIG_PATH" .config
-else
-    echo "❌ 致命错误: 找不到任何配置文件！"
-    exit 1
-fi
+# 【终极修复】使用 yes "" 把所有默认选择回车进去
+# 这样系统就不会再报 Error in reading 或停在 choice[1-2] 处
+yes "" | make ARCH=arm64 oldconfig
 
-# 核心：自动适配 7.1 版本差异，防止 Error in reading
-make ARCH=arm64 olddefconfig
-
-# 剔除导致编译崩溃的无效开发板设备树节点
+# 踢掉报错的无效开发板设备树
 sed -i '/hamoa-iot-evk.dtb/d' arch/arm64/boot/dts/qcom/Makefile || true
 
+# ==========================================
 # ==========================================
 # 4. 执行多线程编译
 # ==========================================
