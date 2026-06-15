@@ -44,7 +44,7 @@ jobs:
           ccache --set-config=cache_dir=/home/runner/.ccache
           ccache --set-config=sloppiness=file_macro,locale,time_macros
 
-      - name: "🔨 编译内核 (含环境修复)"
+      - name: "🔨 编译内核"
         id: build
         run: |
           echo "🚀 开始编译内核版本 ${{ github.event.inputs.kernel_version || '7.1' }}"
@@ -54,21 +54,9 @@ jobs:
           export PATH="/usr/lib/ccache:$PATH"
           
           # ==========================================
-          # 自动修复区 (解决卡死与节点报错)
+          # 所有的卡死修复和报错剔除都已经写在脚本里了
+          # 这里直接无脑运行即可！
           # ==========================================
-          echo "🛠️ 正在暴力修复 Config 文件..."
-          sed -i 's/Linux\/arm64 7.0.0/Linux\/arm64 7.1.0/g' config-postmarketos-qcom-sm8550.aarch64.txt || true
-          if ! grep -q "CONFIG_DRIVER_DEFERRED_PROBE_TIMEOUT" config-postmarketos-qcom-sm8550.aarch64.txt; then
-            echo "# --- Linux 7.1 Auto-Fix ---" >> config-postmarketos-qcom-sm8550.aarch64.txt
-            echo "# CONFIG_ACPI_APEI_GHES_NVIDIA is not set" >> config-postmarketos-qcom-sm8550.aarch64.txt
-            echo "CONFIG_DRIVER_DEFERRED_PROBE_TIMEOUT=10" >> config-postmarketos-qcom-sm8550.aarch64.txt
-          fi
-          
-          echo "🛠️ 正在剔除冲突的 hamoa 开发板设备树..."
-          sed -i '/hamoa-iot-evk.dtb/d' arch/arm64/boot/dts/qcom/Makefile || true
-          # ==========================================
-
-          # 执行你的终极编译脚本
           chmod +x sheng-kernel_build.sh
           bash sheng-kernel_build.sh "${{ github.event.inputs.kernel_version || '7.1' }}"
           
