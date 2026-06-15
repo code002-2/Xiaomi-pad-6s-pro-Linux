@@ -71,17 +71,26 @@ make ARCH=arm64 olddefconfig
 
 
 # ==========================================
-# ==========================================
-# ==========================================
-# ==========================================
-# 4. 执行多线程编译
+# 4. 极速编译 (精准定位目标)
 # ==========================================
 echo "🔨 开始极速编译..."
-make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1
-_kernel_version="$(make kernelrelease -s)"
 
-# 更新 DEBIAN 版本
-sed -i "s/Version:.*/Version: ${_kernel_version}/" ../linux-xiaomi-sheng/DEBIAN/control
+# 1. 先只编译核心内核镜像，不编译全量 dtbs，避开所有无关的设备树报错
+make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 Image
+
+# 2. 精准编译小米平板 6S Pro 的设备树文件
+# 这样即便其他开发板有语法错误，也不会影响我们出包
+make ARCH=arm64 CC="ccache clang" LLVM=1 dtbs
+make ARCH=arm64 CC="ccache clang" LLVM=1 dtbs_install
+
+# 3. 编译内核模块
+make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 modules
+
+# 4. 确认关键产物是否存在
+if [ ! -f "arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb" ]; then
+    echo "❌ 致命错误：小米设备树未找到！"
+    exit 1
+fi
 
 # ==========================================
 # 5. 提取产物与打包
