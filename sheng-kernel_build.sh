@@ -44,7 +44,6 @@ echo "# CONFIG_ACPI_APEI_GHES_NVIDIA is not set" >> .config
 # ==========================================
 # 🛑 终极重置 (在进入 linux 目录并 copy config 后执行)
 # ==========================================
-cd linux
 cp ../sm8550.config .config
 
 # 强制删除所有可能导致冲突的残留信息
