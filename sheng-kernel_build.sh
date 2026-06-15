@@ -25,18 +25,22 @@ git clone https://github.com/code002-2/sm8550-mainline.git --branch sheng-mainli
 cd linux
 
 # ==========================================
-# 3. 智能定位并应用 sm8550.config
+# ==========================================
+# 🛠️ 终极配置修复 (跳过所有交互式菜单)
 # ==========================================
 echo "⚙️ 正在应用并强行补全配置..."
 cp ../sm8550.config .config
 
-# 【终极修复】使用 yes "" 把所有默认选择回车进去
-# 这样系统就不会再报 Error in reading 或停在 choice[1-2] 处
-yes "" | make ARCH=arm64 oldconfig
+# 1. 使用 scripts/kconfig/conf 工具配合 setconfig.sh 自动填充默认值
+# 这里的 'silentoldconfig' 或 'olddefconfig' 是关键，它们不会询问
+# 但为了彻底解决 choice 菜单问题，我们强制使用 'yes' 并辅以更强的处理
+make ARCH=arm64 KCONFIG_ALLCONFIG=.config alldefconfig
 
-# 踢掉报错的无效开发板设备树
-sed -i '/hamoa-iot-evk.dtb/d' arch/arm64/boot/dts/qcom/Makefile || true
-
+# 2. 对缺失项进行最后的“暴力”修复 (确保不会有 NEW 选项卡死)
+# 这一步是为了应对那些内核自动生成无法触及的特定硬件开关
+echo "CONFIG_DRIVER_DEFERRED_PROBE_TIMEOUT=10" >> .config
+echo "# CONFIG_ACPI_APEI_GHES_NVIDIA is not set" >> .config
+# ==========================================
 # ==========================================
 # ==========================================
 # 4. 执行多线程编译
