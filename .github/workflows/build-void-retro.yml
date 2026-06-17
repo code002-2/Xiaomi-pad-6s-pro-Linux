@@ -69,6 +69,8 @@ jobs:
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
           gh release download "sensor" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
+          gh release download "xiaomi-mipps-auth" \
+            --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
