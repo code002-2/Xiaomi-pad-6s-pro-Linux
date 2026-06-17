@@ -1,4 +1,4 @@
-name: 🌀 Build Debian 13 Desktop
+name: 🌀 Build Debian 14 Desktop
 
 on:
   workflow_dispatch:
@@ -45,7 +45,7 @@ jobs:
         id: tag
         run: |
           DE_SUFFIX="${{ github.event.inputs.desktop_env || 'all' }}"
-          TAG="debian13-${DE_SUFFIX}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
+          TAG="debian14-${DE_SUFFIX}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
           echo "release_tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: 🧮 Generate Dynamic Matrix
@@ -70,9 +70,9 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: "Debian 13 Desktop (${{ github.event.inputs.desktop_env || 'all' }}) - ${{ steps.tag.outputs.release_tag }}"
+          name: "Debian 14 Desktop (${{ github.event.inputs.desktop_env || 'all' }}) - ${{ steps.tag.outputs.release_tag }}"
           body: |
-            🌀 Debian 13 (Trixie) Desktop For SM8550
+            🌀 Debian 14 (Forky) Desktop For SM8550
 
             ---
 
