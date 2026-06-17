@@ -2,184 +2,119 @@
 set -e
 
 # ==========================================
-# 1. 编译环境配置
+# 1. 编译环境与工具链配置
 # ==========================================
-export CCACHE_DIR="/home/runner/.ccache"
+export CCACHE_DIR="$HOME/.ccache"
 export CCACHE_MAXSIZE="10G"
+export CCACHE_SLOPPINESS="file_macro,locale,time_macros"
 mkdir -p "$CCACHE_DIR"
+
 export CC="ccache clang"
 export CXX="ccache clang++"
-export LLVM=1
-export ARCH=arm64
+export AR="llvm-ar"
+export NM="llvm-nm"
+export OBJCOPY="llvm-objcopy"
+export OBJDUMP="llvm-objdump"
+export READELF="llvm-readelf"
+export STRIP="llvm-strip"
 
 # ==========================================
-# 2. 拉取源码
+# 2. 拉取内核源码
 # ==========================================
-echo "📥 正在拉取内核源码..."
-git clone https://github.com/code002-2/sm8550-mainline.git --branch sheng-mainline --depth 1 linux
+git clone https://github.com/map220v/sm8550-mainline.git --branch sheng-7.1 --depth 1 linux
 cd linux
 
 # ==========================================
-# 3. 智能配置注入 (底座 + 高通专有补丁合并)
+# 🛠️ 自动配置 (跳过所有交互式菜单)
 # ==========================================
-echo "⚙️ 正在应用自动生成的底座配置..."
-
-# 1. 复制干净底座
-cp ../sm8550.config .config
-
-# 2. 精准提取高通、小米等专属驱动
-echo "🔍 正在从 postmarketos 提取专有配置..."
-grep -E '^CONFIG_.*(QCOM|MSM|SM8550|XIAOMI|ADRENO)=' ../config-postmarketos-qcom-sm8550.aarch64.txt > qcom_extras.config || true
-
-# 3. 强制内置核心驱动
-sed -i 's/=m/=y/g' qcom_extras.config
-
-# 4. 合并补丁
-cat qcom_extras.config >> .config
-
-# 5. 硬编码保底驱动与冲突屏蔽
-{
-    echo "# ---- 核心亮机保底驱动 (防止跨版本丢失) ----"
-    echo "CONFIG_SCSI_UFS_QCOM=y"
-    echo "CONFIG_PHY_QCOM_QMP_UFS=y"
-    echo "CONFIG_DRM_MSM=y"
-    echo "CONFIG_DRM_MSM_DPU=y"
-    echo "CONFIG_DRM_PANEL_XIAOMI_SHENG=y"
-    echo "CONFIG_QCOM_SPMI_PMIC=y"
-    echo "CONFIG_USB_DWC3_QCOM=y"
-    
-    echo "# ---- 屏蔽冲突项 (KVM 与 第三方网卡) ----"
-    echo "# CONFIG_KVM is not set"
-    echo "# CONFIG_KVM_ARM_VGIC_V3 is not set"
-    echo "# CONFIG_KVM_ARM_VGIC_V2 is not set"
-    echo "# CONFIG_ARM64_VIRT is not set"
-    echo "# CONFIG_WLAN_VENDOR_INTEL is not set"
-    echo "# CONFIG_IWLWIFI is not set"
-    echo "# CONFIG_WLAN_VENDOR_REALTEK is not set"
-    echo "# CONFIG_WLAN_VENDOR_MEDIATEK is not set"
-    echo "# CONFIG_WLAN_VENDOR_BROADCOM is not set"
-
-    echo "# ---- 极致提速：干掉 LTO 与 调试符号 ----"
-    echo "# CONFIG_LTO_CLANG_FULL is not set"
-    echo "# CONFIG_LTO_CLANG_THIN is not set"
-    echo "CONFIG_LTO_NONE=y"
-    echo "# CONFIG_DEBUG_INFO is not set"
-    echo "# CONFIG_DEBUG_INFO_BTF is not set"
-    echo "# CONFIG_DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT is not set"
-    echo "CONFIG_DEBUG_INFO_NONE=y"
-} >> .config
-
-# 6. 安全融合并补全依赖
-echo "🔄 正在自动融合配置..."
-make ARCH=arm64 olddefconfig
+echo "⚙️ 正在应用并强行补全配置..."
+cp ../ianchb-sm8550.config .config
+make ARCH=arm64 CC="ccache clang" LLVM=1 olddefconfig
+# ==========================================
 
 # ==========================================
-# 4. 彻底清空 KVM 冲突源
+# 4. 执行多线程编译
 # ==========================================
-echo "🧹 正在清理 KVM 冲突文件..."
-find arch/arm64/kvm/ -name "*.c" -type f -delete
-find arch/arm64/kvm/ -name "*.h" -type f -delete
-echo "obj- := empty.o" > arch/arm64/kvm/Makefile
-
-# ==========================================
-# 5. 执行强制编译
-# ==========================================
-echo "🔨 开始极速编译..."
-
-# 编译核心 Image
-make -j$(nproc) ARCH=arm64 LLVM=1 Image
-
-# 压缩内核镜像
-echo "🗜️ 正在压缩内核镜像..."
-gzip -c arch/arm64/boot/Image > arch/arm64/boot/Image.gz
-
-# 强制编译设备树
-make -j$(nproc) ARCH=arm64 LLVM=1 DTC_FLAGS="-f" qcom/sm8550-xiaomi-sheng.dtb
-
-# 编译所有必须的动态模块
-make -j$(nproc) ARCH=arm64 LLVM=1 modules
-
-# ==========================================
-# 6. 产物体检
-# ==========================================
-echo "📊 核心产物大小检查："
-ls -lh arch/arm64/boot/Image arch/arm64/boot/Image.gz arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb
-
-if [ ! -f "arch/arm64/boot/Image.gz" ]; then
-    echo "❌ 严重错误：Image.gz 依然不存在！"
+# 由环境变量 ENABLE_BUILD_LOG 控制是否生成日志文件 (设为 1 或 true 启用)
+if [ "${ENABLE_BUILD_LOG:-0}" = "1" ] || [ "${ENABLE_BUILD_LOG:-0}" = "true" ]; then
+    LOG_FILE="../build-$(date +%Y%m%d-%H%M%S).log"
+    TEE_CMD="tee"
+    echo "🔨 开始极速编译... (日志: $LOG_FILE)"
+else
+    LOG_FILE="/dev/null"
+    TEE_CMD="cat"
+    echo "🔨 开始极速编译... (日志已禁用)"
+fi
+make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 2>&1 | $TEE_CMD "$LOG_FILE"
+# 检查编译是否成功
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    if [ "$LOG_FILE" != "/dev/null" ]; then
+        echo "❌ 编译失败，日志: $LOG_FILE"
+    else
+        echo "❌ 编译失败"
+    fi
     exit 1
 fi
-
-# ==========================================
-# 7. 打包内核镜像 与 导出内核模块
-# ==========================================
-echo "📦 正在导出内核模块并生成 boot.img..."
 _kernel_version="$(make kernelrelease -s)"
-PKGDIR=../linux-xiaomi-sheng
 
+# 更新 DEBIAN 版本
+sed -i "s/Version:.*/Version: ${_kernel_version}/" ../linux-xiaomi-sheng/DEBIAN/control
+
+# ==========================================
+# 5. 提取产物与打包
+# ==========================================
+PKGDIR=../linux-xiaomi-sheng
 mkdir -p $PKGDIR/boot
 
-# 1. 将内核模块导出到目标包目录中
-make ARCH=arm64 INSTALL_MOD_PATH=$PKGDIR modules_install
-
-# 2. 拷贝内核核心文件
 install -Dm644 arch/arm64/boot/Image.gz $PKGDIR/boot/Image.gz
 install -Dm644 arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb $PKGDIR/boot/sm8550-xiaomi-sheng.dtb
 install -Dm644 .config $PKGDIR/boot/config-${_kernel_version}
+install -Dm644 System.map $PKGDIR/boot/System.map-${_kernel_version}
 
-# 3. 打包 mkbootimg (单双系统适配)
 chmod +x ../mkbootimg
+
+# 打包 boot.img
 cat arch/arm64/boot/Image.gz arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb > Image.gz-dtb_sheng
+install -Dm644 Image.gz-dtb_sheng $PKGDIR/boot/Image.gz-dtb_sheng
 mv Image.gz-dtb_sheng zImage_sheng
 
 ../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=linux rootwait rw" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_dualboot.img
 ../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=userdata rootwait rw" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_singleboot.img
 
-# ==========================================
-# 8. 组装与构建 DEB 包 (固件拉取 + 音频拉取 + UsrMerge)
-# ==========================================
+# 编译内核模块
+make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=../linux-xiaomi-sheng modules_install 2>&1 | $TEE_CMD -a "$LOG_FILE"
+
+# 清理冗余链接
+rm -rf ../linux-xiaomi-sheng/lib/modules/*/build || true
+rm -rf ../linux-xiaomi-sheng/lib/modules/*/source || true
+
 cd ..
 
-echo "📥 正在从上游拉取最新的固件文件..."
-git clone --depth 1 https://github.com/lzxcr/linux-firmware-sheng.git /tmp/temp_fw
+# ==========================================
+# 6. 打包固件与驱动
+# ==========================================
+# git clone https://github.com/map220v/sheng-firmware
+# mkdir -p firmware-xiaomi-sheng/usr/lib/firmware
+# cp -r sheng-firmware/* firmware-xiaomi-sheng/usr/lib/firmware/
 
-echo "🔧 正在将固件注入打包目录，并强制转入 /usr/lib..."
-mkdir -p firmware-xiaomi-sheng/usr/lib
-if [ -d "/tmp/temp_fw/lib" ]; then
-    cp -r /tmp/temp_fw/lib/* firmware-xiaomi-sheng/usr/lib/
-else
-    cp -r /tmp/temp_fw/* firmware-xiaomi-sheng/usr/lib/ 2>/dev/null || true
-fi
-rm -rf /tmp/temp_fw
+# git clone https://github.com/alghiffaryfa19/alsa-sheng
+# cp -r alsa-sheng/* alsa-xiaomi-sheng/
 
-echo "📥 正在从 map220v 仓库拉取专用的 ALSA UCM2 音频配置文件..."
-# 创建符合现代 Linux 规范的系统级 ALSA 配置目录
-mkdir -p alsa-xiaomi-sheng/usr/share/alsa/ucm2
-git clone --depth 1 https://github.com/map220v/alsa-ucm-conf.git /tmp/temp_alsa
+echo "🔧 正在进行 UsrMerge 路径手术 (确保 Arch/Fedora 兼容性)..."
 
-# 智能识别上游 UCM2 的结构并安全提取至包内
-if [ -d "/tmp/temp_alsa/ucm2" ]; then
-    cp -r /tmp/temp_alsa/ucm2/* alsa-xiaomi-sheng/usr/share/alsa/ucm2/
-else
-    cp -r /tmp/temp_alsa/* alsa-xiaomi-sheng/usr/share/alsa/ucm2/ 2>/dev/null || true
-fi
-rm -rf /tmp/temp_alsa
-
-echo "🔧 正在对内核及音频模块进行安全级 UsrMerge 路径融合..."
-for pkg in linux-xiaomi-sheng alsa-xiaomi-sheng; do
+# 对所有可能包含 /lib 目录的包进行自动化修正
+for pkg in firmware-xiaomi-sheng alsa-xiaomi-sheng linux-xiaomi-sheng; do
     if [ -d "$pkg/lib" ]; then
-        echo "✅ 正在安全融合 $pkg 中的 /lib 至 /usr/lib..."
-        mkdir -p "$pkg/usr/lib"
-        cp -r "$pkg/lib"/* "$pkg/usr/lib/" 2>/dev/null || true
-        rm -rf "$pkg/lib"
-        echo "🧹 $pkg 的老式 /lib 目录已安全移除"
+        echo "✅ 正在将 $pkg 中的 /lib 迁移至 /usr/lib"
+        mkdir -p "$pkg/usr"
+        mv "$pkg/lib" "$pkg/usr/"
     fi
 done
 
-echo "📦 开始构建符合全平台规范的 .deb 文件..."
-dpkg-deb --build --root-owner-group linux-xiaomi-sheng
-dpkg-deb --build --root-owner-group firmware-xiaomi-sheng
-dpkg-deb --build --root-owner-group alsa-xiaomi-sheng
-dpkg-deb --build --root-owner-group sheng-devauth
 
-echo "🎉 核心编译、固件注入与音频重组打包全线通关！"
+dpkg-deb --build --root-owner-group -Zzstd -z10 linux-xiaomi-sheng
+dpkg-deb --build --root-owner-group -Zzstd -z10 firmware-xiaomi-sheng
+dpkg-deb --build --root-owner-group -Zzstd -z10 alsa-xiaomi-sheng
+dpkg-deb --build --root-owner-group -Zzstd -z10 sheng-devauth
+
+echo "🎉 所有任务圆满完成！"
