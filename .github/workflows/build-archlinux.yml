@@ -3,11 +3,6 @@ name: 🌀 Build Arch Linux Desktop
 on:
   workflow_dispatch:
     inputs:
-      kernel_version:
-        description: '内核版本 (如 7.1)'
-        required: true
-        type: string
-        default: '7.1'
       desktop_env:
         description: '选择要构建的桌面环境'
         required: true
@@ -50,24 +45,24 @@ jobs:
           name: "Arch Linux Desktop (${{ github.event.inputs.desktop_env || 'gnome' }}) - ${{ steps.tag.outputs.release_tag }}"
           body: |
             🌀 Arch Linux ARM Desktop For SM8550
-            
+
             ---
-            
+
             ### 📋 构建信息
             | 项目 | 详情 |
             |------|------|
             | 架构 | ARM64 (aarch64) |
-            | 内核版本 | ${{ github.event.inputs.kernel_version || '7.1' }} |
+            | 内核版本 | 7.1.0 |
             | 桌面环境 | ${{ github.event.inputs.desktop_env || 'GNOME' }} |
-            
+
             ---
-            
+
             ### 🔐 默认凭据
             - 普通用户: `luser` / 密码: `luser`
             - 管理员用户: `root` / 密码: `1234`
-            
+
             ---
-            
+
             ### 📦 镜像文件
             构建完成后将出现在下方附件中。解压后请直接使用 fastboot flash 刷入。
           draft: false
@@ -80,22 +75,18 @@ jobs:
     needs: prepare-release
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install build tools
         run: sudo apt update && sudo apt install -y libarchive-tools p7zip-full curl wget android-sdk-libsparse-utils
-      
+
       - name: Download kernel and system bundles
         run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version || '7.1' }}"
-          
-          # 从 GitHub Release 拉取内核和固件包 
-          # 🚨注意：如果你的内核Release标签名变了，请同步修改这里的 "kernel-bundle-${KERNEL_VER}"
-          gh release download "kernel-bundle-${KERNEL_VER}" \
+          gh release download "kernel-bundle-7.1.0" \
             --repo "${{ github.repository }}" --clobber || true
-          
+
           echo "⬇️ 正在下载 Debian Mesa dev 包..."
           wget -q -O mesa-common-dev_26.0.7-1_arm64.deb "http://ftp.br.debian.org/debian/pool/main/m/mesa/mesa-common-dev_26.0.8-1_arm64.deb"
-          
+
           echo "📥 下载的文件列表:"
           ls -la
         env:
@@ -104,12 +95,11 @@ jobs:
       - name: Build RootFS
         id: build
         run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version || '7.1' }}"
           TARGET_DE="${{ github.event.inputs.desktop_env || 'gnome' }}"
-          
+
           chmod +x sheng-arch-rootfs_build.sh
-          sudo bash sheng-arch-rootfs_build.sh archlinux "${KERNEL_VER}" "${TARGET_DE}"
-          
+          sudo bash sheng-arch-rootfs_build.sh archlinux "7.1.0" "${TARGET_DE}"
+
           PKG_COUNT=$(ls -1 *.7z 2>/dev/null | wc -l)
           echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
 

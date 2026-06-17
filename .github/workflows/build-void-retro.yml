@@ -3,10 +3,6 @@ name: 🎮 Build Void Linux Retro Gaming
 on:
   workflow_dispatch:
     inputs:
-      kernel_version:
-        description: '内核版本 (如 7.1)'
-        required: true
-        default: '7.1'
       skip_release:
         description: '跳过创建 GitHub Release'
         type: boolean
@@ -39,16 +35,16 @@ jobs:
           name: "Void Retro Gaming OS - ${{ steps.tag.outputs.release_tag }}"
           body: |
             🎮 Void Linux Retro Gaming OS (aarch64) For SM8550
-            
+
             ---
             ### 📋 构建信息
             | 项目 | 详情 |
             |------|------|
             | 底层架构 | Void Linux ARM64 (glibc) |
-            | 内核版本 | ${{ github.event.inputs.kernel_version || '7.1' }} |
+            | 内核版本 | 7.1.0 |
             | 游戏前端 | **RetroArch** |
             | Init 系统 | **runit**  |
-            
+
             ---
             ### 🔐 默认凭据
             - 普通用户: `luser` / 密码: `luser`
@@ -63,27 +59,22 @@ jobs:
     needs: prepare-release
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install build tools
         run: sudo apt update && sudo apt install -y p7zip-full curl wget android-sdk-libsparse-utils
 
       - name: Download kernel bundle
         run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
-          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.1"; fi
-          gh release download "kernel-bundle-${KERNEL_VER}" --pattern "*.deb" --repo "${{ github.repository }}" --clobber
+          gh release download "kernel-bundle-7.1.0" --pattern "*.deb" --repo "${{ github.repository }}" --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build RootFS
         id: build
         run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
-          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.1"; fi
-          
           chmod +x sheng-void-retro_build.sh
-          sudo ./sheng-void-retro_build.sh ${KERNEL_VER}
-          
+          sudo ./sheng-void-retro_build.sh 7.1.0
+
           SEVEN_Z_FILE=$(ls void_retro_*.7z | head -1)
           echo "path=$SEVEN_Z_FILE" >> $GITHUB_OUTPUT
 

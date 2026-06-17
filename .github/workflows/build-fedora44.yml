@@ -3,11 +3,6 @@ name: 🌀 Build Fedora Desktop (Gnome)
 on:
   workflow_dispatch:
     inputs:
-      kernel_version:
-        description: '内核版本 (如 7.0)'
-        required: true
-        type: string
-        default: '7.0'
       skip_release:
         description: '跳过创建GitHub Release'
         type: boolean
@@ -40,25 +35,25 @@ jobs:
           name: "Fedora Desktop - ${{ steps.tag.outputs.release_tag }}"
           body: |
             🌀 Fedora ARM Desktop Gnome For SM8550
-            
+
             ---
-            
+
             ### 📋 构建信息
             | 项目 | 详情 |
             |------|------|
             | 架构 | ARM64 (aarch64) |
             | 系统版本 | Fedora 44 |
-            | 内核版本 | ${{ github.event.inputs.kernel_version || '7.0' }} |
+            | 内核版本 | 7.1.0 |
             | 桌面环境 | GNOME |
-            
+
             ---
-            
+
             ### 🔐 默认凭据
             - 普通用户: `luser` / 密码: `luser`
             - 管理员用户: `root` / 密码: `1234`
-            
+
             ---
-            
+
             ### 📦 镜像文件
             构建完成后将出现在下方附件中。解压后请直接使用 fastboot flash 刷入。
           draft: false
@@ -71,25 +66,21 @@ jobs:
     needs: prepare-release
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install build tools
         run: |
-          sudo apt update 
+          sudo apt update
           sudo apt install -y libarchive-tools p7zip-full curl wget android-sdk-libsparse-utils
-          # 验证 Docker 是否已存在且可用
           docker --version
 
       - name: Download kernel and system bundles
         run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
-          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.1"; fi
-          
-          gh release download "kernel-bundle-${KERNEL_VER}" \
+          gh release download "kernel-bundle-7.1.0" \
             --repo "${{ github.repository }}" --clobber || true
-            
+
           echo "⬇️ 正在下载 Debian Mesa dev 包..."
           wget -q -O mesa-common-dev_26.0.7-1_arm64.deb "http://ftp.br.debian.org/debian/pool/main/m/mesa/mesa-common-dev_26.0.8-1_arm64.deb"
-          
+
           echo "📥 下载的文件列表:"
           ls -la
         env:
@@ -98,12 +89,9 @@ jobs:
       - name: Build RootFS
         id: build
         run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
-          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.0"; fi
-          
           chmod +x sheng-fedora-rootfs_build.sh
-          sudo ./sheng-fedora-rootfs_build.sh fedora ${KERNEL_VER}
-          
+          sudo ./sheng-fedora-rootfs_build.sh fedora 7.1.0
+
           SEVEN_Z_FILE=$(ls fedora_desktop_*.7z | head -1)
           echo "filename=$(basename "$SEVEN_Z_FILE")" >> $GITHUB_OUTPUT
           echo "path=$SEVEN_Z_FILE" >> $GITHUB_OUTPUT

@@ -3,10 +3,6 @@ name: 🌀 Build Debian 13 Desktop
 on:
   workflow_dispatch:
     inputs:
-      kernel_version:
-        description: '内核版本 (如 7.1)'
-        required: true
-        default: '7.1'
       desktop_env:
         description: '选择桌面环境'
         required: true
@@ -40,7 +36,6 @@ permissions:
 jobs:
   prepare-release:
     runs-on: ubuntu-24.04-arm
-    # 🚨 核心修复 1：将计算好的动态矩阵暴露出给下游 Job 使用
     outputs:
       release_tag: ${{ steps.tag.outputs.release_tag }}
       matrix_desktop: ${{ steps.set-matrix.outputs.desktop }}
@@ -53,7 +48,6 @@ jobs:
           TAG="debian13-${DE_SUFFIX}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
           echo "release_tag=$TAG" >> $GITHUB_OUTPUT
 
-      # 🚨 核心修复 2：用 Bash 脚本动态计算 JSON 格式的矩阵数组
       - name: 🧮 Generate Dynamic Matrix
         id: set-matrix
         run: |
@@ -63,7 +57,7 @@ jobs:
           else
             echo "desktop=[\"$DESKTOP\"]" >> $GITHUB_OUTPUT
           fi
-          
+
           BOOT="${{ github.event.inputs.boot_mode || 'all' }}"
           if [ "$BOOT" == "all" ]; then
             echo 'boot=["dual", "single"]' >> $GITHUB_OUTPUT
@@ -79,48 +73,44 @@ jobs:
           name: "Debian 13 Desktop (${{ github.event.inputs.desktop_env || 'all' }}) - ${{ steps.tag.outputs.release_tag }}"
           body: |
             🌀 Debian 13 (Trixie) Desktop For SM8550
-            
+
             ---
-            
+
             ### 📋 构建组合
             | 参数 | 详情 |
             |------|------|
             | 架构 | ARM64 (arm64) |
-            | 内核版本 | ${{ github.event.inputs.kernel_version || '7.1' }} |
+            | 内核版本 | 7.1.0 |
             | 包含桌面 | ${{ github.event.inputs.desktop_env || 'all' }} |
             | 启动模式 | ${{ github.event.inputs.boot_mode || 'all' }} |
-            
+
             ---
-            
+
             ### 🔐 默认凭据
             - 普通用户: `luser` / 密码: `luser`
             - 管理员用户: `root` / 密码: `1234`
-            
+
             ---
-            
+
             ### 📦 镜像文件
             如果你选择了 'all'，云端矩阵将并发生成全部组合的 `.7z` 镜像。
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ==========================================
-  # 🚀 云端多路并发构建矩阵
-  # ==========================================
   build-debian:
     name: Build (${{ matrix.desktop }} | ${{ matrix.boot }})
     runs-on: ubuntu-24.04-arm
     needs: prepare-release
     strategy:
-      fail-fast: false 
-      # 🚨 核心修复 3：从上一阶段读取 JSON 格式的动态数组，彻底解决 if 报错！
+      fail-fast: false
       matrix:
         desktop: ${{ fromJSON(needs.prepare-release.outputs.matrix_desktop) }}
         boot: ${{ fromJSON(needs.prepare-release.outputs.matrix_boot) }}
-        
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: "🔧 部署构建环境"
         run: |
           sudo apt update
@@ -128,10 +118,7 @@ jobs:
 
       - name: Download kernel bundle
         run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
-          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.1"; fi
-          
-          gh release download "kernel-bundle-${KERNEL_VER}" \
+          gh release download "kernel-bundle-7.1.0" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -140,9 +127,8 @@ jobs:
         id: build
         run: |
           chmod +x sheng-rootfs_build.sh
-          # 把矩阵分配到的专属任务传给构建脚本
-          sudo bash sheng-rootfs_build.sh debian-desktop "${{ github.event.inputs.kernel_version || '7.1' }}" "${{ matrix.boot }}" "${{ matrix.desktop }}"
-          
+          sudo bash sheng-rootfs_build.sh debian-desktop "7.1.0" "${{ matrix.boot }}" "${{ matrix.desktop }}"
+
           PKG_COUNT=$(ls -1 *.7z 2>/dev/null | wc -l)
           echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
 

@@ -3,10 +3,6 @@ name: 🐧 Build Ubuntu 26.04 Desktop (GNOME/KDE/Xfce)
 on:
   workflow_dispatch:
     inputs:
-      kernel_version:
-        description: '内核版本 (如 7.0)'
-        required: true
-        default: '7.0'
       skip_release:
         description: '跳过创建GitHub Release'
         type: boolean
@@ -38,29 +34,29 @@ jobs:
           name: "Ubuntu 26.04 Desktop - ${{ steps.tag.outputs.release_tag }}"
           body: |
             🐧 Ubuntu 26.04 LTS (Resolute Raccoon) Desktop
-            
+
             ---
-            
+
             ### 📋 构建信息
             | 项目 | 详情 |
             |------|------|
             | Ubuntu版本 | 26.04 LTS (Resolute) |
-            | 内核版本 | ${{ github.event.inputs.kernel_version || '7.0' }} |
+            | 内核版本 | 7.1.0 |
             | 桌面环境 | GNOME, KDE Plasma, Xfce |
-            
+
             ---
-            
+
             ### 🔐 默认凭据
             - 用户名: `luser`
             - 密码: `luser`
-            
+
             ---
-            
+
             ### 🌐 语言环境
             - 系统语言: 英文 (en_US.UTF-8)
-            
+
             ---
-            
+
             ### 📦 镜像文件
             构建完成后将出现在下方附件中。
           draft: false
@@ -77,16 +73,13 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install build tools
         run: sudo apt update && sudo apt install -y debootstrap libarchive-tools p7zip-full curl wget android-sdk-libsparse-utils
 
       - name: Download kernel bundle
         run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
-          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.0"; fi
-          
-          gh release download "kernel-bundle-${KERNEL_VER}" \
+          gh release download "kernel-bundle-7.1.0" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber
           ls -la *.deb
         env:
@@ -95,12 +88,9 @@ jobs:
       - name: Build RootFS
         id: build
         run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
-          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.0"; fi
-          
           chmod +x build-ubuntu26-rootfs.sh
-          sudo ./build-ubuntu26-rootfs.sh ${KERNEL_VER} ${{ matrix.desktop_env }}
-          
+          sudo ./build-ubuntu26-rootfs.sh 7.1.0 ${{ matrix.desktop_env }}
+
           SEVEN_Z_FILE=$(ls ubuntu26_${{ matrix.desktop_env }}_*.7z | head -1)
           echo "filename=$(basename "$SEVEN_Z_FILE")" >> $GITHUB_OUTPUT
           echo "path=$SEVEN_Z_FILE" >> $GITHUB_OUTPUT
