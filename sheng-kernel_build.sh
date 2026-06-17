@@ -21,7 +21,7 @@ export STRIP="llvm-strip"
 # ==========================================
 # 2. 拉取内核源码
 # ==========================================
-# git clone https://github.com/map220v/sm8550-mainline.git --branch sheng-7.1 --depth 1 linux
+git clone https://github.com/ianchb/sm8550-mainline.git --branch sheng-7.1.0 --depth 1 linux
 cd linux
 
 # ==========================================
