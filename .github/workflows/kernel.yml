@@ -2,15 +2,10 @@ name: Build Kernel
 
 on:
   workflow_dispatch:
-    inputs:
-      kernel_version:
-        description: "内核版本号 (如: 7.1)"
-        required: true
-        default: "7.1"
 
 jobs:
   build:
-    name: "构建内核 v${{ github.event.inputs.kernel_version || '7.1' }}"
+    name: "构建内核 v7.1.0"
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
@@ -27,9 +22,9 @@ jobs:
         id: cache-ccache
         with:
           path: /home/runner/.ccache
-          key: ${{ runner.os }}-ccache-unified-kernel-${{ github.event.inputs.kernel_version || '7.1' }}-${{ github.ref_name }}
+          key: ${{ runner.os }}-ccache-unified-kernel-7.1.0-${{ github.ref_name }}
           restore-keys: |
-            ${{ runner.os }}-ccache-unified-kernel-${{ github.event.inputs.kernel_version || '7.1' }}-
+            ${{ runner.os }}-ccache-unified-kernel-7.1.0-
             ${{ runner.os }}-ccache-unified-kernel-
 
       - name: "🔧 部署 LLVM 交叉编译环境"
@@ -38,7 +33,7 @@ jobs:
           sudo apt update
           sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils
           echo "✅ 构建工具安装完成"
-          
+
           mkdir -p /home/runner/.ccache
           ccache --set-config=max_size=10G
           ccache --set-config=cache_dir=/home/runner/.ccache
@@ -47,19 +42,19 @@ jobs:
       - name: "🔨 编译内核"
         id: build
         run: |
-          echo "🚀 开始编译内核版本 ${{ github.event.inputs.kernel_version || '7.1' }}"
-          
+          echo "🚀 开始编译内核版本 7.1.0"
+
           export CCACHE_DIR=/home/runner/.ccache
           export CCACHE_MAXSIZE=10G
           export PATH="/usr/lib/ccache:$PATH"
-          
+
           # ==========================================
           # 所有的卡死修复和报错剔除都已经写在脚本里了
           # 这里直接无脑运行即可！
           # ==========================================
           chmod +x sheng-kernel_build.sh
-          bash sheng-kernel_build.sh "${{ github.event.inputs.kernel_version || '7.1' }}"
-          
+          bash sheng-kernel_build.sh
+
           echo "✅ 内核编译完成"
           ccache --show-stats || true
 
@@ -79,7 +74,7 @@ jobs:
       - name: "📤 上传系统驱动包 (.deb)"
         uses: actions/upload-artifact@v4
         with:
-          name: unified-kernel-debs-${{ github.event.inputs.kernel_version || '7.1' }}
+          name: unified-kernel-debs-7.1.0
           path: "*.deb"
           retention-days: 7
           if-no-files-found: error
@@ -96,11 +91,11 @@ jobs:
         if: steps.collect_artifacts.outputs.pkg_count > 0 && github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: kernel-${{ github.event.inputs.kernel_version || '7.1' }}
-          name: "Kernel v${{ github.event.inputs.kernel_version || '7.1' }}"
+          tag_name: kernel-7.1.0
+          name: "Kernel v7.1.0"
           body: |
-            **小米Pad6spro通用内核 v${{ github.event.inputs.kernel_version || '7.1' }}**
-            
+            **小米Pad6spro通用内核 v7.1.0**
+
           draft: false
           prerelease: false
           files: |
