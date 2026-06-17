@@ -129,6 +129,14 @@ EOF
         echo "debian-$FLAVOUR-$MODE" > rootdir/etc/hostname
 
         # =========================
+        # 📶 WiFi 驱动适配与区域码
+        # =========================
+        echo "⚙️ 正在预配置高通 WiFi 驱动适配与区域码..."
+        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y qrtr-tools" || true
+        chroot rootdir systemctl enable qrtr-ns || true
+        echo 'options cfg80211 ieee80211_regdom=CN' > rootdir/etc/modprobe.d/cfg80211.conf
+
+        # =========================
         # 🖥️ 桌面环境分发中心
         # =========================
         if [ "$distro_variant" = "desktop" ]; then
