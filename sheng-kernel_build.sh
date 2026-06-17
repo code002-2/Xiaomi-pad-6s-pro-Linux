@@ -38,17 +38,17 @@ make ARCH=arm64 CC="ccache clang" LLVM=1 olddefconfig
 # 由环境变量 ENABLE_BUILD_LOG 控制是否生成日志文件 (设为 1 或 true 启用)
 if [ "${ENABLE_BUILD_LOG:-0}" = "1" ] || [ "${ENABLE_BUILD_LOG:-0}" = "true" ]; then
     LOG_FILE="../build-$(date +%Y%m%d-%H%M%S).log"
-    TEE_CMD="tee"
     echo "🔨 开始极速编译... (日志: $LOG_FILE)"
+    make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 2>&1 | tee "$LOG_FILE"
+    BUILD_EXIT=${PIPESTATUS[0]}
 else
-    LOG_FILE="/dev/null"
-    TEE_CMD="cat"
     echo "🔨 开始极速编译... (日志已禁用)"
+    make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 2>&1
+    BUILD_EXIT=$?
 fi
-make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 2>&1 | $TEE_CMD "$LOG_FILE"
 # 检查编译是否成功
-if [ ${PIPESTATUS[0]} -ne 0 ]; then
-    if [ "$LOG_FILE" != "/dev/null" ]; then
+if [ $BUILD_EXIT -ne 0 ]; then
+    if [ "${ENABLE_BUILD_LOG:-0}" = "1" ] || [ "${ENABLE_BUILD_LOG:-0}" = "true" ]; then
         echo "❌ 编译失败，日志: $LOG_FILE"
     else
         echo "❌ 编译失败"
@@ -82,7 +82,11 @@ mv Image.gz-dtb_sheng zImage_sheng
 ../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=userdata rootwait rw" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_singleboot.img
 
 # 编译内核模块
-make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=../linux-xiaomi-sheng modules_install 2>&1 | $TEE_CMD -a "$LOG_FILE"
+if [ "${ENABLE_BUILD_LOG:-0}" = "1" ] || [ "${ENABLE_BUILD_LOG:-0}" = "true" ]; then
+    make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=../linux-xiaomi-sheng modules_install 2>&1 | tee -a "$LOG_FILE"
+else
+    make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=../linux-xiaomi-sheng modules_install 2>&1
+fi
 
 # 清理冗余链接
 rm -rf ../linux-xiaomi-sheng/lib/modules/*/build || true
