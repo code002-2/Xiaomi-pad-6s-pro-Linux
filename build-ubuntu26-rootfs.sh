@@ -123,14 +123,12 @@ printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 
 # ========================================================
 # 📶 修复点2：移植高通 8 Gen 2 WiFi 修复逻辑
 # ========================================================
-echo "⚙️ 正在预配置高通 WiFi 固件修复与驱动适配..."
-FW_DIR="rootdir/lib/firmware/ath12k/WCN7850/hw2.0"
-if [ -f "$FW_DIR/board-2.bin" ]; then
-    cp "$FW_DIR/board-2.bin" "$FW_DIR/board.bin"
-    echo "✅ board.bin 伪装成功！"
-fi
+echo "⚙️ 正在预配置高通 WiFi 驱动适配与区域码..."
 chroot rootdir apt install -y qrtr-tools || true
 chroot rootdir systemctl enable qrtr-ns || true
+
+# WiFi 区域码 (5GHz 频段支持)
+echo 'options cfg80211 ieee80211_regdom=CN' > rootdir/etc/modprobe.d/cfg80211.conf
 
 # ========================================================
 # 🔒 自动登录与桌面加固配置（完全展平，杜绝任何 case 嵌套漏洞）
