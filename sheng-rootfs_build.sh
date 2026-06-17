@@ -119,8 +119,7 @@ QT_IM_MODULE=fcitx
 XMODIFIERS=@im=fcitx
 EOF
 
-        echo "📦 正在注入设备专属 .deb 驱动包..."
-        wget -q https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/mipps/xiaomi-mipps-auth_0.11_arm64.deb
+        echo "📦 正在注入设备专属 .deb 驱动包 (由工作流预下载)..."
         cp *.deb rootdir/tmp/
 
         chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y libglib2.0-0 libprotobuf-c1 libqmi-glib5 libmbim-glib4 initramfs-tools"
