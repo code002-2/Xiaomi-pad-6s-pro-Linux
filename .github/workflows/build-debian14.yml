@@ -111,7 +111,7 @@ jobs:
           retention-days: 7
 
       - name: Upload to Release
-        if: ${{ !github.event.inputs.skip_release && steps.build.outputs.pkg_count > 0 }}
+        if: ${{ github.event.inputs.skip_release != 'true' && steps.build.outputs.pkg_count > 0 }}
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
