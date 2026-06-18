@@ -138,7 +138,7 @@ EOF
 
             if [ "$FLAVOUR" = "gnome" ]; then
                 echo "🖥️ 安装 GNOME 桌面环境..."
-                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y gnome-shell gnome-session gnome-terminal gdm3 firefox-esr gnome-tweaks nautilus"
+                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y gnome-core gnome-terminal gdm3 firefox-esr"
                 chroot rootdir systemctl enable gdm3
                 mkdir -p rootdir/etc/gdm3
                 cat > rootdir/etc/gdm3/daemon.conf <<EOF
