@@ -82,10 +82,6 @@ if ls *.deb 1> /dev/null 2>&1; then
     fi
 fi
 
-# 设置英文语言环境
-chroot rootdir bash -c "echo 'LANG=en_US.UTF-8' > /etc/default/locale"
-chroot rootdir locale-gen en_US.UTF-8
-
 # root 用户初始化
 chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
 echo "ubuntu26-${DESKTOP_ENV}" > rootdir/etc/hostname

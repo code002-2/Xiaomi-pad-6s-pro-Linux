@@ -102,15 +102,7 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         echo "📦 正在安装基础环境组件..."
         chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends systemd sudo vim wget curl network-manager openssh-server wpasupplicant dbus locales dialog"
 
-        echo "🌏 正在配置系统中文语言与输入法..."
-        sed -i 's/^# *\(en_US.UTF-8\)/\1/' rootdir/etc/locale.gen
-        sed -i 's/^# *\(zh_CN.UTF-8\)/\1/' rootdir/etc/locale.gen
-        chroot rootdir locale-gen
-        
-        echo "LANG=zh_CN.UTF-8" > rootdir/etc/default/locale
-        echo "LANG=zh_CN.UTF-8" > rootdir/etc/locale.conf
-        chroot rootdir ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-        
+        echo "🌏 正在配置中文输入法..."
         chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei fcitx5 fcitx5-chinese-addons fcitx5-frontend-gtk3 fcitx5-frontend-qt5"
         
         cat > rootdir/etc/environment <<EOF
