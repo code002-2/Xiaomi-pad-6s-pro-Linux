@@ -114,7 +114,7 @@ EOF
         echo "📦 正在注入设备专属 .deb 驱动包 (由工作流预下载)..."
         cp *.deb rootdir/tmp/
 
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends libglib2.0-0 libprotobuf-c1 libqmi-glib5 libmbim-glib4 initramfs-tools"
+        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends initramfs-tools"
         chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends /tmp/*.deb" || echo "⚠️ 部分 .deb 存在警告，继续执行。"
         
         chroot rootdir bash -c "echo 'root:1234' | chpasswd"
