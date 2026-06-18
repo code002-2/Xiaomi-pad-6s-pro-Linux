@@ -46,7 +46,6 @@ jobs:
 
           export CCACHE_DIR=/home/runner/.ccache
           export CCACHE_MAXSIZE=10G
-          export PATH="/usr/lib/ccache:$PATH"
 
           # ==========================================
           # 所有的卡死修复和报错剔除都已经写在脚本里了
