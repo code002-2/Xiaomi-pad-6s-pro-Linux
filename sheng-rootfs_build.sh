@@ -103,7 +103,7 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends systemd sudo vim wget curl network-manager openssh-server wpasupplicant dbus locales dialog"
 
         echo "🌏 正在配置中文输入法..."
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei fcitx5 fcitx5-chinese-addons fcitx5-frontend-gtk3 fcitx5-frontend-qt5"
+        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei fcitx5 fcitx5-chinese-addons fcitx5-frontend-gtk3 fcitx5-frontend-qt5"
         
         cat > rootdir/etc/environment <<EOF
 GTK_IM_MODULE=fcitx
@@ -114,8 +114,8 @@ EOF
         echo "📦 正在注入设备专属 .deb 驱动包 (由工作流预下载)..."
         cp *.deb rootdir/tmp/
 
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y libglib2.0-0 libprotobuf-c1 libqmi-glib5 libmbim-glib4 initramfs-tools"
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y /tmp/*.deb" || echo "⚠️ 部分 .deb 存在警告，继续执行。"
+        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends libglib2.0-0 libprotobuf-c1 libqmi-glib5 libmbim-glib4 initramfs-tools"
+        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends /tmp/*.deb" || echo "⚠️ 部分 .deb 存在警告，继续执行。"
         
         chroot rootdir bash -c "echo 'root:1234' | chpasswd"
         echo "debian-$FLAVOUR-$MODE" > rootdir/etc/hostname
@@ -124,7 +124,7 @@ EOF
         # 📶 WiFi 驱动适配与区域码
         # =========================
         echo "⚙️ 正在预配置高通 WiFi 驱动适配与区域码..."
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y qrtr-tools" || true
+        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends qrtr-tools" || true
         chroot rootdir systemctl enable qrtr-ns || true
         echo 'options cfg80211 ieee80211_regdom=CN' > rootdir/etc/modprobe.d/cfg80211.conf
 
@@ -138,7 +138,7 @@ EOF
 
             if [ "$FLAVOUR" = "gnome" ]; then
                 echo "🖥️ 安装 GNOME 桌面环境..."
-                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y gnome-core gnome-terminal gdm3 firefox-esr"
+                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends gnome-core gnome-terminal gdm3 firefox-esr"
                 chroot rootdir systemctl enable gdm3
                 mkdir -p rootdir/etc/gdm3
                 cat > rootdir/etc/gdm3/daemon.conf <<EOF
@@ -151,7 +151,7 @@ EOF
                 # 🚨 重点修改在这里：采纳了你的方案！
                 echo "🖥️ 安装 KDE Plasma 桌面环境 (使用官方 kde-standard 方案)..."
                 # 直接拉取 kde-standard (取代零碎包)，附加上你脚本里提取的网络和蓝牙插件
-                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y plasma-desktop sddm konsole firefox-esr plasma-workspace systemsettings plasma-nm"
+                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends plasma-desktop sddm konsole firefox-esr plasma-workspace systemsettings plasma-nm"
                 chroot rootdir systemctl enable sddm
                 mkdir -p rootdir/etc/sddm.conf.d
                 cat > rootdir/etc/sddm.conf.d/autologin.conf <<EOF
