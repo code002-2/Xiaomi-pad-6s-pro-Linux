@@ -184,7 +184,7 @@ EOF
         echo "🔄 转换 Sparse 镜像并压缩..."
         SPARSE_IMG="sparse_${ROOTFS_IMG}"
         img2simg "$ROOTFS_IMG" "$SPARSE_IMG"
-        zstd -15 -T0 "$SPARSE_IMG" -o "${ROOTFS_IMG%.img}.zst"
+        zstd -19 -T0 --long "$SPARSE_IMG" -o "${ROOTFS_IMG%.img}.zst"
         rm -f "$ROOTFS_IMG" "$SPARSE_IMG"
         
         echo "🎉 [${FLAVOUR^^} - $MODE] 版本完成！"
