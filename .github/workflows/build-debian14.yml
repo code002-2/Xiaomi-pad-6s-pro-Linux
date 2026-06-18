@@ -122,8 +122,7 @@ jobs:
             |------|------|
             | 系统 | Debian 14 (Forky) |
             | 内核版本 | 7.1.0 |
-            | 桌面环境 | ${{ matrix.desktop }} |
-            | 启动模式 | ${{ matrix.boot }} |
+            | 桌面环境 | GNOME, KDE |
 
             ### 🔐 默认凭据
             - 用户名: `luser` / 密码: `luser`
