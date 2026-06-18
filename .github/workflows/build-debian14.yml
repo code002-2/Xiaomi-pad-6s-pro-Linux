@@ -93,7 +93,7 @@ jobs:
             ---
 
             ### 📦 镜像文件
-            如果你选择了 'all'，云端矩阵将并发生成全部组合的 `.7z` 镜像。
+            如果你选择了 'all'，云端矩阵将并发生成全部组合的 `.zst` 镜像。
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -114,7 +114,7 @@ jobs:
       - name: "🔧 部署构建环境"
         run: |
           sudo apt update
-          sudo apt install -y debootstrap libarchive-tools p7zip-full curl wget android-sdk-libsparse-utils
+          sudo apt install -y debootstrap libarchive-tools zstd curl wget android-sdk-libsparse-utils
 
       - name: Download kernel and sensor packages
         run: |
@@ -133,14 +133,14 @@ jobs:
           chmod +x sheng-rootfs_build.sh
           sudo bash sheng-rootfs_build.sh debian-desktop "7.1.0" "${{ matrix.boot }}" "${{ matrix.desktop }}"
 
-          PKG_COUNT=$(ls -1 *.7z 2>/dev/null | wc -l)
+          PKG_COUNT=$(ls -1 *.zst 2>/dev/null | wc -l)
           echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: debian-${{ matrix.desktop }}-${{ matrix.boot }}
-          path: "*.7z"
+          path: "*.zst"
           retention-days: 7
 
       - name: Upload to Release
@@ -148,6 +148,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
-          files: "*.7z"
+          files: "*.zst"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

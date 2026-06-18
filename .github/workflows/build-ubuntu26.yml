@@ -75,7 +75,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install build tools
-        run: sudo apt update && sudo apt install -y debootstrap libarchive-tools p7zip-full curl wget android-sdk-libsparse-utils
+        run: sudo apt update && sudo apt install -y debootstrap libarchive-tools zstd curl wget android-sdk-libsparse-utils
 
       - name: Download kernel and sensor packages
         run: |
@@ -95,9 +95,9 @@ jobs:
           chmod +x build-ubuntu26-rootfs.sh
           sudo ./build-ubuntu26-rootfs.sh 7.1.0 ${{ matrix.desktop_env }}
 
-          SEVEN_Z_FILE=$(ls ubuntu26_${{ matrix.desktop_env }}_*.7z | head -1)
-          echo "filename=$(basename "$SEVEN_Z_FILE")" >> $GITHUB_OUTPUT
-          echo "path=$SEVEN_Z_FILE" >> $GITHUB_OUTPUT
+          ZST_FILE=$(ls ubuntu26_${{ matrix.desktop_env }}_*.zst | head -1)
+          echo "filename=$(basename "$ZST_FILE")" >> $GITHUB_OUTPUT
+          echo "path=$ZST_FILE" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
