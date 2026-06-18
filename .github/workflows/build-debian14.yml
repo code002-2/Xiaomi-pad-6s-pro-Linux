@@ -115,7 +115,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
-          name: "Debian 14 Desktop (${{ matrix.desktop }} | ${{ matrix.boot }}) - ${{ needs.prepare-release.outputs.release_tag }}"
+          name: "Debian 14 Desktop"
           body: |
             ### 📋 系统信息
             | 项目 | 详情 |

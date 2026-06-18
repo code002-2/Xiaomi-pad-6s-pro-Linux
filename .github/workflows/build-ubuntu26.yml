@@ -74,14 +74,14 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
-          name: "Ubuntu 26.04 Desktop (${{ matrix.desktop_env }}) - ${{ needs.prepare-release.outputs.release_tag }}"
+          name: "Ubuntu 26.04 Desktop"
           body: |
             ### 📋 系统信息
             | 项目 | 详情 |
             |------|------|
             | 系统 | Ubuntu 26.04 LTS (Resolute) |
             | 内核版本 | 7.1.0 |
-            | 桌面环境 | ${{ matrix.desktop_env }} |
+            | 桌面环境 | GNOME, KDE Plasma, Xfce |
 
             ### 🔐 默认凭据
             - 用户名: `luser` / 密码: `luser`
