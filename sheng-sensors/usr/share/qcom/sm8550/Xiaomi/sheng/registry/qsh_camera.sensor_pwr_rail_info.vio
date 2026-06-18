@@ -1,0 +1,1 @@
+{"qsh_camera.sensor_pwr_rail_info.vio":{"owner":"qsh_camera","resource_str":{"type":"str","ver":"0","data":"/pmic/client/aoc_dovdd"},"ldo_pin_value_to_pwr_on":{"type":"int","ver":"0","data":"1"},"ldo_pin":{"type":"grp","ver":"0","data":""}}}

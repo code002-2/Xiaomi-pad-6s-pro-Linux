@@ -1,0 +1,339 @@
+{
+  "config": {
+    "hw_platform": ["MTP", "Dragon", "Surf", "QRD"],
+    "soc_id": ["519", "536"]
+  },
+  "qsh_camera":{
+    "owner": "qsh_camera",
+    ".bus_info":{
+      "owner": "qsh_camera",
+      ".primary":{
+        "owner": "qsh_camera",
+        "bus_type":{ "type": "int", "ver": "0",
+          "data": "0"
+        },
+        "bus_instance":{ "type": "int", "ver": "0",
+          "data": "9"
+        },
+        "slave_config":{ "type": "int", "ver": "0",
+          "data": "16"
+        },
+        "min_bus_speed_khz":{ "type": "int", "ver": "0",
+          "data": "1000"
+        },
+        "max_bus_speed_khz":{ "type": "int", "ver": "0",
+          "data": "1000"
+        },
+        "reg_addr_type":{ "type": "int", "ver": "0",
+          "data": "1"
+        }
+      },
+      ".secondary":{
+        "owner": "qsh_camera",
+        "bus_type":{ "type": "int", "ver": "0",
+          "data": "0"
+        },
+        "bus_instance":{ "type": "int", "ver": "0",
+          "data": "9"
+        },
+        "slave_config":{ "type": "int", "ver": "0",
+          "data": "0"
+        },
+        "min_bus_speed_khz":{ "type": "int", "ver": "0",
+          "data": "1000"
+        },
+        "max_bus_speed_khz":{ "type": "int", "ver": "0",
+          "data": "1000"
+        },
+        "reg_addr_type":{ "type": "int", "ver": "0",
+          "data": "1"
+        }
+      }
+    },
+    ".sensor_pwr_rail_info":{
+      "owner": "qsh_camera",
+      ".vana": {
+        "owner": "qsh_camera",
+        "resource_str": {"type": "str", "ver": "0",
+          "data": "/pmic/client/aoc_avdd"
+        },
+        "ldo_pin_value_to_pwr_on": {"type": "int", "ver": "0",
+          "data": "1"
+        },
+        ".ldo_pin":{
+          "owner": "qsh_camera",
+          "pin_num": {"type": "int", "ver": "0",
+            "data": "-1"
+          },
+          "is_chip_pin": {"type": "int", "ver": "0",
+            "data": "0"
+          },
+          "drive_strength": {"type": "int", "ver": "0",
+            "data": "0"
+          },
+          "pull_type": {"type": "int", "ver": "0",
+            "data": "3"
+          },
+          "irq_trigger_type": {"type": "int", "ver": "0",
+            "data": "0"
+          }
+        }
+      },
+      ".vio": {
+        "owner": "qsh_camera",
+        "resource_str": {"type": "str", "ver": "0",
+          "data": "/pmic/client/aoc_dovdd"
+        },
+        "ldo_pin_value_to_pwr_on": {"type": "int", "ver": "0",
+          "data": "1"
+        },
+        ".ldo_pin":{
+          "owner": "qsh_camera",
+          "pin_num": {"type": "int", "ver": "0",
+            "data": "-1"
+          },
+          "is_chip_pin": {"type": "int", "ver": "0",
+            "data": "0"
+          },
+          "drive_strength": {"type": "int", "ver": "0",
+            "data": "0"
+          },
+          "pull_type": {"type": "int", "ver": "0",
+            "data": "3"
+          },
+          "irq_trigger_type": {"type": "int", "ver": "0",
+            "data": "0"
+          }
+        }
+      },
+      ".vdig": {
+        "owner": "qsh_camera",
+        "resource_str": {"type": "str", "ver": "0",
+          "data": "/pmic/client/aoc_dvdd"
+        },
+        "ldo_pin_value_to_pwr_on": {"type": "int", "ver": "0",
+          "data": "1"
+        },
+        ".ldo_pin":{
+          "owner": "qsh_camera",
+          "pin_num": {"type": "int", "ver": "0",
+            "data": "-1"
+          },
+          "is_chip_pin": {"type": "int", "ver": "0",
+            "data": "0"
+          },
+          "drive_strength": {"type": "int", "ver": "0",
+            "data": "0"
+          },
+          "pull_type": {"type": "int", "ver": "0",
+            "data": "3"
+          },
+          "irq_trigger_type": {"type": "int", "ver": "0",
+            "data": "0"
+          }
+        }
+      }
+    },
+    ".dbg_flags":{
+        "owner": "qsh_camera",
+        "main_sensor.enable":{"type": "int", "ver": "0",
+        "data": "1"
+        },
+        "main_sensor.disable_after_n_runs":{"type": "int", "ver": "0",
+        "data": "0"
+        },
+        "test_sensor.enable":{"type": "int", "ver": "0",
+        "data": "1"
+        },
+        "test_sensor.disable_after_n_runs":{"type": "int", "ver": "0",
+        "data": "0"
+        },
+        "test_sensor_wait_to_start":{"type": "int", "ver": "0",
+        "data": "1"
+        },
+        "test_sensor_start_delay_ms":{"type": "int", "ver": "0",
+        "data": "5000"
+        },
+        "test_sensor_restart_cnt":{"type": "int", "ver": "0",
+        "data": "5"
+        },
+        "dump_reg_cnt":{"type": "int", "ver": "0",
+        "data": "0"
+        },
+        "dump_frame_cnt":{"type": "int", "ver": "0",
+        "data": "0"
+        },
+        "use_fake_frame_client":{"type": "int", "ver": "0",
+        "data": "0"
+        },
+        "use_tpg":{"type": "int", "ver": "0",
+        "data": "0"
+        },
+        "use_aec_output":{"type": "int", "ver": "0",
+        "data": "1"
+        },
+        "roi_weight":{"type": "flt", "ver": "0",
+        "data": "0.95"
+        },
+        "no_mem_rw_by_hw":{"type": "int", "ver": "0",
+        "data": "0"
+        },
+        "force_fd_result":{"type": "int", "ver": "0",
+        "data": "0"
+        }
+      },
+    ".tuning_params":{
+      "owner": "qsh_camera",
+      "fd_threshold":{"type": "int", "ver": "0",
+        "data": "344"
+      },
+      "fd_false_positive_threshold_sq":{"type": "int", "ver": "0",
+        "data": "0"
+      },
+      "max_stg2_entries_per_unit_time":{"type": "int", "ver": "0",
+        "data": "0"
+      },
+      "rate_limit_unit_time_in_secs":{"type": "int", "ver": "0",
+        "data": "1"
+      },
+      ".nms_basic_1":{
+        "owner": "qsh_camera",
+        "confidence_threshold": {"type": "int", "ver": "0",
+          "data": "23"
+        }
+      },
+      ".nms_pro_0":{
+        "owner": "qsh_camera",
+        "confidence_threshold": {"type": "int", "ver": "0",
+          "data": "32"
+        },
+        "iou_threshold": {"type": "int", "ver": "0",
+          "data": "77"
+        },
+        "max_num_output_faces": {"type": "int", "ver": "0",
+          "data": "3"
+        },
+        "max_proposals": {"type": "int", "ver": "0",
+          "data": "50"
+        }
+      },
+      ".nms_pro_1":{
+        "owner": "qsh_camera",
+        "confidence_threshold": {"type": "int", "ver": "0",
+          "data": "51"
+        },
+        "iou_threshold": {"type": "int", "ver": "0",
+          "data": "77"
+        },
+        "max_num_output_faces": {"type": "int", "ver": "0",
+          "data": "3"
+        },
+        "max_proposals": {"type": "int", "ver": "0",
+          "data": "50"
+        }
+      }
+    },
+    ".gpio_info": {
+      "owner": "qsh_camera",
+      ".aux_pin": {
+        "owner": "qsh_camera",
+        "pin_num": {"type": "int", "ver": "0",
+          "data": "18"
+        },
+        "is_chip_pin": {"type": "int", "ver": "0",
+          "data": "0"
+        },
+        "drive_strength": {"type": "int", "ver": "0",
+          "data": "0"
+        },
+        "pull_type": {"type": "int", "ver": "0",
+          "data": "3"
+        },
+        "irq_trigger_type": {"type": "int", "ver": "0",
+          "data": "0"
+        }
+      },
+      ".reset_pin": {
+        "owner": "qsh_camera",
+        "pin_num": {"type": "int", "ver": "0",
+          "data": "22"
+        },
+        "is_chip_pin": {"type": "int", "ver": "0",
+          "data": "0"
+        },
+        "drive_strength": {"type": "int", "ver": "0",
+          "data": "0"
+        },
+        "pull_type": {"type": "int", "ver": "0",
+          "data": "3"
+        },
+        "irq_trigger_type": {"type": "int", "ver": "0",
+          "data": "0"
+        }
+      },
+      ".dri_pin": {
+        "owner": "qsh_camera",
+        "pin_num": {"type": "int", "ver": "0",
+          "data": "73"
+        },
+        "is_chip_pin": {"type": "int", "ver": "0",
+          "data": "1"
+        },
+        "drive_strength": {"type": "int", "ver": "0",
+          "data": "0"
+        },
+        "pull_type": {"type": "int", "ver": "0",
+          "data": "0"
+        },
+        "irq_trigger_type": {"type": "int", "ver": "0",
+          "data": "1"
+        }
+      }
+    },
+    ".als_params":{
+      "owner": "qsh_camera",
+      "als_enable":{"type": "int", "ver": "0",
+        "data": "0"
+      },
+      "als_reg_cnt":{"type": "int", "ver": "0",
+        "data": "3"
+      },
+      "als_reg_base":{"type": "int", "ver": "0",
+        "data": "12833"
+      },
+      "als_reg_hold":{"type": "int", "ver": "0",
+        "data": "12836"
+      }
+    },
+    ".aux_pin_params":{
+      "owner": "qsh_camera",
+      ".motion_detect": {
+        "owner": "qsh_camera",
+        "value": {"type": "int", "ver": "0",
+          "data": "0"
+        },
+        "delay_ms": {"type": "int", "ver": "0",
+          "data": "1"
+        }
+      },
+      ".ulp_streaming": {
+        "owner": "qsh_camera",
+        "value": {"type": "int", "ver": "0",
+          "data": "0"
+        },
+        "delay_ms": {"type": "int", "ver": "0",
+          "data": "0"
+        }
+      }
+    },
+    ".md_poll_params":{
+      "owner": "qsh_camera",
+      "md_poll_freq_ms":{"type": "int", "ver": "0",
+        "data": "0"
+      },
+      "md_detection_reg":{"type": "int", "ver": "0",
+        "data": "12886"
+      }
+    }
+  }
+}

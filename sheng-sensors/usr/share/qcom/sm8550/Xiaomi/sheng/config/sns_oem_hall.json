@@ -1,0 +1,45 @@
+{
+  "config": {
+    "hw_platform": ["MTP", "Dragon", "Surf", "QRD"],
+    "soc_id": ["519", "536"]
+  },
+  "sns_oem_hall": {
+    "owner": "sns_oem_hall",
+    ".lid_hall":{
+      "owner": "sns_oem_hall",
+      "interrupt_num": {
+        "ver": "0", "type": "flt", "data": "171"
+      },
+      "interrupt_trigger_type": {
+        "ver": "0", "type": "flt", "data": "2"
+      },
+      "interrupt_drive_strength": {
+        "ver": "0", "type": "flt", "data": "0"
+      },
+      "interrupt_pull_type": {
+        "ver": "0", "type": "flt", "data": "3"
+      },
+      "is_chip_pin": {
+        "ver": "0", "type": "flt", "data": "1"
+      }
+    },
+    ".table_hall":{
+      "owner": "sns_oem_hall",
+      "interrupt_num": {
+        "ver": "0", "type": "flt", "data": "172"
+      },
+      "interrupt_trigger_type": {
+        "ver": "0", "type": "flt", "data": "2"
+      },
+      "interrupt_drive_strength": {
+        "ver": "0", "type": "flt", "data": "0"
+      },
+      "interrupt_pull_type": {
+        "ver": "0", "type": "flt", "data": "3"
+      },
+      "is_chip_pin": {
+        "ver": "0", "type": "flt", "data": "1"
+      }
+    }
+  }
+}

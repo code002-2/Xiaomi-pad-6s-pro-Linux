@@ -1,0 +1,1 @@
+{"ccd_v5_gbe":{"owner":"sns_ccd","gbens":{"type":"int","ver":"0","data":"0"},"gbevt1":{"type":"int","ver":"0","data":"48"},"gbevt2":{"type":"int","ver":"0","data":"48"},"gberange":{"type":"int","ver":"0","data":"22"},"enable_debug_sensor_gbe":{"type":"int","ver":"0","data":"0"}}}

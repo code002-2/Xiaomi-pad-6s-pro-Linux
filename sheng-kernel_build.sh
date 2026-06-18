@@ -7,7 +7,7 @@ set -e
 export CCACHE_DIR="$HOME/.ccache"
 export CCACHE_MAXSIZE="10G"
 export CCACHE_SLOPPINESS="file_macro,locale,time_macros"
-export CCACHE_HASHDIR="false"
+export CCACHE_NOHASHDIR="true"
 mkdir -p "$CCACHE_DIR"
 
 export CC="ccache clang"
@@ -105,10 +105,24 @@ cd ..
 # git clone https://github.com/alghiffaryfa19/alsa-sheng
 # cp -r alsa-sheng/* alsa-xiaomi-sheng/
 
+# ==========================================
+# 6.5 构建 fastrpc
+# ==========================================
+wget -q https://github.com/qualcomm/fastrpc/archive/refs/tags/v1.0.2.zip
+unzip -q v1.0.2.zip
+cd fastrpc-1.0.2
+autoreconf -is
+./configure --prefix=/usr --host=aarch64-linux-gnu
+make -j$(nproc)
+make DESTDIR=$PWD/stage install
+cd ..
+mkdir -p fastrpc/usr
+cp -r fastrpc-1.0.2/stage/usr fastrpc/
+
 echo "🔧 正在进行 UsrMerge 路径手术 (确保 Arch/Fedora 兼容性)..."
 
 # 对所有可能包含 /lib 目录的包进行自动化修正
-for pkg in firmware-xiaomi-sheng alsa-xiaomi-sheng linux-xiaomi-sheng; do
+for pkg in firmware-xiaomi-sheng alsa-xiaomi-sheng linux-xiaomi-sheng fastrpc; do
     if [ -d "$pkg/lib" ]; then
         echo "✅ 正在将 $pkg 中的 /lib 迁移至 /usr/lib"
         mkdir -p "$pkg/usr"
@@ -121,5 +135,7 @@ dpkg-deb --build --root-owner-group -Zzstd -z10 linux-xiaomi-sheng
 dpkg-deb --build --root-owner-group -Zzstd -z10 firmware-xiaomi-sheng
 dpkg-deb --build --root-owner-group -Zzstd -z10 alsa-xiaomi-sheng
 dpkg-deb --build --root-owner-group -Zzstd -z10 sheng-devauth
+dpkg-deb --build --root-owner-group -Zzstd -z10 fastrpc
+dpkg-deb --build --root-owner-group -Zzstd -z10 sheng-sensors
 
 echo "🎉 所有任务圆满完成！"

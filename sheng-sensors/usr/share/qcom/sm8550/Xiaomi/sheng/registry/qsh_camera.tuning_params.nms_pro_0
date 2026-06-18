@@ -1,0 +1,1 @@
+{"qsh_camera.tuning_params.nms_pro_0":{"owner":"qsh_camera","confidence_threshold":{"type":"int","ver":"0","data":"32"},"iou_threshold":{"type":"int","ver":"0","data":"77"},"max_num_output_faces":{"type":"int","ver":"0","data":"3"},"max_proposals":{"type":"int","ver":"0","data":"50"}}}

@@ -1,0 +1,18 @@
+{
+  "config":{
+    "hw_platform": ["MTP", "Surf", "RCM", "QRD", "IDP"],
+    "soc_id": ["519", "536"]
+  },
+  "qsh_ble_config":{
+    "owner": "qsh_ble",
+    "uart_instance":{ "type": "int", "ver": "0",
+        "data": "6"
+    },
+    "tx_wakeup_pin_num":{ "type": "int", "ver": "2",
+        "data": "13"
+    },
+    "tx_wakeup_is_chip_pin":{ "type": "int", "ver": "0",
+        "data": "0"
+    }
+  }
+}

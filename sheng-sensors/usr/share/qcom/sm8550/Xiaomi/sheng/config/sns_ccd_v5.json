@@ -1,0 +1,36 @@
+{
+  "config": {
+    "hw_platform": ["MTP", "QRD", "Dragon", "Surf", "HDK", "RCM"],
+    "soc_id": ["519", "536"]
+  },
+  "ccd_v5_ogv": {
+    "owner": "sns_ccd",
+    "ogvvc0": { "ver": "0", "type": "int", "data": "0x7DF" },
+    "ogvvc1": { "ver": "0", "type": "int", "data": "0x7DF" },
+    "ogvvc2": { "ver": "0", "type": "int", "data": "0x199999a" },
+    "ogvvc3": { "ver": "0", "type": "int", "data": "0xc49ba6" },
+    "ogvvc4": { "ver": "0", "type": "int", "data": "0x1b352a84" },
+    "ogvic": { "ver": "0", "type": "int", "data": "0x14" },
+    "ogvocdi": { "ver": "0", "type": "int", "data": "0" },
+    "ogvsic0": { "ver": "0", "type": "int", "data": "0x927C927C" },
+    "ogvsic1": { "ver": "0", "type": "int", "data": "0" },
+    "ogvrc": { "ver": "0", "type": "int", "data": "0" },
+    "ogvrvc0": { "ver": "0", "type": "int", "data": "0x4C501E8" },
+    "ogvrvc1": { "ver": "0", "type": "int", "data": "0x494" },
+    "ogvrvc2": { "ver": "0", "type": "int", "data": "0x7fec02f3" },
+    "ogvrvc3": { "ver": "0", "type": "int", "data": "0x124000" },
+    "ogvrvc4": { "ver": "0", "type": "int", "data": "0" },
+    "ogvrvc5": { "ver": "0", "type": "int", "data": "0" },
+    "ogvrvc6": { "ver": "0", "type": "int", "data": "0" },
+    "ogvrvc7": { "ver": "0", "type": "int", "data": "0xC8" },
+    "enable_debug_sensor_ogv": { "ver": "0", "type": "int", "data": "0" }
+  },
+  "ccd_v5_gbe": {
+    "owner": "sns_ccd",
+    "gbens": { "ver": "0", "type": "int", "data": "0" },
+    "gbevt1": { "ver": "0", "type": "int", "data": "0x30" },
+    "gbevt2": { "ver": "0", "type": "int", "data": "0x30" },
+    "gberange": { "ver": "0", "type": "int", "data": "0x16" },
+    "enable_debug_sensor_gbe": { "ver": "0", "type": "int", "data": "0" }
+  }
+}

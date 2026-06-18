@@ -1,0 +1,13 @@
+{
+  "config": {
+    "hw_platform": ["MTP","QRD","Dragon","Surf", "HDK"],
+    "soc_id": ["339", "340", "356", "361", "415", "439", "456", "450", "457", "482", "519", "536"]
+  },
+  "ccd_amd": {
+    "owner": "sns_ccd",
+    "h2":  { "ver": "0","type": "int",
+             "data": "50"},
+    "disable_flush_only":  { "ver": "0","type": "int",
+             "data": "0"}
+  }
+}

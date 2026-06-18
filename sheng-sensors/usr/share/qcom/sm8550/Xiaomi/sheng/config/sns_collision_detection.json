@@ -1,0 +1,61 @@
+{
+  "config": {
+    "hw_platform": ["MTP", "Dragon", "Surf", "QRD"],
+    "soc_id": ["519", "536","557","577"]
+  },
+  "oem_collision_detection": {
+    "owner": "oem_collision_detection",
+      ".params_for_two_vendors":{
+        "owner":  "oem_collision_detection",
+          "param_6dso_endflag": {
+            "ver": "0", "type": "flt", "data": "4.50"
+          },
+          "param_6dso_110s": {
+              "ver": "0", "type": "flt", "data": "0.0100"
+          },
+          "param_6dso_norm": {
+            "ver": "0", "type": "flt", "data": "0.010"
+          },
+          "param_6dso_50s": {
+            "ver": "0", "type": "flt", "data": "0.94"
+          },
+          "param_6dso_80s": {
+              "ver": "0", "type": "flt", "data": "0.9375"
+          },
+          "param_6dso_100s": {
+            "ver": "0", "type": "flt", "data": "0.95"
+          },
+          "param_6dso_120s": {
+            "ver": "0", "type": "flt", "data": "0.9580"
+          },
+          "param_6dso_150s": {
+            "ver": "0", "type": "flt", "data": "0.967"
+          },
+          "param_bmi_endflag": {
+            "ver": "0", "type": "flt", "data": "4.50"
+          },
+          "param_bmi_110s": {
+              "ver": "0", "type": "flt", "data": "0.0105"
+          },
+          "param_bmi_norm": {
+            "ver": "0", "type": "flt", "data": "0.011"
+          },
+          "param_bmi_50s": {
+            "ver": "0", "type": "flt", "data": "0.94"
+          },
+          "param_bmi_80s": {
+              "ver": "0", "type": "flt", "data": "0.9375"
+          },
+          "param_bmi_100s": {
+            "ver": "0", "type": "flt", "data": "0.936"
+          },
+          "param_bmi_120s": {
+            "ver": "0", "type": "flt", "data": "0.9540"
+          },
+          "param_bmi_150s": {
+            "ver": "0", "type": "flt", "data": "0.967"
+          }
+        }
+      }
+}
+

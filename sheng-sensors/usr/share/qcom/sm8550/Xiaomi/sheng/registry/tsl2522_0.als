@@ -1,0 +1,1 @@
+{"tsl2522_0.als":{"owner":"sns_tsl2522","config":{"type":"grp","ver":"0","data":""}}}

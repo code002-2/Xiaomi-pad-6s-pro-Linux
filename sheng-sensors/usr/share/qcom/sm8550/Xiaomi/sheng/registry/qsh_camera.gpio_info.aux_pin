@@ -1,0 +1,1 @@
+{"qsh_camera.gpio_info.aux_pin":{"owner":"qsh_camera","pin_num":{"type":"int","ver":"0","data":"18"},"is_chip_pin":{"type":"int","ver":"0","data":"0"},"drive_strength":{"type":"int","ver":"0","data":"0"},"pull_type":{"type":"int","ver":"0","data":"3"},"irq_trigger_type":{"type":"int","ver":"0","data":"0"}}}

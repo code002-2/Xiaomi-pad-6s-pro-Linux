@@ -1,0 +1,526 @@
+{
+  "config":
+  {
+    "hw_platform": ["MTP", "Dragon", "Surf", "QRD"],
+    "soc_id": ["519", "536"]
+  },
+  "sx937x_0_sar": {
+    "owner": "sx937x_0_sar",
+    ".register_config":{
+      "owner": "sns_sx937x",
+      "Is_config":{ "type": "int", "ver": "1",
+        "data": "1"
+      },
+      "Is_debug":{ "type": "int", "ver": "2",
+        "data": "1"
+      },
+      "0x4004":{ "type": "int", "ver": "1",
+        "data": "0x00"
+      },
+      "0x4008":{ "type": "int", "ver": "1",
+        "data": "0x18"
+      },
+      "0x8020":{ "type": "int", "ver": "1",
+        "data": "0x32"
+      },
+      "0x8024":{ "type": "int", "ver": "1",
+        "data": "0x8000303"
+      },
+      "0x8028":{ "type": "int", "ver": "1",
+        "data": "0x87E"
+      },
+      "0x8034":{ "type": "int", "ver": "1",
+        "data": "0x87E"
+      },
+      "0x8040":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x804C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8058":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8064":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8070":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x807C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8030":{ "type": "int", "ver": "1",
+        "data": "0x924925"
+      },
+      "0x803C":{ "type": "int", "ver": "1",
+        "data": "0x92492C"
+      },
+      "0x8048":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8054":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8060":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x806C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8078":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8084":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8098":{ "type": "int", "ver": "3",
+        "data": "0x49"
+      },
+      "0x80B8":{ "type": "int", "ver": "1",
+        "data": "0xFF"
+      },
+      "0x80D8":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x80F8":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8118":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8138":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8158":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8178":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x80A0":{ "type": "int", "ver": "1",
+        "data": "0x202000E1"
+      },
+      "0x80C0":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x80E0":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8100":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8120":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8140":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8160":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8180":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8188":{ "type": "int", "ver": "1",
+        "data": "0x8000011"
+      },
+      "0x818C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8190":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8194":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8090":{ "type": "int", "ver": "1",
+        "data": "0x30D05000"
+      },
+      "0x80B0":{ "type": "int", "ver": "1",
+        "data": "0x30D05000"
+      },
+      "0x80D0":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x80F0":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8110":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8130":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8150":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8170":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8088":{ "type": "int", "ver": "1",
+        "data": "0x300001"
+      },
+      "0x80A8":{ "type": "int", "ver": "1",
+        "data": "0x6300001"
+      },
+      "0x80C8":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x80E8":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8108":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8128":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8148":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8168":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x808C":{ "type": "int", "ver": "1",
+        "data": "0xE0200031"
+      },
+      "0x80AC":{ "type": "int", "ver": "1",
+        "data": "0xE0200031"
+      },
+      "0x80CC":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x80EC":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x810C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x812C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x814C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x816C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8274":{ "type": "int", "ver": "1",
+        "data": "0x2E040000"
+      },
+      "0xFFFF":{ "type": "int", "ver": "1",
+        "data": "0xFFFFFFFF"
+      }
+    },
+    ".register1_config":{
+      "owner": "sns_sx937x",
+      "Is_config":{ "type": "int", "ver": "2",
+        "data": "0"
+      },
+      "Is_debug":{ "type": "int", "ver": "1",
+        "data": "0"
+      },
+      "0x8680":{ "type": "int", "ver": "1",
+        "data": "0x611100A5"
+      },
+      "0x8684":{ "type": "int", "ver": "1",
+        "data": "0xA12C0000"
+      },
+      "0x8688":{ "type": "int", "ver": "1",
+        "data": "0x8C62636C"
+      },
+      "0x868C":{ "type": "int", "ver": "1",
+        "data": "0x000241C0"
+      },
+      "0x8690":{ "type": "int", "ver": "1",
+        "data": "0x80C69400"
+      },
+      "0x8694":{ "type": "int", "ver": "1",
+        "data": "0x40000000"
+      },
+      "0x8698":{ "type": "int", "ver": "1",
+        "data": "0x63949006"
+      },
+      "0x869C":{ "type": "int", "ver": "1",
+        "data": "0xFFFFFF0F"
+      },
+      "0x86A0":{ "type": "int", "ver": "1",
+        "data": "0x2C78C12C"
+      },
+      "0x86A4":{ "type": "int", "ver": "1",
+        "data": "0x80A044A1"
+      },
+      "0x86A8":{ "type": "int", "ver": "1",
+        "data": "0xFF9FED3F"
+      },
+      "0x86AC":{ "type": "int", "ver": "1",
+        "data": "0x80D87800"
+      },
+      "0x86B0":{ "type": "int", "ver": "1",
+        "data": "0x839E0300"
+      },
+      "0x86B4":{ "type": "int", "ver": "1",
+        "data": "0xFFFFFDFF"
+      },
+      "0x86B8":{ "type": "int", "ver": "1",
+        "data": "0xA5226364"
+      },
+      "0x86BC":{ "type": "int", "ver": "1",
+        "data": "0x00887600"
+      },
+      "0x86C0":{ "type": "int", "ver": "1",
+        "data": "0x00000000"
+      },
+      "0x86C4":{ "type": "int", "ver": "1",
+        "data": "0xC2A46C18"
+      },
+      "0x86C8":{ "type": "int", "ver": "1",
+        "data": "0x6CD00C6E"
+      },
+      "0x86CC":{ "type": "int", "ver": "1",
+        "data": "0x6408C084"
+      },
+      "0x86D0":{ "type": "int", "ver": "1",
+        "data": "0x00839FAF"
+      },
+      "0x86D4":{ "type": "int", "ver": "1",
+        "data": "0xD8000002"
+      },
+      "0x86D8":{ "type": "int", "ver": "1",
+        "data": "0x46FCFF80"
+      },
+      "0x4340":{ "type": "int", "ver": "1",
+        "data": "0x11508084"
+      },
+      "0x4344":{ "type": "int", "ver": "1",
+        "data": "0x119CC4C4"
+      },
+      "0x4348":{ "type": "int", "ver": "1",
+        "data": "0x11CCC8CC"
+      },
+      "0x434C":{ "type": "int", "ver": "1",
+        "data": "0x2224D0D8"
+      },
+      "0x4354":{ "type": "int", "ver": "1",
+        "data": "0x00000600"
+      },
+      "0x4350":{ "type": "int", "ver": "1",
+        "data": "0x0000000F"
+      },
+      "0xFFFF":{ "type": "int", "ver": "1",
+        "data": "0xFFFFFFFF"
+      }
+    }
+  },
+  "sx937x_cn_0_sar": {
+    "owner": "sx937x_cn_0_sar",
+    ".register_config":{
+      "owner": "sns_sx937x",
+      "Is_config":{ "type": "int", "ver": "1",
+        "data": "1"
+      },
+      "Is_debug":{ "type": "int", "ver": "1",
+        "data": "0"
+      },
+      "0x4004":{ "type": "int", "ver": "1",
+        "data": "0x00"
+      },
+      "0x4008":{ "type": "int", "ver": "1",
+        "data": "0x18"
+      },
+      "0x8020":{ "type": "int", "ver": "1",
+        "data": "0x32"
+      },
+      "0x8024":{ "type": "int", "ver": "1",
+        "data": "0x8000303"
+      },
+      "0x8028":{ "type": "int", "ver": "1",
+        "data": "0x87E"
+      },
+      "0x8034":{ "type": "int", "ver": "1",
+        "data": "0x87E"
+      },
+      "0x8040":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x804C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8058":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8064":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8070":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x807C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8030":{ "type": "int", "ver": "1",
+        "data": "0x924925"
+      },
+      "0x803C":{ "type": "int", "ver": "1",
+        "data": "0x92492C"
+      },
+      "0x8048":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8054":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8060":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x806C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8078":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8084":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8098":{ "type": "int", "ver": "1",
+        "data": "0x37"
+      },
+      "0x80B8":{ "type": "int", "ver": "1",
+        "data": "0xFF"
+      },
+      "0x80D8":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x80F8":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8118":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8138":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8158":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8178":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x80A0":{ "type": "int", "ver": "1",
+        "data": "0x202000E1"
+      },
+      "0x80C0":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x80E0":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8100":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8120":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8140":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8160":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8180":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8188":{ "type": "int", "ver": "1",
+        "data": "0x8000011"
+      },
+      "0x818C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8190":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8194":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8090":{ "type": "int", "ver": "1",
+        "data": "0x30D05000"
+      },
+      "0x80B0":{ "type": "int", "ver": "1",
+        "data": "0x30D05000"
+      },
+      "0x80D0":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x80F0":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8110":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8130":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8150":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8170":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8088":{ "type": "int", "ver": "1",
+        "data": "0x300001"
+      },
+      "0x80A8":{ "type": "int", "ver": "1",
+        "data": "0x6300001"
+      },
+      "0x80C8":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x80E8":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8108":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8128":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8148":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8168":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x808C":{ "type": "int", "ver": "1",
+        "data": "0xE0200031"
+      },
+      "0x80AC":{ "type": "int", "ver": "1",
+        "data": "0xE0200031"
+      },
+      "0x80CC":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x80EC":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x810C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x812C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x814C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x816C":{ "type": "int", "ver": "1",
+        "data": "0x0"
+      },
+      "0x8274":{ "type": "int", "ver": "1",
+        "data": "0x2E040000"
+      },
+      "0xFFFF":{ "type": "int", "ver": "1",
+        "data": "0xFFFFFFFF"
+      }
+    }
+  }
+}

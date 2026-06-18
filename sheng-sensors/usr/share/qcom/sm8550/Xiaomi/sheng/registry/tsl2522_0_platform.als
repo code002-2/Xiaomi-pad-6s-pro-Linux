@@ -1,0 +1,1 @@
+{"tsl2522_0_platform.als":{"owner":"sns_tsl2522","fac_cal":{"type":"grp","ver":"0","data":""},"fac_cal_original":{"type":"grp","ver":"0","data":""},"custom_cal":{"type":"grp","ver":"0","data":""},"def_config":{"type":"grp","ver":"0","data":""},"cal_target":{"type":"grp","ver":"0","data":""}}}

@@ -1,0 +1,1 @@
+{"default_sensors.sensor_temperature.attr_1":{"owner":"suid","id":{"type":"int","ver":"0","data":"0"},"val":{"type":"str","ver":"1","data":"icm4x6xx"}}}
