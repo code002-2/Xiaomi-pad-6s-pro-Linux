@@ -26,43 +26,6 @@ jobs:
         run: |
           TAG="ubuntu26-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
           echo "release_tag=$TAG" >> $GITHUB_OUTPUT
-      - name: Create GitHub Release
-        if: ${{ !github.event.inputs.skip_release }}
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: "Ubuntu 26.04 Desktop - ${{ steps.tag.outputs.release_tag }}"
-          body: |
-            🐧 Ubuntu 26.04 LTS (Resolute Raccoon) Desktop
-
-            ---
-
-            ### 📋 构建信息
-            | 项目 | 详情 |
-            |------|------|
-            | Ubuntu版本 | 26.04 LTS (Resolute) |
-            | 内核版本 | 7.1.0 |
-            | 桌面环境 | GNOME, KDE Plasma, Xfce |
-
-            ---
-
-            ### 🔐 默认凭据
-            - 用户名: `luser`
-            - 密码: `luser`
-
-            ---
-
-            ### 🌐 语言环境
-            - 系统语言: 英文 (en_US.UTF-8)
-
-            ---
-
-            ### 📦 镜像文件
-            构建完成后将出现在下方附件中。
-          draft: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build-desktop:
     name: Build Ubuntu 26.04 Desktop (${{ matrix.desktop_env }})
     runs-on: ubuntu-24.04-arm
@@ -111,6 +74,17 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          name: "Ubuntu 26.04 Desktop (${{ matrix.desktop_env }}) - ${{ needs.prepare-release.outputs.release_tag }}"
+          body: |
+            ### 📋 系统信息
+            | 项目 | 详情 |
+            |------|------|
+            | 系统 | Ubuntu 26.04 LTS (Resolute) |
+            | 内核版本 | 7.1.0 |
+            | 桌面环境 | ${{ matrix.desktop_env }} |
+
+            ### 🔐 默认凭据
+            - 用户名: `luser` / 密码: `luser`
           files: ${{ steps.build.outputs.path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -65,39 +65,6 @@ jobs:
             echo "boot=[\"$BOOT\"]" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create GitHub Release
-        if: ${{ !github.event.inputs.skip_release }}
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: "Debian 14 Desktop (${{ github.event.inputs.desktop_env || 'all' }}) - ${{ steps.tag.outputs.release_tag }}"
-          body: |
-            🌀 Debian 14 (Forky) Desktop For SM8550
-
-            ---
-
-            ### 📋 构建组合
-            | 参数 | 详情 |
-            |------|------|
-            | 架构 | ARM64 (arm64) |
-            | 内核版本 | 7.1.0 |
-            | 包含桌面 | ${{ github.event.inputs.desktop_env || 'all' }} |
-            | 启动模式 | ${{ github.event.inputs.boot_mode || 'all' }} |
-
-            ---
-
-            ### 🔐 默认凭据
-            - 普通用户: `luser` / 密码: `luser`
-            - 管理员用户: `root` / 密码: `1234`
-
-            ---
-
-            ### 📦 镜像文件
-            如果你选择了 'all'，云端矩阵将并发生成全部组合的 `.zst` 镜像。
-          draft: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build-debian:
     name: Build (${{ matrix.desktop }} | ${{ matrix.boot }})
     runs-on: ubuntu-24.04-arm
@@ -148,6 +115,18 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          name: "Debian 14 Desktop (${{ matrix.desktop }} | ${{ matrix.boot }}) - ${{ needs.prepare-release.outputs.release_tag }}"
+          body: |
+            ### 📋 系统信息
+            | 项目 | 详情 |
+            |------|------|
+            | 系统 | Debian 14 (Forky) |
+            | 内核版本 | 7.1.0 |
+            | 桌面环境 | ${{ matrix.desktop }} |
+            | 启动模式 | ${{ matrix.boot }} |
+
+            ### 🔐 默认凭据
+            - 用户名: `luser` / 密码: `luser`
           files: "*.zst"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
