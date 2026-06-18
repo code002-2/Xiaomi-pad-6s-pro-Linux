@@ -7,6 +7,7 @@ set -e
 export CCACHE_DIR="$HOME/.ccache"
 export CCACHE_MAXSIZE="10G"
 export CCACHE_SLOPPINESS="file_macro,locale,time_macros"
+export CCACHE_HASHDIR="false"
 mkdir -p "$CCACHE_DIR"
 
 export CC="ccache clang"

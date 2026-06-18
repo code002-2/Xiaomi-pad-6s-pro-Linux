@@ -38,6 +38,7 @@ jobs:
           ccache --set-config=max_size=10G
           ccache --set-config=cache_dir=/home/runner/.ccache
           ccache --set-config=sloppiness=file_macro,locale,time_macros
+          ccache --set-config=hash_dir=false
 
       - name: "🔨 编译内核"
         id: build
