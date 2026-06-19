@@ -118,7 +118,7 @@ EOF
         chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends /tmp/*.deb" || echo "⚠️ 部分 .deb 存在警告，继续执行。"
         
         chroot rootdir bash -c "echo 'root:1234' | chpasswd"
-        echo "debian-$FLAVOUR-$MODE" > rootdir/etc/hostname
+        echo "sheng-debian" > rootdir/etc/hostname
 
         # =========================
         # 📶 WiFi 驱动适配与区域码

@@ -84,7 +84,7 @@ fi
 
 # root 用户初始化
 chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
-echo "ubuntu26-${DESKTOP_ENV}" > rootdir/etc/hostname
+echo "sheng-ubuntu" > rootdir/etc/hostname
 
 # ========================================================
 # 📦 桌面环境分支流转 (去除一切文本写入，只留包安装)
