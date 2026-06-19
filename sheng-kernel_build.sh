@@ -118,6 +118,8 @@ make DESTDIR=$PWD/stage install
 cd ..
 mkdir -p fastrpc/usr
 cp -r fastrpc-1.0.2/stage/usr fastrpc/
+find fastrpc/usr/bin -type f -exec chmod +x {} \;
+find fastrpc/usr/lib -name "*.so*" -exec chmod +x {} \;
 
 echo "🔧 正在进行 UsrMerge 路径手术 (确保 Arch/Fedora 兼容性)..."
 
