@@ -125,7 +125,7 @@ jobs:
             | 桌面环境 | GNOME, KDE |
 
             ### 🔐 默认凭据
-            - 用户名: `luser` / 密码: `luser`
+            - 用户名: `xiaomi` / 密码: `xiaomi`
 
             ### GNOME桌面环境因release大小限制的原因请去action下载
           files: "*.zst"

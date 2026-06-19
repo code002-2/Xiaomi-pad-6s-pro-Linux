@@ -100,10 +100,10 @@ elif [ "$DESKTOP_ENV" = "xfce" ]; then
     DM="lightdm"
 fi
 
-# 创建普通用户 luser
-chroot rootdir useradd -m -s /bin/bash luser
-echo "luser:luser" | chroot rootdir chpasswd
-chroot rootdir usermod -aG sudo,audio,video,render,input,plugdev luser
+# 创建普通用户 xiaomi
+chroot rootdir useradd -m -s /bin/bash xiaomi
+echo "xiaomi:xiaomi" | chroot rootdir chpasswd
+chroot rootdir usermod -aG sudo,audio,video,render,input,plugdev xiaomi
 
 # ========================================================
 # ⚙️ 底层硬件自愈与触控校准
@@ -133,7 +133,7 @@ echo 'options cfg80211 ieee80211_regdom=CN' > rootdir/etc/modprobe.d/cfg80211.co
 # 1. GNOME 配置
 if [ "$DM" = "gdm3" ]; then
     mkdir -p rootdir/etc/gdm3
-    printf "[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=luser\n" > rootdir/etc/gdm3/daemon.conf
+    printf "[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=xiaomi\n" > rootdir/etc/gdm3/daemon.conf
     chroot rootdir systemctl enable gdm3
 fi
 
@@ -141,7 +141,7 @@ fi
 if [ "$DM" = "sddm" ]; then
     mkdir -p rootdir/etc/sddm.conf.d
     printf "[General]\nDisplayServer=x11\nInputMethod=\n" > rootdir/etc/sddm.conf.d/ubuntu-defaults.conf
-    printf "[Autologin]\nUser=luser\nSession=plasma\n" > rootdir/etc/sddm.conf.d/autologin.conf
+    printf "[Autologin]\nUser=xiaomi\nSession=plasma\n" > rootdir/etc/sddm.conf.d/autologin.conf
     
     if chroot rootdir id -u sddm >/dev/null 2>&1; then
         chroot rootdir usermod -aG video,render,input sddm || true
@@ -155,7 +155,7 @@ fi
 # 3. XFCE 配置
 if [ "$DM" = "lightdm" ]; then
     mkdir -p rootdir/etc/lightdm/lightdm.conf.d
-    printf "[Seat:*]\nautologin-user=luser\nautologin-user-timeout=0\n" > rootdir/etc/lightdm/lightdm.conf.d/autologin.conf
+    printf "[Seat:*]\nautologin-user=xiaomi\nautologin-user-timeout=0\n" > rootdir/etc/lightdm/lightdm.conf.d/autologin.conf
     chroot rootdir systemctl enable lightdm
 fi
 

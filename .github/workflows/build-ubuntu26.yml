@@ -84,7 +84,7 @@ jobs:
             | 桌面环境 | GNOME, KDE Plasma, Xfce |
 
             ### 🔐 默认凭据
-            - 用户名: `luser` / 密码: `luser`
+            - 用户名: `xiaomi` / 密码: `xiaomi`
           files: ${{ steps.build.outputs.path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
