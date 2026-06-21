@@ -29,7 +29,7 @@ cd linux
 # 🛠️ 自动配置 (跳过所有交互式菜单)
 # ==========================================
 echo "⚙️ 正在应用并强行补全配置..."
-wget -O .config https://github.com/ianchb/sm8550-mainline/releases/download/7.1.0/sm8550.config
+wget -O .config https://github.com/ianchb/sm8550-mainline/releases/download/7.1.0-touchpad/sm8550.config
 make ARCH=arm64 CC="ccache clang" LLVM=1 olddefconfig
 # ==========================================
 
