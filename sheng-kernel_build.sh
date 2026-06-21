@@ -108,16 +108,16 @@ cd ..
 # ==========================================
 # 6.5 构建 fastrpc
 # ==========================================
-wget -q https://github.com/qualcomm/fastrpc/archive/refs/tags/v1.0.2.zip
-unzip -q v1.0.2.zip
-cd fastrpc-1.0.2
+wget -q https://github.com/qualcomm/fastrpc/archive/refs/tags/v1.0.6.zip
+unzip -q v1.0.6.zip
+cd fastrpc-1.0.6
 autoreconf -is
 ./configure --prefix=/usr --host=aarch64-linux-gnu
 make -j$(nproc)
 make DESTDIR=$PWD/stage install
 cd ..
 mkdir -p fastrpc/usr
-cp -r fastrpc-1.0.2/stage/usr fastrpc/
+cp -r fastrpc-1.0.6/stage/usr fastrpc/
 find fastrpc/usr/bin -type f -exec chmod +x {} \;
 find fastrpc/usr/lib -name "*.so*" -exec chmod +x {} \;
 
