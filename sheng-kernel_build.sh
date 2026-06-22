@@ -121,7 +121,7 @@ make -j$(nproc)
 make DESTDIR=$PWD/stage install
 cd ..
 mkdir -p fastrpc/usr
-cp -r fastrpc-1.0.6/stage/usr fastrpc/
+cp -r fastrpc-1.0.6/stage/usr/* fastrpc/usr/
 find fastrpc/usr/bin -type f -exec chmod +x {} \;
 find fastrpc/usr/lib -name "*.so*" -exec chmod +x {} \;
 
