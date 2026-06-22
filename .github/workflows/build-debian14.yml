@@ -1,11 +1,18 @@
-name: 🌀 Build Debian 14 Desktop
+name: 🌀 Build Debian 14
 
 on:
   workflow_dispatch:
     inputs:
-      desktop_env:
-        description: '选择桌面环境'
+      variant:
+        description: '选择构建类型'
         required: true
+        type: choice
+        options:
+          - desktop
+          - server
+        default: 'desktop'
+      desktop_env:
+        description: '选择桌面环境 (仅 desktop 类型)'
         type: choice
         options:
           - all
@@ -44,18 +51,23 @@ jobs:
       - name: Generate release tag
         id: tag
         run: |
-          DE_SUFFIX="${{ github.event.inputs.desktop_env || 'all' }}"
-          TAG="debian14-${DE_SUFFIX}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
+          VARIANT="${{ github.event.inputs.variant || 'desktop' }}"
+          TAG="debian14-${VARIANT}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
           echo "release_tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: 🧮 Generate Dynamic Matrix
         id: set-matrix
         run: |
-          DESKTOP="${{ github.event.inputs.desktop_env || 'all' }}"
-          if [ "$DESKTOP" == "all" ]; then
-            echo 'desktop=["gnome", "kde"]' >> $GITHUB_OUTPUT
+          VARIANT="${{ github.event.inputs.variant || 'desktop' }}"
+          if [ "$VARIANT" == "server" ]; then
+            echo 'desktop=["server"]' >> $GITHUB_OUTPUT
           else
-            echo "desktop=[\"$DESKTOP\"]" >> $GITHUB_OUTPUT
+            DESKTOP="${{ github.event.inputs.desktop_env || 'all' }}"
+            if [ "$DESKTOP" == "all" ]; then
+              echo 'desktop=["gnome", "kde"]' >> $GITHUB_OUTPUT
+            else
+              echo "desktop=[\"$DESKTOP\"]" >> $GITHUB_OUTPUT
+            fi
           fi
 
           BOOT="${{ github.event.inputs.boot_mode || 'all' }}"
@@ -98,7 +110,11 @@ jobs:
         id: build
         run: |
           chmod +x sheng-rootfs_build.sh
-          sudo bash sheng-rootfs_build.sh debian-desktop "7.1.0" "${{ matrix.boot }}" "${{ matrix.desktop }}"
+          if [ "${{ matrix.desktop }}" == "server" ]; then
+            sudo bash sheng-rootfs_build.sh debian-server "7.1.0" "${{ matrix.boot }}"
+          else
+            sudo bash sheng-rootfs_build.sh debian-desktop "7.1.0" "${{ matrix.boot }}" "${{ matrix.desktop }}"
+          fi
 
           PKG_COUNT=$(ls -1 *.zst 2>/dev/null | wc -l)
           echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
@@ -115,14 +131,14 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
-          name: "Debian 14 Desktop"
+          name: "Debian 14 (${{ matrix.desktop }})"
           body: |
             ### 📋 系统信息
             | 项目 | 详情 |
             |------|------|
             | 系统 | Debian 14 (Forky) |
             | 内核版本 | 7.1.0 |
-            | 桌面环境 | GNOME, KDE |
+            | 类型 | ${{ matrix.desktop }} |
 
             ### 🔐 默认凭据
             - 用户名: `xiaomi` / 密码: `xiaomi`

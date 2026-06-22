@@ -6,7 +6,9 @@ FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 
 if [ $# -lt 2 ] || [ $# -gt 4 ]; then
     echo "用法: $0 <distro-variant> <kernel_version> [boot_mode] [desktop_env]"
+    echo "distro-variant: debian-desktop, debian-server"
     echo "示例: $0 debian-desktop 7.1 all all"
+    echo "示例: $0 debian-server 7.1 dual"
     exit 1
 fi
 
@@ -43,7 +45,9 @@ else
     exit 1
 fi
 
-if [ "$TARGET_FLAVOUR" = "all" ]; then
+if [ "$distro_variant" = "server" ]; then
+    FLAVOURS=("server")
+elif [ "$TARGET_FLAVOUR" = "all" ]; then
     FLAVOURS=("gnome" "kde")
 elif [[ "$TARGET_FLAVOUR" =~ ^(gnome|kde)$ ]]; then
     FLAVOURS=("$TARGET_FLAVOUR")
@@ -74,7 +78,7 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
 
         echo ""
         echo "======================================================"
-        echo "🔥 开始构建: Debian $distro_version | 桌面: ${FLAVOUR^^} | 模式: $MODE"
+        echo "🔥 开始构建: Debian $distro_version | 类型: ${FLAVOUR} | 模式: $MODE"
         echo "======================================================"
 
         ROOTFS_IMG="${distro_type}_${distro_version}_${FLAVOUR}_${MODE}_${TIMESTAMP}.img"
@@ -105,14 +109,16 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
 echo "⏱️ 正在启用 NTP 时间同步 (chrony)..."
 chroot rootdir systemctl enable chrony
 
-        echo "🌏 正在配置中文输入法..."
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei fcitx5 fcitx5-chinese-addons fcitx5-frontend-gtk3 fcitx5-frontend-qt5"
-        
-        cat > rootdir/etc/environment <<EOF
+        if [ "$distro_variant" != "server" ]; then
+            echo "🌏 正在配置中文输入法..."
+            chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei fcitx5 fcitx5-chinese-addons fcitx5-frontend-gtk3 fcitx5-frontend-qt5"
+
+            cat > rootdir/etc/environment <<EOF
 GTK_IM_MODULE=fcitx
 QT_IM_MODULE=fcitx
 XMODIFIERS=@im=fcitx
 EOF
+        fi
 
         echo "📦 正在注入设备专属 .deb 驱动包 (由工作流预下载)..."
         cp *.deb rootdir/tmp/
@@ -166,6 +172,15 @@ EOF
 
             chroot rootdir systemctl enable NetworkManager
             chroot rootdir systemctl set-default graphical.target
+
+        elif [ "$distro_variant" = "server" ]; then
+            echo "🖥️ 配置无桌面服务器环境..."
+            chroot rootdir useradd -m -s /bin/bash xiaomi || true
+            chroot rootdir bash -c "echo 'xiaomi:xiaomi' | chpasswd"
+            chroot rootdir usermod -aG sudo xiaomi
+            chroot rootdir systemctl enable NetworkManager
+            chroot rootdir systemctl enable ssh
+            chroot rootdir systemctl set-default multi-user.target
         fi
 
         # =========================
