@@ -66,7 +66,11 @@ chroot rootdir apt update
 chroot rootdir apt install -y --no-install-recommends \
     systemd sudo vim-tiny wget curl \
     network-manager openssh-server \
-    wpasupplicant dbus kmod initramfs-tools
+    wpasupplicant dbus kmod initramfs-tools \
+    apt-transport-https ca-certificates chrony
+
+echo "⏱️ 正在启用 NTP 时间同步 (chrony)..."
+chroot rootdir systemctl enable chrony
 
 if ls *.deb 1> /dev/null 2>&1; then
     cp *.deb rootdir/tmp/

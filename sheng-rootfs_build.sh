@@ -100,7 +100,10 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         echo "nameserver 223.5.5.5" >> rootdir/etc/resolv.conf
 
         echo "📦 正在安装基础环境组件..."
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends systemd sudo vim wget curl network-manager openssh-server wpasupplicant dbus locales dialog"
+        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends systemd sudo vim wget curl network-manager openssh-server wpasupplicant dbus locales dialog apt-transport-https ca-certificates chrony"
+
+echo "⏱️ 正在启用 NTP 时间同步 (chrony)..."
+chroot rootdir systemctl enable chrony
 
         echo "🌏 正在配置中文输入法..."
         chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei fcitx5 fcitx5-chinese-addons fcitx5-frontend-gtk3 fcitx5-frontend-qt5"
