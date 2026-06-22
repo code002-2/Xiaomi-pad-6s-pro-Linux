@@ -1,9 +1,9 @@
 Package: fastrpc
-Version: 1.0.2-1
+Version: 1.0.6-1
 Section: libs
 Priority: optional
 Architecture: arm64
 Maintainer: Fauzan Amir Al Ghiffary <alghiffaryfa19@gmail.com>
-Depends: libyaml-0-2, systemd
+Depends: libbsd0, libyaml-0-2, systemd
 Description: Qualcomm FastRPC userspace library
  FastRPC implementation for Qualcomm DSP communication.
