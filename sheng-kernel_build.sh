@@ -30,6 +30,10 @@ cd linux
 # ==========================================
 echo "⚙️ 正在应用并强行补全配置..."
 wget -O .config https://github.com/ianchb/sm8550-mainline/releases/download/7.1.0-touchpad/sm8550.config
+
+# 🔥 启用 Clang ThinLTO 优化 (编译加速 + 运行时性能提升)
+./scripts/config --disable LTO_NONE --enable LTO_CLANG_THIN
+
 make ARCH=arm64 CC="ccache clang" LLVM=1 olddefconfig
 # ==========================================
 

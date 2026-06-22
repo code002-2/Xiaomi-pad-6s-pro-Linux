@@ -1,5 +1,5 @@
 Package: linux-xiaomi-sheng
-Version: 7.0.0
+Version: 7.1.0-sm8550-ge48c557b8f78
 Architecture: arm64
 Maintainer: map220v
 Section: kernel
