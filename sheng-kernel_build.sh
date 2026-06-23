@@ -133,7 +133,6 @@ find fastrpc/usr/lib -name "*.so*" -exec chmod +x {} \;
 # ==========================================
 # 6.6 构建 libssc (Qualcomm Sensor Core 用户态库)
 # ==========================================
-echo "🔧 正在构建 libssc..."
 git clone https://codeberg.org/DylanVanAssche/libssc.git --depth 1 libssc-src
 cd libssc-src
 
@@ -160,12 +159,10 @@ else
     sudo cp -r libssc/usr/* /usr/
     sudo ldconfig
 fi
-echo "✅ libssc 构建完成"
 
 # ==========================================
 # 6.7 构建 iio-sensor-proxy (启用 SSC 支持)
 # ==========================================
-echo "🔧 正在构建 iio-sensor-proxy..."
 
 # Debian libudev-dev 只提供 libudev.pc，meson 需要 udev.pc
 if ! pkg-config --exists udev && pkg-config --exists libudev; then
@@ -206,11 +203,9 @@ find iio-sensor-proxy/usr/libexec -type f -exec chmod +x {} \;
 RULES_FILE="iio-sensor-proxy/usr/lib/udev/rules.d/80-iio-sensor-proxy.rules"
 if [ -f "$RULES_FILE" ]; then
     sed -i 's/ssc-light ssc-compass/ssc-light ssc-compass ssc-accel/' "$RULES_FILE"
-    echo "✅ 已修复 udev 规则 (ssc-accel)"
 fi
-echo "✅ iio-sensor-proxy 构建完成"
 
-echo "🔧 正在进行 UsrMerge 路径手术 (确保 Arch/Fedora 兼容性)..."
+echo "🔧 正在进行 UsrMerge 路径手术"
 
 # 对所有可能包含 /lib 目录的包进行自动化修正
 for pkg in firmware-xiaomi-sheng alsa-xiaomi-sheng linux-xiaomi-sheng fastrpc libssc iio-sensor-proxy; do
