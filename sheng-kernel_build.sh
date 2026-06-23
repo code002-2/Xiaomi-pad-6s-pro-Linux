@@ -153,8 +153,8 @@ find libssc/usr/lib -name "*.so*" -exec chmod +x {} \;
 
 # 安装 libssc 到系统，供 iio-sensor-proxy 编译链接
 if [ -n "${SUDO_PASS:-}" ]; then
-    echo "$SUDO_PASS" | sudo -S cp -r libssc/usr/* /usr/ 2>/dev/null
-    echo "$SUDO_PASS" | sudo -S ldconfig 2>/dev/null
+    echo "$SUDO_PASS" | sudo -S cp -r libssc/usr/* /usr/ 
+    echo "$SUDO_PASS" | sudo -S ldconfig 
 else
     sudo cp -r libssc/usr/* /usr/
     sudo ldconfig
@@ -168,8 +168,7 @@ fi
 if ! pkg-config --exists udev && pkg-config --exists libudev; then
     PC_DIR=$(pkg-config --variable=pc_path pkg-config 2>/dev/null | cut -d: -f1)
     if [ -f "$PC_DIR/libudev.pc" ] && [ ! -f "$PC_DIR/udev.pc" ]; then
-        echo "114514" | sudo -S ln -sf "$PC_DIR/libudev.pc" "$PC_DIR/udev.pc" 2>/dev/null || true
-        echo "🔧 已创建 udev.pc 符号链接"
+        sudo ln -sf "$PC_DIR/libudev.pc" "$PC_DIR/udev.pc" 
     fi
 fi
 
@@ -187,10 +186,10 @@ DESTDIR=$PWD/stage meson install --no-rebuild -C output
 cd ..
 
 mkdir -p iio-sensor-proxy/usr
-cp -r iio-sensor-proxy-3.9/stage/usr/* iio-sensor-proxy/usr/ 2>/dev/null || true
+cp -r iio-sensor-proxy-3.9/stage/usr/* iio-sensor-proxy/usr/ 
 # udev 规则可能被装到 /lib 或 /rules.d（非标准路径）
 if [ -d iio-sensor-proxy-3.9/stage/lib ]; then
-    cp -r iio-sensor-proxy-3.9/stage/lib/* iio-sensor-proxy/usr/lib/ 2>/dev/null || true
+    cp -r iio-sensor-proxy-3.9/stage/lib/* iio-sensor-proxy/usr/lib/
 fi
 if [ -d iio-sensor-proxy-3.9/stage/rules.d ]; then
     mkdir -p iio-sensor-proxy/usr/lib/udev/rules.d
