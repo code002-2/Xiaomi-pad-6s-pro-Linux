@@ -138,6 +138,7 @@ git clone https://codeberg.org/DylanVanAssche/libssc.git --depth 1 libssc-src
 cd libssc-src
 
 # 打补丁：等待 QMI 服务就绪
+# 来源: https://github.com/ianchb/debian-sheng/blob/master/patches/wait_for_qmi_service.patch
 cp ../wait_for_qmi_service.patch .
 patch -Np1 < wait_for_qmi_service.patch || true
 
