@@ -1,0 +1,9 @@
+Package: libssc
+Version: 0.3.0-1
+Section: libs
+Priority: optional
+Architecture: arm64
+Maintainer: Fauzan Amir Al Ghiffary <alghiffaryfa19@gmail.com>
+Depends: libglib2.0-0, libprotobuf-c1, libqmi-glib5
+Description: Qualcomm Sensor Core 用户态库
+ libssc 用户态库，用于访问 Qualcomm SSC 传感器。

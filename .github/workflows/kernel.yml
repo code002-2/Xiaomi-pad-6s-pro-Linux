@@ -31,7 +31,7 @@ jobs:
         run: |
           echo "⚙️ 正在安装必要的构建工具..."
           sudo apt update
-          sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils unzip autoconf automake libtool libyaml-dev libbsd-dev
+          sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils unzip autoconf automake libtool libyaml-dev libbsd-dev ninja-build meson pkg-config dpkg-dev systemd libglib2.0-dev libprotobuf-c-dev libqmi-glib-dev libmbim-glib-dev libgudev-1.0-dev libpolkit-gobject-1-dev libsystemd-dev libdbus-1-dev protobuf-compiler protobuf-c-compiler
           echo "✅ 构建工具安装完成"
 
           mkdir -p /home/runner/.ccache
