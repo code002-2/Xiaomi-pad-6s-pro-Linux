@@ -32,13 +32,13 @@
 | 核心   | 刷写       | 正常     | 仅双系统                 |
 | 核心   | 屏幕/触摸  | 正常     | 含休眠/亮度/触摸         |
 | 核心   | 键盘/触摸板| 正常     | 内置物理键盘与触摸板     |
-| 连接   | Wi-Fi      | 正常     | |
+| 连接   | Wi-Fi      | 正常 | 部分地区需要设置wifi区域码才能正常使用5GHz Wifi|
 | 连接   | 蓝牙       | 正常     |    |
 | 多媒体 | 音频/相机  | 正常     | 相机效果劣于 Android     |
 | 传感器 | 全部       | 正常     | 自动旋转/亮度/霍尔等     |
 | 手写笔 | 测试       | 故障     | 开发中                   |
 
-> 完整功能状态表请查阅 [Wiki 首页](https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/wiki/%E9%A6%96%E9%A1%B5)
+> 完整功能状态表请查阅 [PostmarketOS wiki](https://wiki.postmarketos.org/wiki/Xiaomi_Pad_6S_Pro_12.4_(xiaomi-sheng))
 
 ---
 
@@ -90,7 +90,10 @@
 ## ❤️ 致谢
 
 感谢所有社区贡献者的测试与文件提供。
-
-感谢https://github.com/ianchb 的MIPPS快充补丁
+[@map220v](https://github.com/map220v) 主线内核开发，设备驱动等
+[@ianchb](https://github.com/ianchb) MIPPS快充补丁，触控笔充电
+[@alghiffaryfa19](https://github.com/alghiffaryfa19) 该设备项目的上游
+[@code002-2](https://github.com/code002-2) 二次开发改进
+以及相关的贡献者
 
 **谨慎操作 – 祝使用愉快！**
