@@ -99,7 +99,7 @@ jobs:
         run: |
           gh release download "kernel-7.1.0" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
-          gh release download "sensor" \
+          gh release download "ppd-arm-sync" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
           gh release download "xiaomi-mipps-auth" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
@@ -109,11 +109,11 @@ jobs:
       - name: Build RootFS
         id: build
         run: |
-          chmod +x sheng-rootfs_build.sh
+          chmod +x debian-sheng-rootfs-build.sh
           if [ "${{ matrix.desktop }}" == "server" ]; then
-            sudo bash sheng-rootfs_build.sh debian-server "7.1.0" "${{ matrix.boot }}"
+            sudo bash debian-sheng-rootfs-build.sh debian-server "7.1.0" "${{ matrix.boot }}"
           else
-            sudo bash sheng-rootfs_build.sh debian-desktop "7.1.0" "${{ matrix.boot }}" "${{ matrix.desktop }}"
+            sudo bash debian-sheng-rootfs-build.sh debian-desktop "7.1.0" "${{ matrix.boot }}" "${{ matrix.desktop }}"
           fi
 
           PKG_COUNT=$(ls -1 *.zst 2>/dev/null | wc -l)
