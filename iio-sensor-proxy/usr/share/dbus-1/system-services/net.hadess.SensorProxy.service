@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=net.hadess.SensorProxy
+Exec=/bin/false
+SystemdService=iio-sensor-proxy.service
