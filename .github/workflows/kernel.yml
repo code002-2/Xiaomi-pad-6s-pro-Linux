@@ -26,6 +26,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ccache-unified-kernel-7.1.0-
             ${{ runner.os }}-ccache-unified-kernel-
+          save-always: true
 
       - name: "🔧 部署 LLVM 交叉编译环境"
         run: |
