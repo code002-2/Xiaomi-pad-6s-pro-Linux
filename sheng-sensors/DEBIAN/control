@@ -1,8 +1,9 @@
 Package: sheng-sensors
-Version: 20240917-1
+Version: 20260624-1
 Section: misc
 Priority: optional
 Architecture: arm64
 Maintainer: Fauzan Amir Al Ghiffary <alghiffaryfa19@gmail.com>
 Description: Sensor files for Xiaomi Mi Pad 6s Pro
- Proprietary sensor configuration files.
+ Proprietary sensor configuration files and udev rules
+ for accelerometer mount matrix (screen auto-rotation).
