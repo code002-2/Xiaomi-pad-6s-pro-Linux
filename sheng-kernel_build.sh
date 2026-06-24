@@ -139,7 +139,7 @@ cd libssc-src
 # 打补丁：等待 QMI 服务就绪
 # 来源: https://github.com/ianchb/debian-sheng/blob/master/patches/wait_for_qmi_service.patch
 cp ../wait_for_qmi_service.patch .
-patch -Np1 < wait_for_qmi_service.patch || true
+patch -Np1 < wait_for_qmi_service.patch
 
 meson setup build --prefix=/usr
 meson compile -C build
