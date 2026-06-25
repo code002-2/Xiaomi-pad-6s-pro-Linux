@@ -235,10 +235,10 @@ else
     fi
     find iio-sensor-proxy/usr/bin -type f -exec chmod +x {} \;
     find iio-sensor-proxy/usr/libexec -type f -exec chmod +x {} \;
-    # 修复 udev 规则：添加 ssc-accel 支持
+    # 修复 udev 规则：添加 ssc-accel 和 ssc-proximity 支持
     RULES_FILE="iio-sensor-proxy/usr/lib/udev/rules.d/80-iio-sensor-proxy.rules"
     if [ -f "$RULES_FILE" ]; then
-        sed -i 's/ssc-light ssc-compass/ssc-light ssc-compass ssc-accel/' "$RULES_FILE"
+        sed -i 's/ssc-light ssc-compass/ssc-light ssc-compass ssc-accel ssc-proximity/' "$RULES_FILE"
     fi
 fi
 

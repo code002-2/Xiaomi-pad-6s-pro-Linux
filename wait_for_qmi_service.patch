@@ -30,3 +30,87 @@ diff -ura libssc/src/libssc-client.c libssc_p/src/libssc-client.c
 +			}
  		}
  	}
+
+diff -ura libssc/src/libssc-sensor-proximity.c libssc_p/src/libssc-sensor-proximity.c
+--- libssc/src/libssc-sensor-proximity.c
++++ libssc_p/src/libssc-sensor-proximity.c
+@@ -101,34 +101,53 @@
+ 			ssc_proximity_response__free_unpacked (msg, NULL);
+ 		/* xiaomi-davinci uses REPORT_MEASUREMENT and its own proximity response */
+ 		} else if (msg_id == SSC_MSG_REPORT_MEASUREMENT) {
+-			ProximityDataDavinci data;
+-			SscProximityResponseDavinci *msg = ssc_proximity_response_davinci__unpack (NULL, buf->len, (const uint8_t *) buf->data);
+-
+-			if (msg == NULL) {
+-				g_warning ("Failed to unpack Xiaomi Davinci proximity measurement message");
+-				return;
+-			}
+-
+-			if (msg->data->len != sizeof(ProximityDataDavinci)) {
+-				/* Not observed and unlikely to ever happen due to reserved fields in the data struct */
+-				ssc_proximity_response_davinci__free_unpacked (msg, NULL);
+-				return;
+-			}
+-
+-			memcpy(&data, msg->data->data, sizeof(ProximityDataDavinci));
++			/* First try standard format - some devices (e.g. xiaomi-sheng with
++			 * STK3BCX) use REPORT_MEASUREMENT but with the standard
++			 * SscProximityResponse format rather than the Davinci format. */
++			SscProximityResponse *msg = ssc_proximity_response__unpack (NULL, buf->len, (const uint8_t *) buf->data);
+ 
+-			switch ((int)data.near) {
+-				case SSC_SENSOR_PROXIMITY_NEAR:
+-					near = true;
+-					break;
+-				case SSC_SENSOR_PROXIMITY_FAR:
+-					near = false;
+-					break;
+-				default:
+-					g_assert_not_reached ();
++			if (msg != NULL) {
++				switch (msg->near) {
++					case SSC_SENSOR_PROXIMITY_NEAR:
++						near = true;
++						break;
++					case SSC_SENSOR_PROXIMITY_FAR:
++						near = false;
++						break;
++					default:
++						g_assert_not_reached ();
++				}
++				ssc_proximity_response__free_unpacked (msg, NULL);
++			} else {
++				/* Fall back to Davinci format */
++				ProximityDataDavinci data;
++				SscProximityResponseDavinci *msg_davinci = ssc_proximity_response_davinci__unpack (NULL, buf->len, (const uint8_t *) buf->data);
++
++				if (msg_davinci == NULL) {
++					g_warning ("Failed to unpack proximity measurement message");
++					return;
++				}
++
++				if (msg_davinci->data->len != sizeof(ProximityDataDavinci)) {
++					ssc_proximity_response_davinci__free_unpacked (msg_davinci, NULL);
++					return;
++				}
++
++				memcpy(&data, msg_davinci->data->data, sizeof(ProximityDataDavinci));
++
++				switch ((int)data.near) {
++					case SSC_SENSOR_PROXIMITY_NEAR:
++						near = true;
++						break;
++					case SSC_SENSOR_PROXIMITY_FAR:
++						near = false;
++						break;
++					default:
++						g_assert_not_reached ();
++				}
++
++				ssc_proximity_response_davinci__free_unpacked (msg_davinci, NULL);
+ 			}
+-
+-			ssc_proximity_response_davinci__free_unpacked (msg, NULL);
+ 		} else {
+ 			return;
+ 		}
