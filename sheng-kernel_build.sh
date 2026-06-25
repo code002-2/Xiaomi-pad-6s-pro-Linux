@@ -245,7 +245,7 @@ fi
 echo "🔧 正在进行 UsrMerge 路径手术"
 
 # 对所有可能包含 /lib 目录的包进行自动化修正
-for pkg in firmware-xiaomi-sheng alsa-xiaomi-sheng linux-xiaomi-sheng fastrpc libssc iio-sensor-proxy; do
+for pkg in firmware-xiaomi-sheng alsa-xiaomi-sheng linux-xiaomi-sheng fastrpc; do
     if [ -d "$pkg/lib" ]; then
         echo "✅ 正在将 $pkg 中的 /lib 迁移至 /usr/lib"
         mkdir -p "$pkg/usr"
