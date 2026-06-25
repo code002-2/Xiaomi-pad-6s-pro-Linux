@@ -3,6 +3,11 @@ name: 🌀 Build Debian 14
 on:
   workflow_dispatch:
     inputs:
+      kernel_version:
+        description: '内核版本号 (例如 7.1.0)'
+        required: true
+        type: string
+        default: '7.1.0'
       variant:
         description: '选择构建类型'
         required: true
@@ -97,7 +102,7 @@ jobs:
 
       - name: Download kernel and sensor packages
         run: |
-          gh release download "kernel-7.1.0" \
+          gh release download "kernel-${{ github.event.inputs.kernel_version }}" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
           gh release download "ppd-arm-sync" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
@@ -111,9 +116,9 @@ jobs:
         run: |
           chmod +x debian-sheng-rootfs-build.sh
           if [ "${{ matrix.desktop }}" == "server" ]; then
-            sudo bash debian-sheng-rootfs-build.sh debian-server "7.1.0" "${{ matrix.boot }}"
+            sudo bash debian-sheng-rootfs-build.sh debian-server "${{ github.event.inputs.kernel_version }}" "${{ matrix.boot }}"
           else
-            sudo bash debian-sheng-rootfs-build.sh debian-desktop "7.1.0" "${{ matrix.boot }}" "${{ matrix.desktop }}"
+            sudo bash debian-sheng-rootfs-build.sh debian-desktop "${{ github.event.inputs.kernel_version }}" "${{ matrix.boot }}" "${{ matrix.desktop }}"
           fi
 
           PKG_COUNT=$(ls -1 *.zst 2>/dev/null | wc -l)
@@ -137,7 +142,7 @@ jobs:
             | 项目 | 详情 |
             |------|------|
             | 系统 | Debian 14 (Forky) |
-            | 内核版本 | 7.1.0 |
+            | 内核版本 | ${{ github.event.inputs.kernel_version }} |
             | 类型 | ${{ matrix.desktop }} |
 
             ### 🔐 默认凭据

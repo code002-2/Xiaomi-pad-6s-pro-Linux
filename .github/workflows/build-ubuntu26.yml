@@ -3,6 +3,11 @@ name: 🐧 Build Ubuntu 26.04 Desktop (GNOME/KDE/Xfce)
 on:
   workflow_dispatch:
     inputs:
+      kernel_version:
+        description: '内核版本号 (例如 7.1.0)'
+        required: true
+        type: string
+        default: '7.1.0'
       skip_release:
         description: '跳过创建GitHub Release'
         type: boolean
@@ -42,7 +47,7 @@ jobs:
 
       - name: Download kernel and sensor packages
         run: |
-          gh release download "kernel-7.1.0" \
+          gh release download "kernel-${{ github.event.inputs.kernel_version }}" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
           gh release download "sensor" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
@@ -56,7 +61,7 @@ jobs:
         id: build
         run: |
           chmod +x build-ubuntu26-rootfs.sh
-          sudo ./build-ubuntu26-rootfs.sh 7.1.0 ${{ matrix.desktop_env }}
+          sudo ./build-ubuntu26-rootfs.sh ${{ github.event.inputs.kernel_version }} ${{ matrix.desktop_env }}
 
           ZST_FILE=$(ls ubuntu26_${{ matrix.desktop_env }}_*.zst | head -1)
           echo "filename=$(basename "$ZST_FILE")" >> $GITHUB_OUTPUT
@@ -80,7 +85,7 @@ jobs:
             | 项目 | 详情 |
             |------|------|
             | 系统 | Ubuntu 26.04 LTS (Resolute) |
-            | 内核版本 | 7.1.0 |
+            | 内核版本 | ${{ github.event.inputs.kernel_version }} |
             | 桌面环境 | GNOME, KDE Plasma, Xfce |
 
             ### 🔐 默认凭据

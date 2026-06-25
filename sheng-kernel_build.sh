@@ -2,6 +2,29 @@
 set -e
 
 # ==========================================
+# 0. 版本参数解析
+# ==========================================
+usage() {
+    echo "用法: $0 <kernel_version>"
+    echo "示例: $0 7.1.0"
+    echo ""
+    echo "  内核版本号将用于:"
+    echo "    - git clone 分支: sheng-<version>"
+    echo "    - 内核配置下载: <version>/sm8550.config"
+    exit 1
+}
+
+if [ $# -lt 1 ]; then
+    echo "❌ 缺少内核版本号参数"
+    usage
+fi
+
+KERNEL_VERSION="$1"
+echo "🔧 内核版本: ${KERNEL_VERSION}"
+echo "   Git 分支: sheng-${KERNEL_VERSION}"
+echo "   配置标签: ${KERNEL_VERSION}"
+
+# ==========================================
 # 1. 编译环境与工具链配置
 # ==========================================
 export CCACHE_DIR="$HOME/.ccache"
@@ -25,14 +48,14 @@ export STRIP="llvm-strip"
 if [ "${SKIP_KERNEL:-0}" = "1" ]; then
     echo "⏭️ SKIP_KERNEL=1，跳过内核构建"
 else
-git clone https://github.com/ianchb/sm8550-mainline.git --branch sheng-7.1.0 --depth 1 linux
+git clone https://github.com/ianchb/sm8550-mainline.git --branch sheng-${KERNEL_VERSION} --depth 1 linux
 cd linux
 
 # ==========================================
 # 🛠️ 自动配置 (跳过所有交互式菜单)
 # ==========================================
 echo "⚙️ 正在应用并强行补全配置..."
-wget -O .config https://github.com/ianchb/sm8550-mainline/releases/download/7.1.0-touchpad/sm8550.config
+wget -O .config https://github.com/ianchb/sm8550-mainline/releases/download/${KERNEL_VERSION}/sm8550.config
 
 # 🔥 启用 Clang ThinLTO 优化 (编译加速 + 运行时性能提升)
 ./scripts/config --disable LTO_NONE --enable LTO_CLANG_THIN
