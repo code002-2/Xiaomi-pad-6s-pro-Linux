@@ -154,77 +154,93 @@ find fastrpc/usr/bin -type f -exec chmod +x {} \;
 find fastrpc/usr/lib -name "*.so*" -exec chmod +x {} \;
 
 # ==========================================
+# 6.5.5 架构检查 (libssc / iio-sensor-proxy 需要原生 arm64 编译)
+# ==========================================
+IS_ARM64=0
+if [ "$(uname -m)" = "aarch64" ]; then
+    IS_ARM64=1
+fi
+
+# ==========================================
 # 6.6 构建 libssc (Qualcomm Sensor Core 用户态库)
 # ==========================================
-git clone https://codeberg.org/DylanVanAssche/libssc.git --depth 1 libssc-src
-cd libssc-src
-
-# 打补丁：等待 QMI 服务就绪
-# 来源: https://github.com/ianchb/debian-sheng/blob/master/patches/wait_for_qmi_service.patch
-cp ../wait_for_qmi_service.patch .
-patch -Np1 < wait_for_qmi_service.patch
-
-meson setup build --prefix=/usr
-meson compile -C build
-DESTDIR=$PWD/stage meson install -C build
-cd ..
-
-mkdir -p libssc/usr
-cp -r libssc-src/stage/usr/* libssc/usr/
-find libssc/usr/bin -type f -exec chmod +x {} \;
-find libssc/usr/lib -name "*.so*" -exec chmod +x {} \;
-
-# 安装 libssc 到系统，供 iio-sensor-proxy 编译链接
-if [ -n "${SUDO_PASS:-}" ]; then
-    echo "$SUDO_PASS" | sudo -S cp -r libssc/usr/* /usr/ 
-    echo "$SUDO_PASS" | sudo -S ldconfig 
+if [ "$IS_ARM64" -eq 0 ]; then
+    echo "⏭️ 非 arm64 环境，跳过 libssc 编译"
 else
-    sudo cp -r libssc/usr/* /usr/
+    git clone https://codeberg.org/DylanVanAssche/libssc.git --depth 1 libssc-src
+    cd libssc-src
+
+    # 打补丁：等待 QMI 服务就绪
+    # 来源: https://github.com/ianchb/debian-sheng/blob/master/patches/wait_for_qmi_service.patch
+    cp ../wait_for_qmi_service.patch .
+    patch -Np1 < wait_for_qmi_service.patch
+
+    meson setup build --prefix=/usr
+    meson compile -C build
+    # 直接安装到 libssc 包目录，无需 cp
+    DESTDIR=$PWD/../libssc meson install -C build
+    cd ..
+
+    find libssc/usr/bin -type f -exec chmod +x {} \;
+    find libssc/usr/lib -name "*.so*" -exec chmod +x {} \;
+
+    # 打包并安装到系统，供 iio-sensor-proxy 编译链接
+    dpkg-deb --build --root-owner-group libssc libssc.deb
+    if [ -n "${SUDO_PASS:-}" ]; then
+        echo "$SUDO_PASS" | sudo -S dpkg -i libssc.deb
+    else
+        sudo dpkg -i libssc.deb
+    fi
     sudo ldconfig
+    rm -f libssc.deb
 fi
 
 # ==========================================
 # 6.7 构建 iio-sensor-proxy (启用 SSC 支持)
 # ==========================================
-
-# Debian libudev-dev 只提供 libudev.pc，meson 需要 udev.pc
-if ! pkg-config --exists udev && pkg-config --exists libudev; then
-    PC_DIR=$(pkg-config --variable=pc_path pkg-config 2>/dev/null | cut -d: -f1)
-    if [ -f "$PC_DIR/libudev.pc" ] && [ ! -f "$PC_DIR/udev.pc" ]; then
-        sudo ln -sf "$PC_DIR/libudev.pc" "$PC_DIR/udev.pc" 
+if [ "$IS_ARM64" -eq 0 ]; then
+    echo "⏭️ 非 arm64 环境，跳过 iio-sensor-proxy 编译"
+else
+    # Debian libudev-dev 只提供 libudev.pc，meson 需要 udev.pc
+    if ! pkg-config --exists udev && pkg-config --exists libudev; then
+        PC_DIR=$(pkg-config --variable=pc_path pkg-config 2>/dev/null | cut -d: -f1)
+        if [ -f "$PC_DIR/libudev.pc" ] && [ ! -f "$PC_DIR/udev.pc" ]; then
+            sudo ln -sf "$PC_DIR/libudev.pc" "$PC_DIR/udev.pc"
+        fi
     fi
-fi
 
-wget -q https://gitlab.freedesktop.org/hadess/iio-sensor-proxy/-/archive/3.9/iio-sensor-proxy-3.9.tar.gz
-tar -xf iio-sensor-proxy-3.9.tar.gz
-cd iio-sensor-proxy-3.9
+    wget -q https://gitlab.freedesktop.org/hadess/iio-sensor-proxy/-/archive/3.9/iio-sensor-proxy-3.9.tar.gz
+    tar -xf iio-sensor-proxy-3.9.tar.gz
+    cd iio-sensor-proxy-3.9
 
-meson setup output \
-  --prefix=/usr \
-  -Db_lto=true \
-  -Dssc-support=enabled \
-  -Dsystemdsystemunitdir=/usr/lib/systemd/system
-meson compile -C output
-DESTDIR=$PWD/stage meson install --no-rebuild -C output
-cd ..
+    meson setup output \
+      --prefix=/usr \
+      -Db_lto=true \
+      -Dssc-support=enabled \
+      -Dsystemdsystemunitdir=/usr/lib/systemd/system
+    meson compile -C output
+    # 直接安装到 iio-sensor-proxy 包目录，无需 cp
+    DESTDIR=$PWD/../iio-sensor-proxy meson install --no-rebuild -C output
+    cd ..
 
-mkdir -p iio-sensor-proxy/usr
-cp -r iio-sensor-proxy-3.9/stage/usr/* iio-sensor-proxy/usr/ 
-# udev 规则可能被装到 /lib 或 /rules.d（非标准路径）
-if [ -d iio-sensor-proxy-3.9/stage/lib ]; then
-    cp -r iio-sensor-proxy-3.9/stage/lib/* iio-sensor-proxy/usr/lib/
-fi
-if [ -d iio-sensor-proxy-3.9/stage/rules.d ]; then
-    mkdir -p iio-sensor-proxy/usr/lib/udev/rules.d
-    cp iio-sensor-proxy-3.9/stage/rules.d/* iio-sensor-proxy/usr/lib/udev/rules.d/
-fi
-find iio-sensor-proxy/usr/bin -type f -exec chmod +x {} \;
-find iio-sensor-proxy/usr/libexec -type f -exec chmod +x {} \;
-
-# 修复 udev 规则：添加 ssc-accel 支持
-RULES_FILE="iio-sensor-proxy/usr/lib/udev/rules.d/80-iio-sensor-proxy.rules"
-if [ -f "$RULES_FILE" ]; then
-    sed -i 's/ssc-light ssc-compass/ssc-light ssc-compass ssc-accel/' "$RULES_FILE"
+    # udev 规则可能被装到 /lib 或 /rules.d（非标准路径）
+    if [ -d iio-sensor-proxy/lib ]; then
+        mkdir -p iio-sensor-proxy/usr/lib
+        cp -r iio-sensor-proxy/lib/* iio-sensor-proxy/usr/lib/
+        rm -rf iio-sensor-proxy/lib
+    fi
+    if [ -d iio-sensor-proxy/rules.d ]; then
+        mkdir -p iio-sensor-proxy/usr/lib/udev/rules.d
+        cp -r iio-sensor-proxy/rules.d/* iio-sensor-proxy/usr/lib/udev/rules.d/
+        rm -rf iio-sensor-proxy/rules.d
+    fi
+    find iio-sensor-proxy/usr/bin -type f -exec chmod +x {} \;
+    find iio-sensor-proxy/usr/libexec -type f -exec chmod +x {} \;
+    # 修复 udev 规则：添加 ssc-accel 支持
+    RULES_FILE="iio-sensor-proxy/usr/lib/udev/rules.d/80-iio-sensor-proxy.rules"
+    if [ -f "$RULES_FILE" ]; then
+        sed -i 's/ssc-light ssc-compass/ssc-light ssc-compass ssc-accel/' "$RULES_FILE"
+    fi
 fi
 
 echo "🔧 正在进行 UsrMerge 路径手术"
@@ -244,8 +260,10 @@ dpkg-deb --build --root-owner-group -Zzstd -z10 firmware-xiaomi-sheng
 dpkg-deb --build --root-owner-group -Zzstd -z10 alsa-xiaomi-sheng
 dpkg-deb --build --root-owner-group -Zzstd -z10 sheng-devauth
 dpkg-deb --build --root-owner-group -Zzstd -z10 fastrpc
-dpkg-deb --build --root-owner-group -Zzstd -z10 libssc
-dpkg-deb --build --root-owner-group -Zzstd -z10 iio-sensor-proxy
+if [ "$IS_ARM64" -eq 1 ]; then
+    dpkg-deb --build --root-owner-group -Zzstd -z10 libssc
+    dpkg-deb --build --root-owner-group -Zzstd -z10 iio-sensor-proxy
+fi
 dpkg-deb --build --root-owner-group -Zzstd -z10 sheng-sensors
 
 echo "🎉 所有任务圆满完成！"
