@@ -185,14 +185,13 @@ else
     find libssc/usr/lib -name "*.so*" -exec chmod +x {} \;
 
     # 打包并安装到系统，供 iio-sensor-proxy 编译链接
-    dpkg-deb --build --root-owner-group libssc libssc.deb
+    dpkg-deb --build --root-owner-group -Zzstd -z10 libssc
     if [ -n "${SUDO_PASS:-}" ]; then
         echo "$SUDO_PASS" | sudo -S dpkg -i libssc.deb
     else
         sudo dpkg -i libssc.deb
     fi
     sudo ldconfig
-    rm -f libssc.deb
 fi
 
 # ==========================================
@@ -261,7 +260,6 @@ dpkg-deb --build --root-owner-group -Zzstd -z10 alsa-xiaomi-sheng
 dpkg-deb --build --root-owner-group -Zzstd -z10 sheng-devauth
 dpkg-deb --build --root-owner-group -Zzstd -z10 fastrpc
 if [ "$IS_ARM64" -eq 1 ]; then
-    dpkg-deb --build --root-owner-group -Zzstd -z10 libssc
     dpkg-deb --build --root-owner-group -Zzstd -z10 iio-sensor-proxy
 fi
 dpkg-deb --build --root-owner-group -Zzstd -z10 sheng-sensors
