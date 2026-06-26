@@ -49,7 +49,7 @@ jobs:
         run: |
           gh release download "kernel-${{ github.event.inputs.kernel_version }}" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber
-          gh release download "sensor" \
+          gh release download "ppd-arm-sync" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber
           gh release download "xiaomi-mipps-auth" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber
