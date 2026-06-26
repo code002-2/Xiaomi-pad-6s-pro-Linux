@@ -9,7 +9,7 @@ UBUNTU_MIRROR="http://ports.ubuntu.com/ubuntu-ports"
 
 usage() {
     echo "用法: $0 <kernel_version> <desktop_environment>"
-    echo "desktop_environment: gnome, kde 或 xfce"
+    echo "desktop_environment: gnome, kde, xfce 或 server"
     exit 1
 }
 
@@ -25,8 +25,8 @@ fi
 KERNEL=$1
 DESKTOP_ENV=$2
 
-if [[ ! "$DESKTOP_ENV" =~ ^(gnome|kde|xfce)$ ]]; then
-    echo "错误: desktop_environment 必须是 gnome, kde 或 xfce"
+if [[ ! "$DESKTOP_ENV" =~ ^(gnome|kde|xfce|server)$ ]]; then
+    echo "错误: desktop_environment 必须是 gnome, kde, xfce 或 server"
     exit 1
 fi
 
@@ -102,12 +102,19 @@ elif [ "$DESKTOP_ENV" = "kde" ]; then
 elif [ "$DESKTOP_ENV" = "xfce" ]; then
     chroot rootdir apt install -y --no-install-recommends xfce4 xfce4-terminal lightdm lightdm-gtk-greeter firefox mousepad thunar mesa-vulkan-drivers
     DM="lightdm"
+elif [ "$DESKTOP_ENV" = "server" ]; then
+    echo "🖥️ 配置无桌面服务器环境..."
+    DM=""
 fi
 
 # 创建普通用户 xiaomi
 chroot rootdir useradd -m -s /bin/bash xiaomi
 echo "xiaomi:xiaomi" | chroot rootdir chpasswd
-chroot rootdir usermod -aG sudo,audio,video,render,input,plugdev xiaomi
+if [ "$DESKTOP_ENV" = "server" ]; then
+    chroot rootdir usermod -aG sudo xiaomi
+else
+    chroot rootdir usermod -aG sudo,audio,video,render,input,plugdev xiaomi
+fi
 
 # ========================================================
 # ⚙️ 底层硬件自愈与触控校准
@@ -163,8 +170,12 @@ if [ "$DM" = "lightdm" ]; then
 fi
 
 chroot rootdir systemctl enable NetworkManager
-# 统一进入图形层级
-chroot rootdir systemctl set-default graphical.target
+if [ "$DESKTOP_ENV" = "server" ]; then
+    chroot rootdir systemctl enable ssh
+    chroot rootdir systemctl set-default multi-user.target
+else
+    chroot rootdir systemctl set-default graphical.target
+fi
 
 # 文件系统挂载对齐
 printf "PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1\n" > rootdir/etc/fstab

@@ -50,6 +50,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     outputs:
       release_tag: ${{ steps.tag.outputs.release_tag }}
+      variant: ${{ steps.tag.outputs.variant }}
       matrix_desktop: ${{ steps.set-matrix.outputs.desktop }}
       matrix_boot: ${{ steps.set-matrix.outputs.boot }}
     steps:
@@ -59,6 +60,7 @@ jobs:
           VARIANT="${{ github.event.inputs.variant || 'desktop' }}"
           TAG="debian14-${VARIANT}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
           echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+          echo "variant=$VARIANT" >> $GITHUB_OUTPUT
 
       - name: 🧮 Generate Dynamic Matrix
         id: set-matrix
@@ -136,14 +138,14 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
-          name: "Debian 14 (${{ matrix.desktop }})"
+          name: "Debian 14 (${{ needs.prepare-release.outputs.variant }})"
           body: |
             ### 📋 系统信息
             | 项目 | 详情 |
             |------|------|
             | 系统 | Debian 14 (Forky) |
             | 内核版本 | ${{ github.event.inputs.kernel_version }} |
-            | 类型 | ${{ matrix.desktop }} |
+            | 类型 | ${{ needs.prepare-release.outputs.variant }} |
 
             ### 🔐 默认凭据
             - 用户名: `xiaomi` / 密码: `xiaomi`

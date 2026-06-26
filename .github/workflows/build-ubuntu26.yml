@@ -1,4 +1,4 @@
-name: 🐧 Build Ubuntu 26.04 Desktop (GNOME/KDE/Xfce)
+name: 🐧 Build Ubuntu 26.04 (Desktop/Server)
 
 on:
   workflow_dispatch:
@@ -8,6 +8,23 @@ on:
         required: true
         type: string
         default: '7.1.0'
+      variant:
+        description: '选择构建类型'
+        required: true
+        type: choice
+        options:
+          - desktop
+          - server
+        default: 'desktop'
+      desktop_env:
+        description: '选择桌面环境 (仅 desktop 类型)'
+        type: choice
+        options:
+          - all
+          - gnome
+          - kde
+          - xfce
+        default: 'all'
       skip_release:
         description: '跳过创建GitHub Release'
         type: boolean
@@ -25,20 +42,41 @@ jobs:
     runs-on: ubuntu-24.04-arm
     outputs:
       release_tag: ${{ steps.tag.outputs.release_tag }}
+      variant: ${{ steps.tag.outputs.variant }}
+      matrix_desktop: ${{ steps.set-matrix.outputs.desktop }}
     steps:
       - name: Generate release tag
         id: tag
         run: |
-          TAG="ubuntu26-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
+          VARIANT="${{ github.event.inputs.variant || 'desktop' }}"
+          TAG="ubuntu26-${VARIANT}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
           echo "release_tag=$TAG" >> $GITHUB_OUTPUT
-  build-desktop:
-    name: Build Ubuntu 26.04 Desktop (${{ matrix.desktop_env }})
+          echo "variant=$VARIANT" >> $GITHUB_OUTPUT
+
+      - name: 🧮 Generate Dynamic Matrix
+        id: set-matrix
+        run: |
+          VARIANT="${{ github.event.inputs.variant || 'desktop' }}"
+          if [ "$VARIANT" == "server" ]; then
+            echo 'desktop=["server"]' >> $GITHUB_OUTPUT
+          else
+            DESKTOP="${{ github.event.inputs.desktop_env || 'all' }}"
+            if [ "$DESKTOP" == "all" ]; then
+              echo 'desktop=["gnome", "kde", "xfce"]' >> $GITHUB_OUTPUT
+            else
+              echo "desktop=[\"$DESKTOP\"]" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  build:
+    name: Build Ubuntu 26.04 (${{ matrix.desktop }})
     runs-on: ubuntu-24.04-arm
     needs: prepare-release
     strategy:
-      matrix:
-        desktop_env: [gnome, kde, xfce]
       fail-fast: false
+      matrix:
+        desktop: ${{ fromJSON(needs.prepare-release.outputs.matrix_desktop) }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -61,16 +99,16 @@ jobs:
         id: build
         run: |
           chmod +x build-ubuntu26-rootfs.sh
-          sudo ./build-ubuntu26-rootfs.sh ${{ github.event.inputs.kernel_version }} ${{ matrix.desktop_env }}
+          sudo ./build-ubuntu26-rootfs.sh ${{ github.event.inputs.kernel_version }} ${{ matrix.desktop }}
 
-          ZST_FILE=$(ls ubuntu26_${{ matrix.desktop_env }}_*.zst | head -1)
+          ZST_FILE=$(ls ubuntu26_${{ matrix.desktop }}_*.zst | head -1)
           echo "filename=$(basename "$ZST_FILE")" >> $GITHUB_OUTPUT
           echo "path=$ZST_FILE" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ubuntu26-${{ matrix.desktop_env }}
+          name: ubuntu26-${{ matrix.desktop }}
           path: ${{ steps.build.outputs.path }}
           retention-days: 7
 
@@ -79,14 +117,14 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
-          name: "Ubuntu 26.04 Desktop"
+          name: "Ubuntu 26.04 (${{ needs.prepare-release.outputs.variant }})"
           body: |
             ### 📋 系统信息
             | 项目 | 详情 |
             |------|------|
             | 系统 | Ubuntu 26.04 LTS (Resolute) |
             | 内核版本 | ${{ github.event.inputs.kernel_version }} |
-            | 桌面环境 | GNOME, KDE Plasma, Xfce |
+            | 类型 | ${{ needs.prepare-release.outputs.variant }} |
 
             ### 🔐 默认凭据
             - 用户名: `xiaomi` / 密码: `xiaomi`
