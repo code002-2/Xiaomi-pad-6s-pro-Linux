@@ -94,13 +94,13 @@ echo "sheng-ubuntu" > rootdir/etc/hostname
 # 📦 桌面环境分支流转 (去除一切文本写入，只留包安装)
 # ========================================================
 if [ "$DESKTOP_ENV" = "gnome" ]; then
-    chroot rootdir apt install -y --no-install-recommends ubuntu-desktop-minimal gnome-terminal firefox gdm3
+    chroot rootdir apt install -y --no-install-recommends ubuntu-desktop-minimal gnome-terminal firefox gdm3 mesa-vulkan-drivers
     DM="gdm3"
 elif [ "$DESKTOP_ENV" = "kde" ]; then
-    chroot rootdir apt install -y --no-install-recommends plasma-desktop sddm konsole firefox plasma-workspace systemsettings discover packagekit
+    chroot rootdir apt install -y --no-install-recommends plasma-desktop sddm konsole firefox plasma-workspace systemsettings discover packagekit mesa-vulkan-drivers
     DM="sddm"
 elif [ "$DESKTOP_ENV" = "xfce" ]; then
-    chroot rootdir apt install -y --no-install-recommends xfce4 xfce4-terminal lightdm lightdm-gtk-greeter firefox mousepad thunar
+    chroot rootdir apt install -y --no-install-recommends xfce4 xfce4-terminal lightdm lightdm-gtk-greeter firefox mousepad thunar mesa-vulkan-drivers
     DM="lightdm"
 fi
 
