@@ -202,7 +202,7 @@ SPARSE_IMG="sparse_${ROOTFS_IMG}"
 img2simg "$ROOTFS_IMG" "$SPARSE_IMG"
 
 echo "🗜️ 正在使用 zstd 压缩..."
-zstd -19 -T0 --long "$SPARSE_IMG" -o "ubuntu26_${DESKTOP_ENV}_${TIMESTAMP}.zst"
+zstd -19 -T0 --long "$SPARSE_IMG" -o "ubuntu26_${DESKTOP_ENV}_${TIMESTAMP}.img.zst"
 
 rm -f "$ROOTFS_IMG" "$SPARSE_IMG"
 echo "🎉 终极修砖版 Ubuntu 构建成功！"
