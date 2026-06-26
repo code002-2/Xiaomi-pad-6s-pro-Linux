@@ -48,11 +48,11 @@ jobs:
       - name: Download kernel and sensor packages
         run: |
           gh release download "kernel-${{ github.event.inputs.kernel_version }}" \
-            --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
+            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
           gh release download "sensor" \
-            --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
+            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
           gh release download "xiaomi-mipps-auth" \
-            --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
+            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
           ls -la *.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

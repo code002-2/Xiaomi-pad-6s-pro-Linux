@@ -75,7 +75,7 @@ chroot rootdir systemctl enable chrony
 if ls *.deb 1> /dev/null 2>&1; then
     cp *.deb rootdir/tmp/
     # 此时系统有了 kmod 和 initramfs-tools，内核 deb 的 post-install 脚本才能正常运行
-    chroot rootdir bash -c "apt install -y /tmp/*.deb || true"
+    chroot rootdir bash -c "apt install -y /tmp/*.deb"
     
     # 终极保险：动态侦测真实版本并强制生成模块索引
     echo "   正在强制更新内核模块依赖..."
@@ -141,10 +141,9 @@ if [ "$DM" = "gdm3" ]; then
     chroot rootdir systemctl enable gdm3
 fi
 
-# 2. KDE 降级 X11 与防息屏加固
+# 2. KDE 防息屏加固与自动登录
 if [ "$DM" = "sddm" ]; then
     mkdir -p rootdir/etc/sddm.conf.d
-    printf "[General]\nDisplayServer=x11\nInputMethod=\n" > rootdir/etc/sddm.conf.d/ubuntu-defaults.conf
     printf "[Autologin]\nUser=xiaomi\nSession=plasma\n" > rootdir/etc/sddm.conf.d/autologin.conf
     
     if chroot rootdir id -u sddm >/dev/null 2>&1; then
@@ -163,6 +162,7 @@ if [ "$DM" = "lightdm" ]; then
     chroot rootdir systemctl enable lightdm
 fi
 
+chroot rootdir systemctl enable NetworkManager
 # 统一进入图形层级
 chroot rootdir systemctl set-default graphical.target
 
