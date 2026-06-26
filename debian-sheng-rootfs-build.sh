@@ -124,7 +124,7 @@ EOF
         cp *.deb rootdir/tmp/
 
         chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends initramfs-tools"
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends /tmp/*.deb" || echo "⚠️ 部分 .deb 存在警告，继续执行。"
+        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --no-install-recommends /tmp/*.deb"
         
         chroot rootdir bash -c "echo 'root:1234' | chpasswd"
         echo "sheng-debian" > rootdir/etc/hostname
