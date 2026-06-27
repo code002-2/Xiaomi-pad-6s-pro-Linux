@@ -144,15 +144,32 @@ jobs:
       - name: Build RootFS
         id: build
         run: |
+          echo "::group::🔨 Build RootFS"
+          echo "  Kernel version : ${{ github.event.inputs.kernel_version }}"
+          echo "  Desktop        : ${{ matrix.desktop }}"
+          echo "  Boot mode      : ${{ matrix.boot }}"
+
           chmod +x debian-sheng-rootfs-build.sh
           if [ "${{ matrix.desktop }}" == "server" ]; then
+            echo "  Type           : server"
             sudo bash debian-sheng-rootfs-build.sh debian-server "${{ github.event.inputs.kernel_version }}" "${{ matrix.boot }}"
           else
+            echo "  Type           : desktop"
             sudo bash debian-sheng-rootfs-build.sh debian-desktop "${{ github.event.inputs.kernel_version }}" "${{ matrix.boot }}" "${{ matrix.desktop }}"
           fi
+          echo "::endgroup::"
 
+          echo "::group::📦 Build artifacts"
           PKG_COUNT=$(ls -1 *.zst 2>/dev/null | wc -l)
+          if [ "$PKG_COUNT" -gt 0 ]; then
+            echo "Found $PKG_COUNT image(s):"
+            ls -lh *.zst
+          else
+            echo "❌ ERROR: No .zst image found!"
+            exit 1
+          fi
           echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
+          echo "::endgroup::"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

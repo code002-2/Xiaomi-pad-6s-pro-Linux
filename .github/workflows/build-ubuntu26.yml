@@ -125,12 +125,26 @@ jobs:
       - name: Build RootFS
         id: build
         run: |
+          echo "::group::🔨 Build RootFS"
+          echo "  Kernel version : ${{ github.event.inputs.kernel_version }}"
+          echo "  Desktop        : ${{ matrix.desktop }}"
+
           chmod +x build-ubuntu26-rootfs.sh
           sudo ./build-ubuntu26-rootfs.sh ${{ github.event.inputs.kernel_version }} ${{ matrix.desktop }}
+          echo "::endgroup::"
 
-          ZST_FILE=$(ls ubuntu26_${{ matrix.desktop }}_*.zst | head -1)
+          echo "::group::📦 Build artifacts"
+          ZST_FILE=$(ls ubuntu26_${{ matrix.desktop }}_*.zst 2>/dev/null | head -1)
+          if [ -n "$ZST_FILE" ]; then
+            echo "✅ Image built:"
+            ls -lh "$ZST_FILE"
+          else
+            echo "❌ ERROR: No .zst image found!"
+            exit 1
+          fi
           echo "filename=$(basename "$ZST_FILE")" >> $GITHUB_OUTPUT
           echo "path=$ZST_FILE" >> $GITHUB_OUTPUT
+          echo "::endgroup::"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

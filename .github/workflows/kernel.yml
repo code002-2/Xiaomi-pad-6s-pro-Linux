@@ -77,8 +77,28 @@ jobs:
       - name: "📦 收集并统计编译产物"
         id: collect_artifacts
         run: |
+          echo "::group::Debian 包 (.deb)"
           PKG_COUNT=$(ls -1 *.deb 2>/dev/null | wc -l)
-          echo "📦 共找到 $PKG_COUNT 个 Debian 包文件"
+          if [ "$PKG_COUNT" -gt 0 ]; then
+            echo "📦 共找到 $PKG_COUNT 个 Debian 包文件:"
+            ls -lh *.deb
+          else
+            echo "❌ ERROR: 未找到任何 .deb 文件！"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::启动镜像 (.img)"
+          IMG_COUNT=$(ls -1 boot_*.img 2>/dev/null | wc -l)
+          if [ "$IMG_COUNT" -gt 0 ]; then
+            echo "🖼️  共找到 $IMG_COUNT 个启动镜像:"
+            ls -lh boot_*.img
+          else
+            echo "❌ ERROR: 未找到任何 boot.img 文件！"
+            exit 1
+          fi
+          echo "::endgroup::"
+
           echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
 
       - name: "📤 上传生成的配置文件"
