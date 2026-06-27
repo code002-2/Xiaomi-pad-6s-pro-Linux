@@ -1,5 +1,0 @@
-Package: sheng-devauth
-Version: 1.0
-Architecture: arm64
-Maintainer: map220v
-Description: Service used in pair with kernel driver to authenticate Xiaomi Keyboard

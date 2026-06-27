@@ -1,9 +1,0 @@
-version=14
-file=hw_platform=/usr/share/qcom/sm8550/Xiaomi/sheng/socinfo/hw_platform
-file=platform_subtype=/usr/share/qcom/sm8550/Xiaomi/sheng/socinfo/platform_subtype
-file=platform_subtype_id=/usr/share/qcom/sm8550/Xiaomi/sheng/socinfo/platform_subtype_id
-file=platform_version=/usr/share/qcom/sm8550/Xiaomi/sheng/socinfo/platform_version
-file=soc_id=/usr/share/qcom/sm8550/Xiaomi/sheng/socinfo/soc_id
-file=revision=/usr/share/qcom/sm8550/Xiaomi/sheng/socinfo/revision
-file=output=/usr/share/qcom/sm8550/Xiaomi/sheng/registry
-file=config=/usr/share/qcom/sm8550/Xiaomi/sheng/config

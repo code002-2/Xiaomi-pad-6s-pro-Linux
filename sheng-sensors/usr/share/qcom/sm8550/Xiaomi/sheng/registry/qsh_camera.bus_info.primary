@@ -1,1 +1,0 @@
-{"qsh_camera.bus_info.primary":{"owner":"qsh_camera","bus_type":{"type":"int","ver":"0","data":"0"},"bus_instance":{"type":"int","ver":"0","data":"9"},"slave_config":{"type":"int","ver":"0","data":"16"},"min_bus_speed_khz":{"type":"int","ver":"0","data":"1000"},"max_bus_speed_khz":{"type":"int","ver":"0","data":"1000"},"reg_addr_type":{"type":"int","ver":"0","data":"1"}}}

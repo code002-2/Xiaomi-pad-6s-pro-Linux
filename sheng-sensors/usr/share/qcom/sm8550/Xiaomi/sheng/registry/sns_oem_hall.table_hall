@@ -1,1 +1,0 @@
-{"sns_oem_hall.table_hall":{"owner":"sns_oem_hall","interrupt_num":{"type":"flt","ver":"0","data":"172"},"interrupt_trigger_type":{"type":"flt","ver":"0","data":"2"},"interrupt_drive_strength":{"type":"flt","ver":"0","data":"0"},"interrupt_pull_type":{"type":"flt","ver":"0","data":"3"},"is_chip_pin":{"type":"flt","ver":"0","data":"1"}}}

@@ -1,6 +1,0 @@
-Package: alsa-xiaomi-sheng
-Version: 1.0
-Architecture: arm64
-Maintainer: map220v
-Depends: alsa-ucm-conf
-Description: Alsa Use Case Configuration for Xiaomi Pad 6s Pro

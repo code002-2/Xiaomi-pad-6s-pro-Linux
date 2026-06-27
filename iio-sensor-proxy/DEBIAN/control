@@ -1,9 +1,0 @@
-Package: iio-sensor-proxy
-Version: 99993.9-6
-Section: misc
-Priority: optional
-Architecture: arm64
-Maintainer: Dylan Van Assche <me@dylanvanassche.be>
-Depends: dbus, libglib2.0-0, libgudev-1.0-0, libpolkit-gobject-1-0
-Description: IIO sensors to D-Bus proxy (SSC 支持)
- iio-sensor-proxy，带 Qualcomm SSC 传感器支持补丁。
