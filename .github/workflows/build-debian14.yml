@@ -104,12 +104,40 @@ jobs:
 
       - name: Download kernel and sensor packages
         run: |
-          gh release download "kernel-${{ github.event.inputs.kernel_version }}" \
-            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
-          gh release download "ppd-arm-sync" \
-            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
-          gh release download "xiaomi-mipps-auth" \
-            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
+          echo "::group::Download kernel packages (kernel-${{ github.event.inputs.kernel_version }})"
+          if gh release view "kernel-${{ github.event.inputs.kernel_version }}" --repo "${{ github.repository }}" &>/dev/null; then
+            gh release download "kernel-${{ github.event.inputs.kernel_version }}" \
+              --pattern "*.deb" --repo "${{ github.repository }}" --clobber
+            echo "✅ kernel packages downloaded"
+          else
+            echo "❌ ERROR: Release 'kernel-${{ github.event.inputs.kernel_version }}' not found!"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::Download sensor packages (ppd-arm-sync)"
+          if gh release view "ppd-arm-sync" --repo "${{ github.repository }}" &>/dev/null; then
+            gh release download "ppd-arm-sync" \
+              --pattern "*.deb" --repo "${{ github.repository }}" --clobber
+            echo "✅ sensor packages downloaded"
+          else
+            echo "❌ ERROR: Release 'ppd-arm-sync' not found!"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::Download auth packages (xiaomi-mipps-auth)"
+          if gh release view "xiaomi-mipps-auth" --repo "${{ github.repository }}" &>/dev/null; then
+            gh release download "xiaomi-mipps-auth" \
+              --pattern "*.deb" --repo "${{ github.repository }}" --clobber
+            echo "✅ auth packages downloaded"
+          else
+            echo "❌ ERROR: Release 'xiaomi-mipps-auth' not found!"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          ls -la *.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
