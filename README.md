@@ -16,6 +16,7 @@
 - 刷机刷一半忘记吸氧憋死了
 - 因变砖引发任何疾病死了
 - 因给我提Issues没有人回复气死了
+- 等原因
 
 本仓库中的所有文件均由社区用户贡献。提供的指南及文件均为“按现状”提供，**请自行承担使用风险**，并严格遵循每一步骤。
 
@@ -27,16 +28,17 @@
 
 ## 📊 功能状态（摘要）
 
-| 类别   | 功能       | 状态     | 备注                     |
+|类别| 功能|状态| 备注|
 |--------|------------|----------|--------------------------|
-| 核心   | 刷写       | 正常     | 仅双系统                 |
-| 核心   | 屏幕/触摸  | 正常     | 含休眠/亮度/触摸         |
-| 核心   | 键盘/触摸板| 正常     | 内置物理键盘与触摸板     |
-| 连接   | Wi-Fi      | 正常 | 部分地区需要设置wifi区域码才能正常使用5GHz Wifi|
-| 连接   | 蓝牙       | 正常     |    |
-| 多媒体 | 音频/相机  | 正常     | 相机效果劣于 Android     |
-| 传感器 | 全部       | 正常     | 自动旋转/亮度/霍尔等     |
-| 手写笔 | 测试       | 故障     | 开发中                   |
+|核心|系统刷写|正常|仅限Debian,Ubuntu尚未完整测试|
+|核心|屏幕/触摸|正常|含休眠/亮度/触摸|
+|核心|键盘/触摸板|部分正常|官方键盘有概率无响应，需要重新与触点连接|
+|连接|Wi-Fi|正常|部分地区需要设置wifi区域码才能正常使用5GHz Wifi|
+|连接|蓝牙|正常||
+|连接|Type-C|部分正常|Type-C与键盘触点冲突，官方键盘需要重新与触点连接才能正常检测|
+|多媒体|音频/相机|正常|相机效果劣于Android|
+|传感器|全部|正常|自动旋转/亮度/霍尔等|
+|手写笔|测试|故障|只有笔充电可用，充电修复来自[xiaomi-pen-status](https://github.com/ianchb/xiaomi-pen-status)|
 
 > 完整功能状态表请查阅 [PostmarketOS wiki](https://wiki.postmarketos.org/wiki/Xiaomi_Pad_6S_Pro_12.4_(xiaomi-sheng))
 
@@ -68,11 +70,11 @@
 
 ## 🎥 软件测试视频
 
-【小米pad6spro debian hangover wine+dxvk测试-哔哩哔哩】 https://b23.tv/90orqIS
+[小米pad6spro Debian启动！-哔哩哔哩](https://www.bilibili.com/video/BV1za5g6wEx8)
 
-【小米pad6spro debian蓝牙手柄+vulkan小游戏测试-哔哩哔哩】 https://b23.tv/fjTWYWZ
+[小米pad6spro debian hangover wine+dxvk测试-哔哩哔哩](https://www.bilibili.com/video/BV1Be5y6ZEiK)
 
-【小米pad6spro Debian启动！-哔哩哔哩】 https://b23.tv/cWQmge0
+[小米pad6spro debian蓝牙手柄+vulkan小游戏测试-哔哩哔哩](https://www.bilibili.com/video/BV1rg516PEWt)
 
 ## 📝 快速预览（核心步骤）
 
@@ -90,10 +92,11 @@
 ## ❤️ 致谢
 
 感谢所有社区贡献者的测试与文件提供。
-[@map220v](https://github.com/map220v) 主线内核开发，设备驱动等
-[@ianchb](https://github.com/ianchb) MIPPS快充补丁，触控笔充电
-[@alghiffaryfa19](https://github.com/alghiffaryfa19) 该设备项目的上游
+[@map220v](https://github.com/map220v) 主线内核开发，设备驱动等，
+[@ianchb](https://github.com/ianchb) MIPPS快充补丁，触控笔充电，
+[@alghiffaryfa19](https://github.com/alghiffaryfa19) 该设备项目的上游，
 [@code002-2](https://github.com/code002-2) 二次开发改进
+
 以及相关的贡献者
 
 **谨慎操作 – 祝使用愉快！**
