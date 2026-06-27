@@ -1,5 +1,3 @@
-如果你对此项目感兴趣 可以加入我的群聊1092274657
-
 # ⚠️ 警告 – 免责声明
 
 **请仔细阅读此免责声明。**
@@ -98,5 +96,9 @@
 [@code002-2](https://github.com/code002-2) 二次开发改进
 
 以及相关的贡献者
+
+# 相关群组
+
+[![Channel](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/Pad_6S_Pro_Linux_Chat) [![QQ Group](https://img.shields.io/badge/Follow-QQ-12B7F5.svg?logo=qq&logoColor=white)](https://qun.qq.com/universal-share/share?ac=1&authKey=du2KyTQBUaKnU5ENPe5BD7r35s8t6m5qXuVHU656cEDmrpMVq0rTlUH1PuSLVN6n&busi_data=eyJncm91cENvZGUiOiIxMDkyMjc0NjU3IiwidG9rZW4iOiJQdDJqVnBGa1UzcFgyN0ZXSkxHYUhLbDhzZkN4N2g5d0ZoZFdFQkJyZVVMTzVkeitCTXArc2xKU1ZGRVpBd3VmIiwidWluIjoiMzQ5NzEzMDI2MSJ9&data=3eANpQ8g5VfxnuvZSz0QtAoD0D5o6yD7M9Gm8JQHbFs83icXp3G6bZYVVUHW47HKgL_Rq5ecivzzo8PNL8FCAQ&svctype=4&tempid=h5_group_info)
 
 **谨慎操作 – 祝使用愉快！**
