@@ -38,13 +38,11 @@
 
 | 发行版 | 构建脚本 | 桌面环境 | 状态 |
 |--------|---------|---------|------|
-| Debian 13 (Trixie) | `sheng-rootfs_build.sh` | GNOME, KDE | 稳定 |
-| Ubuntu 26.04 | `build-ubuntu26-rootfs.sh` | GNOME, KDE, XFCE | 测试 |
-| Arch Linux ARM | `sheng-arch-rootfs_build.sh` | GNOME, KDE | 测试 |
-| Fedora 44 | `sheng-fedora-rootfs_build.sh` | GNOME | 实验 |
-| Kali Linux | `sheng-kali-rootfs_build.sh` | GNOME, KDE | 实验 |
-| Deepin 25.1 | `deepin-rootfs_build.sh` | Deepin DE | 实验 |
-| PadDeck OS | `paddeck-rootfs_build.sh` | Sway (Steam) | 实验 |
+| Debian 13 (Trixie) | `sheng-rootfs_build.sh` | GNOME, KDE |
+| Ubuntu 26.04 | `build-ubuntu26-rootfs.sh` | GNOME, KDE, XFCE |
+| Arch Linux ARM | `sheng-arch-rootfs_build.sh` | GNOME, KDE |
+| Fedora 44 | `sheng-fedora-rootfs_build.sh` | GNOME |
+| Kali Linux | `sheng-kali-rootfs_build.sh` | GNOME, KDE |
 
 ---
 
