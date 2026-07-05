@@ -36,13 +36,12 @@
 
 ## 📦 支持的发行版
 
-| 发行版 | 构建脚本 | 桌面环境 | 状态 |
+| 发行版 | 构建脚本 | 桌面环境 |
 |--------|---------|---------|------|
 | Debian 13 (Trixie) | `sheng-rootfs_build.sh` | GNOME, KDE |
 | Ubuntu 26.04 | `build-ubuntu26-rootfs.sh` | GNOME, KDE, XFCE |
 | Arch Linux ARM | `sheng-arch-rootfs_build.sh` | GNOME, KDE |
 | Fedora 44 | `sheng-fedora-rootfs_build.sh` | GNOME |
-| Kali Linux | `sheng-kali-rootfs_build.sh` | GNOME, KDE |
 
 ---
 
