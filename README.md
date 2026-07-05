@@ -43,6 +43,7 @@
 | Arch Linux ARM | `sheng-arch-rootfs_build.sh` | GNOME, KDE |
 | Fedora 44 | `sheng-fedora-rootfs_build.sh` | GNOME |
 
+
 ---
 
 ## 🔐 默认凭据
