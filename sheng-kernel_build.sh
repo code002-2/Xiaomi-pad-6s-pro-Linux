@@ -88,7 +88,6 @@ rm ../linux-xiaomi-sheng/lib/modules/**/build
 cd ..
 
 # --- Firmware injection ---
-echo "正在从上游拉取最新的固件文件..."
 git clone --depth 1 https://github.com/lzxcr/linux-firmware-sheng.git /tmp/temp_fw
 
 echo "正在将固件注入打包目录，并强制转入 /usr/lib..."
@@ -112,22 +111,18 @@ fi
 rm -rf /tmp/temp_alsa
 
 # --- UsrMerge ---
-echo "正在对内核及音频模块进行安全级 UsrMerge 路径融合..."
 for pkg in linux-xiaomi-sheng alsa-xiaomi-sheng; do
     if [ -d "$pkg/lib" ]; then
         echo "正在安全融合 $pkg 中的 /lib 至 /usr/lib..."
         mkdir -p "$pkg/usr/lib"
         cp -r "$pkg/lib"/* "$pkg/usr/lib/" 2>/dev/null || true
         rm -rf "$pkg/lib"
-        echo "$pkg 的老式 /lib 目录已安全移除"
     fi
 done
 
 # --- Build .deb packages ---
-echo "开始构建符合全平台规范的 .deb 文件..."
+echo "开始构建deb..."
 dpkg-deb --build --root-owner-group linux-xiaomi-sheng
 dpkg-deb --build --root-owner-group firmware-xiaomi-sheng
 dpkg-deb --build --root-owner-group alsa-xiaomi-sheng
 dpkg-deb --build --root-owner-group sheng-devauth
-
-echo "核心编译、固件注入与音频重组打包全线通关！"
