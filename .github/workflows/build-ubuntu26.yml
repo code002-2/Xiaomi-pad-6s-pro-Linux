@@ -1,10 +1,10 @@
-name: 🐧 Build Ubuntu 26.04 Desktop (GNOME/KDE/Xfce)
+name: Build Ubuntu 26.04 Desktop
 
 on:
   workflow_dispatch:
     inputs:
       kernel_version:
-        description: '内核版本 (如 7.0)'
+        description: '内核版本'
         required: true
         default: '7.0'
       skip_release:
@@ -12,111 +12,25 @@ on:
         type: boolean
         default: false
   push:
-    branches:
-      - main
-      - master
+    branches: [main, master]
+    paths:
+      - 'build-ubuntu26-rootfs.sh'
+      - 'lib/rootfs-common.sh'
+      - '.github/workflows/build-ubuntu26.yml'
+      - '.github/workflows/_rootfs-template.yml'
 
 permissions:
   contents: write
 
 jobs:
-  prepare-release:
-    runs-on: ubuntu-24.04-arm
-    outputs:
-      release_tag: ${{ steps.tag.outputs.release_tag }}
-    steps:
-      - name: Generate release tag
-        id: tag
-        run: |
-          TAG="ubuntu26-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
-          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
-      - name: Create GitHub Release
-        if: ${{ !github.event.inputs.skip_release }}
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: "Ubuntu 26.04 Desktop - ${{ steps.tag.outputs.release_tag }}"
-          body: |
-            🐧 Ubuntu 26.04 LTS (Resolute Raccoon) Desktop
-            
-            ---
-            
-            ### 📋 构建信息
-            | 项目 | 详情 |
-            |------|------|
-            | Ubuntu版本 | 26.04 LTS (Resolute) |
-            | 内核版本 | ${{ github.event.inputs.kernel_version || '7.0' }} |
-            | 桌面环境 | GNOME, KDE Plasma, Xfce |
-            
-            ---
-            
-            ### 🔐 默认凭据
-            - 用户名: `luser`
-            - 密码: `luser`
-            
-            ---
-            
-            ### 🌐 语言环境
-            - 系统语言: 英文 (en_US.UTF-8)
-            
-            ---
-            
-            ### 📦 镜像文件
-            构建完成后将出现在下方附件中。
-          draft: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-desktop:
-    name: Build Ubuntu 26.04 Desktop (${{ matrix.desktop_env }})
-    runs-on: ubuntu-24.04-arm
-    needs: prepare-release
-    strategy:
-      matrix:
-        desktop_env: [gnome, kde, xfce]
-      fail-fast: false
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install build tools
-        run: sudo apt update && sudo apt install -y debootstrap libarchive-tools p7zip-full curl wget android-sdk-libsparse-utils
-
-      - name: Download kernel bundle
-        run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
-          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.0"; fi
-          
-          gh release download "kernel-bundle-${KERNEL_VER}" \
-            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
-          ls -la *.deb
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build RootFS
-        id: build
-        run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
-          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.0"; fi
-          
-          chmod +x build-ubuntu26-rootfs.sh
-          sudo ./build-ubuntu26-rootfs.sh ${KERNEL_VER} ${{ matrix.desktop_env }}
-          
-          SEVEN_Z_FILE=$(ls ubuntu26_${{ matrix.desktop_env }}_*.7z | head -1)
-          echo "filename=$(basename "$SEVEN_Z_FILE")" >> $GITHUB_OUTPUT
-          echo "path=$SEVEN_Z_FILE" >> $GITHUB_OUTPUT
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ubuntu26-${{ matrix.desktop_env }}
-          path: ${{ steps.build.outputs.path }}
-          retention-days: 7
-
-      - name: Upload to Release
-        if: ${{ !github.event.inputs.skip_release }}
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
-          files: ${{ steps.build.outputs.path }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build:
+    uses: ./.github/workflows/_rootfs-template.yml
+    with:
+      distro: ubuntu
+      script: build-ubuntu26-rootfs.sh
+      kernel_version_default: '7.0'
+      desktop_matrix: '["gnome", "kde", "xfce"]'
+      release_tag_prefix: ubuntu26
+      release_body_title: "Ubuntu 26.04 Desktop"
+      skip_release: ${{ github.event.inputs.skip_release }}
+    secrets: inherit

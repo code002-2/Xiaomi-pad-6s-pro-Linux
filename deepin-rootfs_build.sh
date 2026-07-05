@@ -1,24 +1,25 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
+source "$(dirname "$0")/lib/rootfs-common.sh"
+
+# --- Distro-specific configuration ---
 IMAGE_SIZE="8G"
-FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
+UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 DEBIAN_SUITE="beige"
 DEBIAN_MIRROR="https://community-packages.deepin.com/beige/"
 
-usage() {
+# --- Password configuration ---
+ROOT_PASS="${ROOT_PASS:-1234}"
+USER_PASS="${USER_PASS:-luser}"
+USER_NAME="${USER_NAME:-luser}"
+
+# --- Argument parsing ---
+if [ $# -ne 2 ]; then
     echo "用法: $0 <distro_name> <kernel_version>"
     exit 1
-}
-
-if [ $# -ne 2 ]; then
-    usage
 fi
-
-if [ "$(id -u)" -ne 0 ]; then
-    echo "请使用root权限运行"
-    exit 1
-fi
+if [ "$(id -u)" -ne 0 ]; then echo "请使用root权限运行"; exit 1; fi
 
 DISTRO=$1
 KERNEL=$2
@@ -26,151 +27,131 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 ROOTFS_IMG="deepin25_1_0_desktop_${TIMESTAMP}.img"
 
 echo "=========================================="
-echo "⏳ 开始构建最前沿版 Deepin 25.1.0 RootFS"
-echo "🌟 模式: 纯血完整桌面 + Kernel 官方上游固件级注入 (放弃高危跨源)"
+echo "开始构建 Deepin 25.1.0 RootFS"
 echo "内核版本: $KERNEL"
 echo "=========================================="
 
-rm -rf rootdir || true
-truncate -s $IMAGE_SIZE "$ROOTFS_IMG"
-mkfs.ext4 "$ROOTFS_IMG"
-mkdir rootdir
-mount -o loop "$ROOTFS_IMG" rootdir
+# Step 1: Create image
+create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
 
+# Step 2: Bootstrap (Deepin uses a Debian script symlink)
 if [ ! -f "/usr/share/debootstrap/scripts/${DEBIAN_SUITE}" ]; then
     ln -sf /usr/share/debootstrap/scripts/sid "/usr/share/debootstrap/scripts/${DEBIAN_SUITE}"
 fi
 
-debootstrap --no-check-gpg --arch=arm64 "$DEBIAN_SUITE" rootdir "$DEBIAN_MIRROR"
-
-mount --bind /dev rootdir/dev
-mount --bind /dev/pts rootdir/dev/pts
-mount -t proc proc rootdir/proc
-mount -t sysfs sys rootdir/sys
-
-printf "deb [trusted=yes] %s %s main commercial community\n" "$DEBIAN_MIRROR" "$DEBIAN_SUITE" > rootdir/etc/apt/sources.list
-
-# 强制 DNS 防断网
-rm -f rootdir/etc/resolv.conf
-echo "nameserver 8.8.8.8" > rootdir/etc/resolv.conf
-echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
-echo "nameserver 114.114.114.114" >> rootdir/etc/resolv.conf
-
-chroot rootdir apt update
-
-if ls *.deb 1> /dev/null 2>&1; then
-    cp *.deb rootdir/tmp/
-    chroot rootdir bash -c "apt install -y /tmp/*.deb || apt-get install -f -y"
+# Import Deepin keyring if available
+if [ -f /usr/share/keyrings/deepin-archive-keyring.gpg ]; then
+    mkdir -p "$ROOTDIR/etc/apt/trusted.gpg.d"
+    cp /usr/share/keyrings/deepin-archive-keyring.gpg "$ROOTDIR/etc/apt/trusted.gpg.d/deepin.gpg"
 fi
 
-chroot rootdir apt install -y --no-install-recommends \
+debootstrap --arch=arm64 "$DEBIAN_SUITE" "$ROOTDIR" "$DEBIAN_MIRROR"
+
+setup_chroot_mounts "$ROOTDIR"
+
+# APT sources (removed [trusted=yes])
+printf "deb %s %s main commercial community\n" "$DEBIAN_MIRROR" "$DEBIAN_SUITE" > "$ROOTDIR/etc/apt/sources.list"
+setup_dns "$ROOTDIR" 8.8.8.8 1.1.1.1 114.114.114.114
+
+chroot "$ROOTDIR" apt update
+
+# Kernel injection
+if ls *.deb 1> /dev/null 2>&1; then
+    cp *.deb "$ROOTDIR/tmp/"
+    chroot "$ROOTDIR" bash -c "apt install -y /tmp/*.deb || apt-get install -f -y"
+fi
+
+# Base packages
+chroot "$ROOTDIR" apt install -y --no-install-recommends \
     deepin-keyring systemd systemd-resolved sudo vim-tiny wget curl network-manager wpasupplicant dbus locales initramfs-tools
 
-# 恢复 DNS
-rm -f rootdir/etc/resolv.conf
-echo "nameserver 8.8.8.8" > rootdir/etc/resolv.conf
-echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
+# Restore DNS
+setup_dns "$ROOTDIR" 8.8.8.8 1.1.1.1
 
-# 完美中文底座配置
-echo "🇨🇳 正在注入原生中文语言环境..."
-chroot rootdir bash -c "echo 'LANG=zh_CN.UTF-8' > /etc/default/locale"
-chroot rootdir sed -i 's/# zh_CN.UTF-8 UTF-8/zh_CN.UTF-8 UTF-8/' /etc/locale.gen
-chroot rootdir locale-gen zh_CN.UTF-8
+# Chinese locale
+echo "正在注入原生中文语言环境..."
+chroot "$ROOTDIR" bash -c "echo 'LANG=zh_CN.UTF-8' > /etc/default/locale"
+chroot "$ROOTDIR" sed -i 's/# zh_CN.UTF-8 UTF-8/zh_CN.UTF-8 UTF-8/' /etc/locale.gen
+chroot "$ROOTDIR" locale-gen zh_CN.UTF-8
 
-chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
-echo "deepin-sheng" > rootdir/etc/hostname
+echo "deepin-sheng" > "$ROOTDIR/etc/hostname"
 
-# 🚨 强行拉取 Deepin 原生 Mesa 驱动和完整桌面生态
-echo "🖥️ 正在拉取 Deepin 原生完整桌面生态与 3D 驱动..."
-chroot rootdir bash -c "apt install -y deepin-desktop-environment-core dde-session-shell dde-dock dde-launcher dde-desktop dde-control-center lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei libgl1-mesa-dri libglx-mesa0 libegl-mesa0 mesa-vulkan-drivers mesa-utils || apt install -y deepin-desktop-environment-core dde-session-shell lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei libgl1-mesa-dri libglx-mesa0 libegl-mesa0 mesa-vulkan-drivers mesa-utils"
+# Desktop environment
+echo "正在拉取 Deepin 原生完整桌面生态与 3D 驱动..."
+chroot "$ROOTDIR" bash -c "apt install -y deepin-desktop-environment-core dde-session-shell dde-dock dde-launcher dde-desktop dde-control-center lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei libgl1-mesa-dri libglx-mesa0 libegl-mesa0 mesa-vulkan-drivers mesa-utils || apt install -y deepin-desktop-environment-core dde-session-shell lightdm xwayland deepin-kwin-wayland xserver-xorg xinit fonts-noto-cjk fonts-wqy-microhei libgl1-mesa-dri libglx-mesa0 libegl-mesa0 mesa-vulkan-drivers mesa-utils"
 
-# 🚀 [保留大功臣] 提取骁龙专属闭源固件，补齐 Deepin 的短板！
-echo "📥 正在从 Kernel.org 上游提取骁龙 8 Gen 2 (sm8550) 专属闭源固件..."
-mkdir -p rootdir/tmp/linux-fw
-git clone --depth 1 --filter=blob:none --sparse https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git rootdir/tmp/linux-fw
-git -C rootdir/tmp/linux-fw sparse-checkout set qcom
-mkdir -p rootdir/lib/firmware/
-cp -a rootdir/tmp/linux-fw/qcom rootdir/lib/firmware/
-rm -rf rootdir/tmp/linux-fw
-echo "✅ 骁龙核心固件注入完成！"
+# Snapdragon firmware
+echo "正在从 Kernel.org 上游提取骁龙专属闭源固件..."
+mkdir -p "$ROOTDIR/tmp/linux-fw"
+git clone --depth 1 --filter=blob:none --sparse https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git "$ROOTDIR/tmp/linux-fw"
+git -C "$ROOTDIR/tmp/linux-fw" sparse-checkout set qcom
+mkdir -p "$ROOTDIR/lib/firmware/"
+cp -a "$ROOTDIR/tmp/linux-fw/qcom" "$ROOTDIR/lib/firmware/"
+rm -rf "$ROOTDIR/tmp/linux-fw"
 
-chroot rootdir useradd -m -s /bin/bash luser
-echo "luser:luser" | chroot rootdir chpasswd
-chroot rootdir usermod -aG sudo,audio,video,render,input luser
+# Step 3: Users
+setup_users "$ROOTDIR" "$ROOT_PASS" "$USER_NAME" "$USER_PASS" "sudo,audio,video,render,input"
 
-chroot rootdir bash -c "echo 'ttyMSM0' >> /etc/securetty"
-ln -sf /lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
+# Step 4: Hardware quirks
+setup_getty_ttyMSM0 "$ROOTDIR"
 
-if [ -f "rootdir/lib/firmware/ath12k/WCN7850/hw2.0/board-2.bin" ]; then
-    cp rootdir/lib/firmware/ath12k/WCN7850/hw2.0/board-2.bin rootdir/lib/firmware/ath12k/WCN7850/hw2.0/board.bin
-fi
+# WiFi fix
+fix_wifi_firmware "$ROOTDIR" "lib/firmware/ath12k/WCN7850/hw2.0"
 
-chroot rootdir systemctl enable systemd-resolved
-ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
+chroot "$ROOTDIR" systemctl enable systemd-resolved
+setup_systemd_resolved_symlink "$ROOTDIR"
 
-mkdir -p rootdir/etc/udev/rules.d/
-printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"\n' > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules
+configure_touchscreen "$ROOTDIR"
 
-# ================= 🌌 图形界面智能配置 =================
-echo "🌌 配置全局 Wayland/X11 智能引导引擎..."
-cat <<EOF > rootdir/etc/profile.d/wayland-force.sh
+# Wayland/X11 profile script
+echo "配置全局 Wayland/X11 智能引导引擎..."
+cat > "$ROOTDIR/etc/profile.d/wayland-force.sh" <<EOF
 export XDG_SESSION_TYPE=wayland
 export QT_QPA_PLATFORM="wayland;xcb"
 export MOZ_ENABLE_WAYLAND=1
 export WLR_NO_HARDWARE_CURSORS=1
 EOF
-chmod +x rootdir/etc/profile.d/wayland-force.sh
+chmod +x "$ROOTDIR/etc/profile.d/wayland-force.sh"
 
-mkdir -p rootdir/etc/lightdm/lightdm.conf.d
-cat <<EOF > rootdir/etc/lightdm/lightdm.conf.d/12-autologin.conf
+# LightDM autologin with smart Wayland detection
+mkdir -p "$ROOTDIR/etc/lightdm/lightdm.conf.d"
+cat > "$ROOTDIR/etc/lightdm/lightdm.conf.d/12-autologin.conf" <<EOF
 [Seat:*]
-autologin-user=luser
+autologin-user=$USER_NAME
 autologin-user-timeout=0
 EOF
 
-WAYLAND_SESSION=$(ls rootdir/usr/share/wayland-sessions/*.desktop 2>/dev/null | head -n 1 | awk -F'/' '{print $NF}' | sed 's/\.desktop//' || true)
-
+WAYLAND_SESSION=$(ls "$ROOTDIR/usr/share/wayland-sessions/"*.desktop 2>/dev/null | head -n 1 | awk -F'/' '{print $NF}' | sed 's/\.desktop//' || true)
 if [ -n "$WAYLAND_SESSION" ]; then
-    echo "user-session=$WAYLAND_SESSION" >> rootdir/etc/lightdm/lightdm.conf.d/12-autologin.conf
-    echo "✅ 智能探测成功！检测到 Wayland 会话名为: $WAYLAND_SESSION"
+    echo "user-session=$WAYLAND_SESSION" >> "$ROOTDIR/etc/lightdm/lightdm.conf.d/12-autologin.conf"
+    echo "智能探测成功！检测到 Wayland 会话名为: $WAYLAND_SESSION"
 else
-    echo "user-session=dde-x11" >> rootdir/etc/lightdm/lightdm.conf.d/12-autologin.conf
-    echo "⚠️ 警告：未检测到 Wayland 会话，强制回退至 X11 保证亮屏"
+    echo "user-session=dde-x11" >> "$ROOTDIR/etc/lightdm/lightdm.conf.d/12-autologin.conf"
+    echo "警告：未检测到 Wayland 会话，强制回退至 X11"
 fi
 
-chroot rootdir systemctl enable lightdm
-chroot rootdir systemctl set-default graphical.target
+chroot "$ROOTDIR" systemctl enable lightdm
+chroot "$ROOTDIR" systemctl set-default graphical.target
+chroot "$ROOTDIR" systemctl mask deepin-login-sound.service || true
+chroot "$ROOTDIR" systemctl mask deepin-login-sound-service.service || true
+chroot "$ROOTDIR" bash -c "sed -i 's/quiet splash//g' /etc/default/grub" 2>/dev/null || true
 
-chroot rootdir systemctl mask deepin-login-sound.service || true
-chroot rootdir systemctl mask deepin-login-sound-service.service || true
-chroot rootdir bash -c "sed -i 's/quiet splash//g' /etc/default/grub" 2>/dev/null || true
+# Force MSM GPU modules in initramfs
+echo "msm" >> "$ROOTDIR/etc/initramfs-tools/modules"
+echo "gpu_sched" >> "$ROOTDIR/etc/initramfs-tools/modules"
+echo "panel_edp" >> "$ROOTDIR/etc/initramfs-tools/modules"
 
-# 强制在 initramfs 极早期加载高通显示驱动 (KMS)
-echo "msm" >> rootdir/etc/initramfs-tools/modules
-echo "gpu_sched" >> rootdir/etc/initramfs-tools/modules
-echo "panel_edp" >> rootdir/etc/initramfs-tools/modules
-# =========================================================
+# Step 5: fstab & cleanup
+generate_fstab "$ROOTDIR" "dual"
+echo "强制重新生成 initramfs 引导镜像..."
+chroot "$ROOTDIR" bash -c "update-initramfs -u -k all"
+chroot "$ROOTDIR" apt clean
+chroot "$ROOTDIR" rm -rf /tmp/*.deb
+teardown_mounts "$ROOTDIR"
 
-printf "PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1\n" > rootdir/etc/fstab
-
-echo "🔄 强制重新生成 initramfs 引导镜像..."
-chroot rootdir bash -c "update-initramfs -u -k all"
-
-chroot rootdir apt clean
-chroot rootdir rm -rf /tmp/*.deb
-
-umount rootdir/dev/pts || true
-umount rootdir/dev || true
-umount rootdir/proc || true
-umount rootdir/sys || true
-umount rootdir || true
-rm -rf rootdir
-
-tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
-
-echo "✅ 镜像生成完成: $ROOTFS_IMG"
-echo "🗜️ 正在生成最终 7z 压缩包..."
-7z a "deepin25_1_0_desktop_${TIMESTAMP}.7z" "$ROOTFS_IMG"
+# Step 6: Pack (Deepin uses plain 7z, no sparse conversion)
+echo "正在生成最终 7z 压缩包..."
+7z a "deepin25_1_0_desktop_${TIMESTAMP}.7z" "$ROOTFS_IMG" -mx=1
 rm -f "$ROOTFS_IMG"
 
 echo "🎉 纯血 Deepin 固件修复版构建完成！"

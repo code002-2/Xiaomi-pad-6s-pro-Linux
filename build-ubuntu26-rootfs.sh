@@ -1,26 +1,28 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
+source "$(dirname "$0")/lib/rootfs-common.sh"
+
+# --- Distro-specific configuration ---
 IMAGE_SIZE="8G"
-FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
-
+UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 UBUNTU_SUITE="resolute"
 UBUNTU_MIRROR="https://mirrors.tuna.tsinghua.edu.cn/ubuntu"
 
+# --- Password configuration ---
+ROOT_PASS="${ROOT_PASS:-1234}"
+USER_PASS="${USER_PASS:-luser}"
+USER_NAME="${USER_NAME:-luser}"
+
+# --- Argument parsing ---
 usage() {
     echo "用法: $0 <kernel_version> <desktop_environment>"
     echo "desktop_environment: gnome, kde 或 xfce"
     exit 1
 }
 
-if [ $# -ne 2 ]; then
-    usage
-fi
-
-if [ "$(id -u)" -ne 0 ]; then
-    echo "请使用root权限运行"
-    exit 1
-fi
+if [ $# -ne 2 ]; then usage; fi
+if [ "$(id -u)" -ne 0 ]; then echo "请使用root权限运行"; exit 1; fi
 
 KERNEL=$1
 DESKTOP_ENV=$2
@@ -34,166 +36,116 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 ROOTFS_IMG="ubuntu26_${DESKTOP_ENV}_${TIMESTAMP}.img"
 
 echo "=========================================="
-echo "开始构建 Ubuntu 26.04 LTS (Resolute) RootFS"
+echo "开始构建 Ubuntu 26.04 LTS RootFS"
 echo "桌面环境: $DESKTOP_ENV"
 echo "内核版本: $KERNEL"
 echo "=========================================="
 
-rm -rf rootdir || true
-truncate -s $IMAGE_SIZE "$ROOTFS_IMG"
-mkfs.ext4 "$ROOTFS_IMG"
-mkdir rootdir
-mount -o loop "$ROOTFS_IMG" rootdir
+# Step 1: Create image
+create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
+setup_chroot_mounts "$ROOTDIR"
 
-debootstrap --arch=arm64 "$UBUNTU_SUITE" rootdir "$UBUNTU_MIRROR"
+# Step 2: Bootstrap
+debootstrap --arch=arm64 "$UBUNTU_SUITE" "$ROOTDIR" "$UBUNTU_MIRROR"
 
-mount --bind /dev rootdir/dev
-mount --bind /dev/pts rootdir/dev/pts
-mount -t proc proc rootdir/proc
-mount -t sysfs sys rootdir/sys
+# Step 3: Apt sources
+printf "deb %s %s main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" > "$ROOTDIR/etc/apt/sources.list"
+printf "deb %s %s-updates main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" >> "$ROOTDIR/etc/apt/sources.list"
+printf "deb %s %s-backports main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" >> "$ROOTDIR/etc/apt/sources.list"
+printf "deb %s %s-security main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" >> "$ROOTDIR/etc/apt/sources.list"
 
-# 基础软件源
-printf "deb %s %s main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" > rootdir/etc/apt/sources.list
-printf "deb %s %s-updates main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" >> rootdir/etc/apt/sources.list
-printf "deb %s %s-backports main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" >> rootdir/etc/apt/sources.list
-printf "deb %s %s-security main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" >> rootdir/etc/apt/sources.list
+chroot "$ROOTDIR" apt update
 
-chroot rootdir apt update
-
-# ========================================================
-# 🔧 修复点1：先安装系统核心依赖，再安装内核！
-# ========================================================
-chroot rootdir apt install -y --no-install-recommends \
+# Step 4: Base packages
+chroot "$ROOTDIR" apt install -y --no-install-recommends \
     systemd sudo vim-tiny wget curl \
     network-manager openssh-server \
     wpasupplicant dbus kmod initramfs-tools
 
+# Step 5: Kernel injection
 if ls *.deb 1> /dev/null 2>&1; then
-    cp *.deb rootdir/tmp/
-    # 此时系统有了 kmod 和 initramfs-tools，内核 deb 的 post-install 脚本才能正常运行
-    chroot rootdir bash -c "apt install -y /tmp/*.deb || true"
-    
-    # 终极保险：动态侦测真实版本并强制生成模块索引
-    echo "   正在强制更新内核模块依赖..."
-    KERNEL_MODULE_DIR=$(ls rootdir/lib/modules/ | head -n 1)
+    cp *.deb "$ROOTDIR/tmp/"
+    chroot "$ROOTDIR" bash -c "apt install -y /tmp/*.deb || true"
+
+    KERNEL_MODULE_DIR=$(ls "$ROOTDIR/lib/modules/" | head -n 1)
     if [ -n "$KERNEL_MODULE_DIR" ]; then
-        echo "   ✅ 动态识别到真实内核版本目录: $KERNEL_MODULE_DIR"
-        chroot rootdir /sbin/depmod -a "$KERNEL_MODULE_DIR" || true
+        echo "动态识别到真实内核版本目录: $KERNEL_MODULE_DIR"
+        chroot "$ROOTDIR" /sbin/depmod -a "$KERNEL_MODULE_DIR" || true
     fi
 fi
 
-# 设置英文语言环境
-chroot rootdir bash -c "echo 'LANG=en_US.UTF-8' > /etc/default/locale"
-chroot rootdir locale-gen en_US.UTF-8
+# Step 6: Locale & hostname
+chroot "$ROOTDIR" bash -c "echo 'LANG=en_US.UTF-8' > /etc/default/locale"
+chroot "$ROOTDIR" locale-gen en_US.UTF-8
+echo "ubuntu26-${DESKTOP_ENV}" > "$ROOTDIR/etc/hostname"
 
-# root 用户初始化
-chroot rootdir bash -c "echo -e '1234\n1234' | passwd root"
-echo "ubuntu26-${DESKTOP_ENV}" > rootdir/etc/hostname
+# Step 7: Users
+chroot "$ROOTDIR" bash -c "echo -e '${ROOT_PASS}\n${ROOT_PASS}' | passwd root"
+chroot "$ROOTDIR" useradd -m -s /bin/bash "$USER_NAME"
+echo "${USER_NAME}:${USER_PASS}" | chroot "$ROOTDIR" chpasswd
+chroot "$ROOTDIR" usermod -aG sudo,audio,video,render,input,plugdev "$USER_NAME"
 
-# ========================================================
-# 📦 桌面环境分支流转 (去除一切文本写入，只留包安装)
-# ========================================================
+# Step 8: Desktop environment
 if [ "$DESKTOP_ENV" = "gnome" ]; then
-    chroot rootdir apt install -y --no-install-recommends ubuntu-desktop-minimal gnome-terminal firefox gdm3
+    chroot "$ROOTDIR" apt install -y --no-install-recommends ubuntu-desktop-minimal gnome-terminal firefox gdm3
     DM="gdm3"
 elif [ "$DESKTOP_ENV" = "kde" ]; then
-    chroot rootdir apt install -y --no-install-recommends plasma-desktop sddm konsole firefox plasma-workspace systemsettings discover packagekit
+    chroot "$ROOTDIR" apt install -y --no-install-recommends plasma-desktop sddm konsole firefox plasma-workspace systemsettings discover packagekit
     DM="sddm"
 elif [ "$DESKTOP_ENV" = "xfce" ]; then
-    chroot rootdir apt install -y --no-install-recommends xfce4 xfce4-terminal lightdm lightdm-gtk-greeter firefox mousepad thunar
+    chroot "$ROOTDIR" apt install -y --no-install-recommends xfce4 xfce4-terminal lightdm lightdm-gtk-greeter firefox mousepad thunar
     DM="lightdm"
 fi
 
-# 创建普通用户 luser
-chroot rootdir useradd -m -s /bin/bash luser
-echo "luser:luser" | chroot rootdir chpasswd
-chroot rootdir usermod -aG sudo,audio,video,render,input,plugdev luser
+# Step 9: DM autologin config
+case "$DM" in
+    gdm3)
+        mkdir -p "$ROOTDIR/etc/gdm3"
+        printf "[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=%s\n" "$USER_NAME" > "$ROOTDIR/etc/gdm3/daemon.conf"
+        chroot "$ROOTDIR" systemctl enable gdm3
+        ;;
+    sddm)
+        mkdir -p "$ROOTDIR/etc/sddm.conf.d"
+        printf "[General]\nDisplayServer=x11\nInputMethod=\n" > "$ROOTDIR/etc/sddm.conf.d/ubuntu-defaults.conf"
+        printf "[Autologin]\nUser=%s\nSession=plasma\n" "$USER_NAME" > "$ROOTDIR/etc/sddm.conf.d/autologin.conf"
+        if chroot "$ROOTDIR" id -u sddm >/dev/null 2>&1; then
+            chroot "$ROOTDIR" usermod -aG video,render,input sddm || true
+        fi
+        mkdir -p "$ROOTDIR/etc/xdg"
+        printf "[PowerManagement]\nScreenBlanking=false\nDisplaySleep=0\n" > "$ROOTDIR/etc/xdg/plasmarc"
+        chroot "$ROOTDIR" systemctl enable sddm
+        ;;
+    lightdm)
+        mkdir -p "$ROOTDIR/etc/lightdm/lightdm.conf.d"
+        printf "[Seat:*]\nautologin-user=%s\nautologin-user-timeout=0\n" "$USER_NAME" > "$ROOTDIR/etc/lightdm/lightdm.conf.d/autologin.conf"
+        chroot "$ROOTDIR" systemctl enable lightdm
+        ;;
+esac
 
-# ========================================================
-# ⚙️ 底层硬件自愈与触控校准
-# ========================================================
-chroot rootdir bash -c "echo 'ttyMSM0' >> /etc/securetty"
-ln -sf /lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
-chroot rootdir systemctl enable systemd-resolved
-ln -sf /run/systemd/resolve/stub-resolv.conf rootdir/etc/resolv.conf
+chroot "$ROOTDIR" systemctl set-default graphical.target
 
-mkdir -p rootdir/etc/udev/rules.d/
-printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"\n' > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules
+# Step 10: Hardware quirks
+chroot "$ROOTDIR" bash -c "echo 'ttyMSM0' >> /etc/securetty"
+setup_getty_ttyMSM0 "$ROOTDIR"
+setup_systemd_resolved_symlink "$ROOTDIR"
+configure_touchscreen "$ROOTDIR"
 
-# ========================================================
-# 📶 修复点2：移植高通 8 Gen 2 WiFi 修复逻辑
-# ========================================================
-echo "⚙️ 正在预配置高通 WiFi 固件修复与驱动适配..."
-FW_DIR="rootdir/lib/firmware/ath12k/WCN7850/hw2.0"
-if [ -f "$FW_DIR/board-2.bin" ]; then
-    cp "$FW_DIR/board-2.bin" "$FW_DIR/board.bin"
-    echo "✅ board.bin 伪装成功！"
-fi
-chroot rootdir apt install -y qrtr-tools || true
-chroot rootdir systemctl enable qrtr-ns || true
+echo "正在预配置高通 WiFi 固件修复..."
+fix_wifi_firmware "$ROOTDIR"
 
-# ========================================================
-# 🔒 自动登录与桌面加固配置（完全展平，杜绝任何 case 嵌套漏洞）
-# ========================================================
+chroot "$ROOTDIR" apt install -y qrtr-tools || true
+chroot "$ROOTDIR" systemctl enable qrtr-ns || true
 
-# 1. GNOME 配置
-if [ "$DM" = "gdm3" ]; then
-    mkdir -p rootdir/etc/gdm3
-    printf "[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=luser\n" > rootdir/etc/gdm3/daemon.conf
-    chroot rootdir systemctl enable gdm3
-fi
+# Step 11: fstab & cleanup
+generate_fstab "$ROOTDIR" "dual"
+chroot "$ROOTDIR" apt clean
+chroot "$ROOTDIR" rm -rf /tmp/*.deb
+teardown_mounts "$ROOTDIR"
 
-# 2. KDE 降级 X11 与防息屏加固
-if [ "$DM" = "sddm" ]; then
-    mkdir -p rootdir/etc/sddm.conf.d
-    printf "[General]\nDisplayServer=x11\nInputMethod=\n" > rootdir/etc/sddm.conf.d/ubuntu-defaults.conf
-    printf "[Autologin]\nUser=luser\nSession=plasma\n" > rootdir/etc/sddm.conf.d/autologin.conf
-    
-    if chroot rootdir id -u sddm >/dev/null 2>&1; then
-        chroot rootdir usermod -aG video,render,input sddm || true
-    fi
-    
-    mkdir -p rootdir/etc/xdg
-    printf "[PowerManagement]\nScreenBlanking=false\nDisplaySleep=0\n" > rootdir/etc/xdg/plasmarc
-    chroot rootdir systemctl enable sddm
-fi
+# Step 12: Pack
+apply_fs_uuid "$UUID" "$ROOTFS_IMG"
+echo "原始镜像生成完成: $ROOTFS_IMG"
+echo "正在转换为 Sparse 镜像..."
+pack_sparse_image "$ROOTFS_IMG" "ubuntu26_${DESKTOP_ENV}_${TIMESTAMP}.7z"
 
-# 3. XFCE 配置
-if [ "$DM" = "lightdm" ]; then
-    mkdir -p rootdir/etc/lightdm/lightdm.conf.d
-    printf "[Seat:*]\nautologin-user=luser\nautologin-user-timeout=0\n" > rootdir/etc/lightdm/lightdm.conf.d/autologin.conf
-    chroot rootdir systemctl enable lightdm
-fi
-
-# 统一进入图形层级
-chroot rootdir systemctl set-default graphical.target
-
-# 文件系统挂载对齐
-printf "PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1\n" > rootdir/etc/fstab
-
-# 清理缓存
-chroot rootdir apt clean
-chroot rootdir rm -rf /tmp/*.deb
-
-umount rootdir/dev/pts || true
-umount rootdir/dev || true
-umount rootdir/proc || true
-umount rootdir/sys || true
-umount rootdir || true
-rm -rf rootdir
-
-tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
-
-echo "✅ 原始镜像生成完成: $ROOTFS_IMG"
-# ========================================================
-# ⚡ 修复点3：增加 sparse image 极速刷机转换
-# ========================================================
-echo "🔄 正在将其转换为 Fastboot 专用的稀疏镜像 (Sparse Image)..."
-SPARSE_IMG="sparse_${ROOTFS_IMG}"
-img2simg "$ROOTFS_IMG" "$SPARSE_IMG"
-
-echo "🗜️ 正在生成最终 7z 压缩包..."
-7z a "ubuntu26_${DESKTOP_ENV}_${TIMESTAMP}.7z" "$SPARSE_IMG"
-
-rm -f "$ROOTFS_IMG" "$SPARSE_IMG"
-echo "🎉 终极修砖版 Ubuntu 构建成功！"
+echo "🎉 Ubuntu 构建成功！"

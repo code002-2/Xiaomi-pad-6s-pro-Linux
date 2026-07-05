@@ -1,0 +1,44 @@
+# Build artifacts
+*.img
+*.7z
+*.deb
+*.tar.gz
+sparse_*
+
+# Compiled / wrapper binaries (install from system packages)
+mkbootimg
+parted
+
+# Large kernel config files (store externally or regenerate)
+sm8550.config
+config-postmarketos-qcom-sm8550.aarch64
+
+# Build temp directories
+rootdir/
+linux/
+linux-xiaomi-sheng/
+firmware-xiaomi-sheng/
+alsa-xiaomi-sheng/
+sheng-devauth/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Local env vars with secrets
+.env
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Write helper script
+write_paddeck.py

@@ -1,23 +1,24 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
+source "$(dirname "$0")/lib/rootfs-common.sh"
+
+# --- Distro-specific configuration ---
 IMAGE_SIZE="8G"
-FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
-FEDORA_VERSION="44" 
+UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
+FEDORA_VERSION="44"
 
-usage() {
+# --- Password configuration ---
+ROOT_PASS="${ROOT_PASS:-1234}"
+USER_PASS="${USER_PASS:-luser}"
+USER_NAME="${USER_NAME:-luser}"
+
+# --- Argument parsing ---
+if [ $# -ne 2 ]; then
     echo "用法: $0 <distro_name> <kernel_version>"
     exit 1
-}
-
-if [ $# -ne 2 ]; then
-    usage
 fi
-
-if [ "$(id -u)" -ne 0 ]; then
-    echo "请使用root权限运行"
-    exit 1
-fi
+if [ "$(id -u)" -ne 0 ]; then echo "请使用root权限运行"; exit 1; fi
 
 DISTRO=$1
 KERNEL=$2
@@ -25,136 +26,105 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 ROOTFS_IMG="fedora_desktop_${TIMESTAMP}.img"
 
 echo "=========================================="
-echo "⏳ 开始构建纯净桌面版 Fedora ${FEDORA_VERSION} ARM RootFS"
+echo "开始构建纯净桌面版 Fedora ${FEDORA_VERSION} ARM RootFS"
 echo "内核版本: $KERNEL"
 echo "=========================================="
 
-rm -rf rootdir || true
-truncate -s $IMAGE_SIZE "$ROOTFS_IMG"
-mkfs.ext4 "$ROOTFS_IMG"
-mkdir rootdir
-mount -o loop "$ROOTFS_IMG" rootdir
+# Step 1: Create image
+create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
 
-echo "⬇️ 正在通过 Docker 提取 Fedora ${FEDORA_VERSION} 基础根文件系统..."
-docker pull --platform linux/arm64 fedora:${FEDORA_VERSION}
-docker create --name fedora-temp fedora:${FEDORA_VERSION}
-docker export fedora-temp | tar -x -C rootdir/
+# Step 2: Docker extraction
+echo "正在通过 Docker 提取 Fedora ${FEDORA_VERSION} 基础根文件系统..."
+docker pull --platform linux/arm64 "fedora:${FEDORA_VERSION}"
+docker create --name fedora-temp "fedora:${FEDORA_VERSION}"
+docker export fedora-temp | tar -x -C "$ROOTDIR/"
 docker rm fedora-temp
 
-mount --bind /dev rootdir/dev
-mount --bind /dev/pts rootdir/dev/pts
-mount -t proc proc rootdir/proc
-mount -t sysfs sys rootdir/sys
+setup_chroot_mounts "$ROOTDIR"
+setup_dns "$ROOTDIR" 8.8.8.8 1.1.1.1
 
-rm -f rootdir/etc/resolv.conf
-echo "nameserver 8.8.8.8" > rootdir/etc/resolv.conf
-echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
+# Step 3: Base packages
+echo "正在安装编译工具..."
+chroot "$ROOTDIR" dnf -y install git gcc make kernel-headers
 
-echo "📦 正在安装编译工具 (提前安装，彻底避开内核排除规则)..."
-# 这一步没有任何 exclude，专门把 gcc 和 headers 稳稳地装进去
-chroot rootdir dnf -y install git gcc make kernel-headers
-
-echo "📦 正在更新 Fedora 系统并安装基础组件..."
-# 这一步仅仅精准排除 kernel-core（这是触发 dracut 报错的唯一元凶）
-chroot rootdir dnf -y update --exclude=kernel-core
-chroot rootdir dnf -y install --exclude=kernel-core \
+echo "正在更新 Fedora 系统并安装基础组件..."
+chroot "$ROOTDIR" dnf -y update --exclude=kernel-core
+chroot "$ROOTDIR" dnf -y install --exclude=kernel-core \
     systemd sudo vim wget curl tar xz pciutils findutils \
     NetworkManager wpa_supplicant dialog qrtr
 
-echo "🖥️ 正在安装 GNOME 桌面环境..."
-chroot rootdir dnf -y install @gnome-desktop --exclude=kernel-core
-chroot rootdir dnf -y install gdm
+# Step 4: Desktop
+echo "正在安装 GNOME 桌面环境..."
+chroot "$ROOTDIR" dnf -y install @gnome-desktop --exclude=kernel-core
+chroot "$ROOTDIR" dnf -y install gdm
 
-echo "🔨 正在扫描并注入本地内核与系统固件包..."
+# Step 5: Kernel injection
+echo "正在扫描并注入本地内核与系统固件包..."
 if ls *.deb 1> /dev/null 2>&1; then
     for pkg in *.deb; do
         echo "   -> 正在提取并覆盖注入 $pkg ..."
-        dpkg-deb --fsys-tarfile "$pkg" | tar -x --keep-directory-symlink -C rootdir/
+        dpkg-deb --fsys-tarfile "$pkg" | tar -x --keep-directory-symlink -C "$ROOTDIR/"
     done
-    
-    echo "   正在更新内核模块依赖并生成引导镜像..."
-    KERNEL_MODULE_DIR=$(ls -1t rootdir/usr/lib/modules/ | head -n 1)
+
+    KERNEL_MODULE_DIR=$(ls -1t "$ROOTDIR/usr/lib/modules/" | head -n 1)
     if [ -n "$KERNEL_MODULE_DIR" ]; then
-        echo "   ✅ 动态识别到真实内核版本目录: $KERNEL_MODULE_DIR"
-        chroot rootdir /usr/sbin/depmod -a "$KERNEL_MODULE_DIR" || true
-        
-        # ==========================================
-        # 🚨 核心修复：为 Fedora 强制生成 Initramfs 并重命名内核
-        # ==========================================
-        echo "   ⚙️ 正在安装 dracut 并生成初始内存盘 (Initramfs)..."
-        chroot rootdir dnf -y install dracut
-        
-        # 强制用新内核的模块生成通用的 Initramfs (-N 表示禁用仅限当前主机的优化，生成最泛用的镜像)
-        chroot rootdir dracut -N --kver "$KERNEL_MODULE_DIR" --force "/boot/initramfs-linux.img"
-        
-        # 将 Debian 格式的 vmlinuz 内核重命名为 ARM64 标准的 Image
-        if [ -f "rootdir/boot/vmlinuz-$KERNEL_MODULE_DIR" ]; then
-            echo "   🔄 正在适配 Bootloader 内核命名..."
-            cp "rootdir/boot/vmlinuz-$KERNEL_MODULE_DIR" "rootdir/boot/Image"
-            cp "rootdir/boot/vmlinuz-$KERNEL_MODULE_DIR" "rootdir/boot/vmlinuz-linux"
+        echo "   动态识别到真实内核版本目录: $KERNEL_MODULE_DIR"
+        chroot "$ROOTDIR" /usr/sbin/depmod -a "$KERNEL_MODULE_DIR" || true
+
+        echo "   正在安装 dracut 并生成初始内存盘..."
+        chroot "$ROOTDIR" dnf -y install dracut
+        chroot "$ROOTDIR" dracut -N --kver "$KERNEL_MODULE_DIR" --force "/boot/initramfs-linux.img"
+
+        if [ -f "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" ]; then
+            echo "   正在适配 Bootloader 内核命名..."
+            cp "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" "$ROOTDIR/boot/Image"
+            cp "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" "$ROOTDIR/boot/vmlinuz-linux"
         fi
-        echo "   ✅ 内核引导镜像与 Initramfs 彻底生成完毕！"
-        # ==========================================
     fi
 fi
 
 if ls *.tar.gz 1> /dev/null 2>&1; then
     for tarball in *.tar.gz; do
-        tar -xz --keep-directory-symlink -f "$tarball" -C rootdir/
+        tar -xz --keep-directory-symlink -f "$tarball" -C "$ROOTDIR/"
     done
 fi
 
-chroot rootdir bash -c "echo 'root:1234' | chpasswd"
-echo "fedora-sheng" > rootdir/etc/hostname
+# Step 6: Users & hostname
+chroot "$ROOTDIR" bash -c "echo 'root:${ROOT_PASS}' | chpasswd"
+echo "fedora-sheng" > "$ROOTDIR/etc/hostname"
+chroot "$ROOTDIR" useradd -m -s /bin/bash "$USER_NAME"
+chroot "$ROOTDIR" bash -c "echo '${USER_NAME}:${USER_PASS}' | chpasswd"
+chroot "$ROOTDIR" usermod -aG wheel,audio,video,input "$USER_NAME"
+echo "%wheel ALL=(ALL:ALL) NOPASSWD: ALL" > "$ROOTDIR/etc/sudoers.d/wheel"
+chmod 440 "$ROOTDIR/etc/sudoers.d/wheel"
 
-chroot rootdir useradd -m -s /bin/bash luser
-chroot rootdir bash -c "echo 'luser:luser' | chpasswd"
-chroot rootdir usermod -aG wheel,audio,video,input luser
+# Step 7: Hardware quirks
+echo "正在注入 Fedora 底层自愈补丁..."
+setup_getty_ttyMSM0 "$ROOTDIR"
+chroot "$ROOTDIR" systemctl enable systemd-resolved NetworkManager
+configure_touchscreen "$ROOTDIR"
 
-echo "%wheel ALL=(ALL:ALL) NOPASSWD: ALL" > rootdir/etc/sudoers.d/wheel
-chmod 440 rootdir/etc/sudoers.d/wheel
+# SELinux disabled
+mkdir -p "$ROOTDIR/etc/selinux"
+echo "SELINUX=disabled" > "$ROOTDIR/etc/selinux/config"
+echo "SELINUXTYPE=targeted" >> "$ROOTDIR/etc/selinux/config"
 
-echo "🩹 注入 Fedora 底层自愈补丁..."
-ln -sf /usr/lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
+# GDM autologin
+mkdir -p "$ROOTDIR/etc/gdm"
+printf "[daemon]\nAutomaticLoginEnable=True\nAutomaticLogin=%s\n" "$USER_NAME" > "$ROOTDIR/etc/gdm/custom.conf"
+chroot "$ROOTDIR" systemctl enable gdm
+chroot "$ROOTDIR" systemctl set-default graphical.target
 
-chroot rootdir systemctl enable systemd-resolved
-chroot rootdir systemctl enable NetworkManager
-
-mkdir -p rootdir/etc/udev/rules.d/
-printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"\n' > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules
-
-
-# ==========================================
-# 🚨 Fedora 桌面防崩溃与登录修复
-# ==========================================
-echo "🩹 正在处理 SELinux 权限与 GDM 登录配置..."
-
-# 1. 彻底禁用 SELinux (防止 Tarball 解压导致的权限标签缺失，解决登录无限循环)
-mkdir -p rootdir/etc/selinux
-echo "SELINUX=disabled" > rootdir/etc/selinux/config
-echo "SELINUXTYPE=targeted" >> rootdir/etc/selinux/config
-
-# 2. GDM 自动登录配置 (保留原生 Wayland 以获取最佳平板触控体验)
-mkdir -p rootdir/etc/gdm
-printf "[daemon]\nAutomaticLoginEnable=True\nAutomaticLogin=luser\n" > rootdir/etc/gdm/custom.conf
-chroot rootdir systemctl enable gdm
-chroot rootdir systemctl set-default graphical.target
-# ==========================================
-
-
-# ==========================================
-# ✨ 高通 WiFi 专属一键自动修复魔法
-# ==========================================
-echo "⚙️ 正在预配置高通 WiFi 固件修复与驱动适配..."
-
-FW_DIR="rootdir/usr/lib/firmware/ath12k/WCN7850/hw2.0"
+# WiFi fix
+echo "正在预配置高通 WiFi 固件修复..."
+FW_DIR="$ROOTDIR/usr/lib/firmware/ath12k/WCN7850/hw2.0"
 if [ -f "$FW_DIR/board-2.bin" ]; then
     cp "$FW_DIR/board-2.bin" "$FW_DIR/board.bin"
-    echo "✅ board.bin 伪装成功！"
+    echo "   board.bin 伪装成功！"
 fi
 
-echo "⚙️ 正在创建 qrtr 守护进程开机自启服务..."
-cat << 'EOF' > rootdir/etc/systemd/system/qrtr-force.service
+# QRTR force service
+cat <<'EOF' > "$ROOTDIR/etc/systemd/system/qrtr-force.service"
 [Unit]
 Description=Qualcomm IPC Router Service (QRTR)
 After=network.target
@@ -166,32 +136,16 @@ Restart=always
 [Install]
 WantedBy=multi-user.target
 EOF
+chroot "$ROOTDIR" systemctl enable qrtr-force.service
 
-chroot rootdir systemctl enable qrtr-force.service
-# ==========================================
+# Step 8: fstab & cleanup
+generate_fstab "$ROOTDIR" "dual"
+chroot "$ROOTDIR" dnf clean all
+teardown_mounts "$ROOTDIR"
 
-printf "PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1\n" > rootdir/etc/fstab
+# Step 9: Pack
+apply_fs_uuid "$UUID" "$ROOTFS_IMG"
+echo "正在转换为 Sparse 格式加速刷机..."
+pack_sparse_image "$ROOTFS_IMG" "fedora_desktop_${TIMESTAMP}.7z"
 
-chroot rootdir dnf clean all
-
-echo "🧹 正在清理后台遗留进程并安全卸载..."
-fuser -k -9 -m rootdir || true
-sleep 2
-
-umount -l rootdir/dev/pts || true
-umount -l rootdir/dev || true
-umount -l rootdir/proc || true
-umount -l rootdir/sys || true
-umount -l rootdir || true
-sleep 2
-rm -rf rootdir
-
-tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
-
-echo "🔄 正在转换为 Sparse 格式加速刷机..."
-SPARSE_IMG="sparse_${ROOTFS_IMG}"
-img2simg "$ROOTFS_IMG" "$SPARSE_IMG"
-7z a "fedora_desktop_${TIMESTAMP}.7z" "$SPARSE_IMG"
-rm -f "$ROOTFS_IMG" "$SPARSE_IMG"
-
-echo "🎉 Fedora 44 版本构建圆满成功！"
+echo "🎉 Fedora ${FEDORA_VERSION} 版本构建圆满成功！"

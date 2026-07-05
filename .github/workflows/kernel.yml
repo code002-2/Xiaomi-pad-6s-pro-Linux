@@ -7,105 +7,109 @@ on:
         description: "内核版本号 (如: 7.1)"
         required: true
         default: "7.1"
+      channel:
+        description: "构建通道"
+        required: true
+        type: choice
+        options: [mainline, stable]
+        default: "mainline"
+  push:
+    branches: [main, master]
+    paths:
+      - 'sheng-kernel_build.sh'
+      - '.github/workflows/kernel.yml'
+      - 'sm8550.config'
+
+permissions:
+  contents: write
 
 jobs:
   build:
-    name: "构建内核 v${{ github.event.inputs.kernel_version || '7.1' }}"
+    name: "构建内核 ${{ inputs.channel }} v${{ inputs.kernel_version }}"
     runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: write
+
+    env:
+      KERNEL_REPO: ${{ inputs.channel == 'stable' && 'ianchb/sm8550-mainline' || 'code002-2/sm8550-mainline' }}
+      KERNEL_BRANCH: ${{ inputs.channel == 'stable' && 'sheng-7.0.12' || 'sheng-mainline' }}
 
     steps:
-      - name: "📥 检出代码"
+      - name: 检出代码
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
 
-      - name: "💾 设置 ccache 编译缓存"
+      - name: 设置 ccache 编译缓存
         uses: actions/cache@v4
         id: cache-ccache
         with:
           path: /home/runner/.ccache
-          key: ${{ runner.os }}-ccache-unified-kernel-${{ github.event.inputs.kernel_version || '7.1' }}-${{ github.ref_name }}
+          key: ${{ runner.os }}-ccache-${{ inputs.channel }}-${{ inputs.kernel_version }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-ccache-unified-kernel-${{ github.event.inputs.kernel_version || '7.1' }}-
-            ${{ runner.os }}-ccache-unified-kernel-
+            ${{ runner.os }}-ccache-${{ inputs.channel }}-${{ inputs.kernel_version }}-
+            ${{ runner.os }}-ccache-${{ inputs.channel }}-
 
-      - name: "🔧 部署 LLVM 交叉编译环境"
+      - name: 部署 LLVM 交叉编译环境
         run: |
-          echo "⚙️ 正在安装必要的构建工具..."
           sudo apt update
           sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils
-          echo "✅ 构建工具安装完成"
-          
           mkdir -p /home/runner/.ccache
           ccache --set-config=max_size=10G
           ccache --set-config=cache_dir=/home/runner/.ccache
           ccache --set-config=sloppiness=file_macro,locale,time_macros
 
-      - name: "🔨 编译内核"
+      - name: 编译内核
         id: build
         run: |
-          echo "🚀 开始编译内核版本 ${{ github.event.inputs.kernel_version || '7.1' }}"
-          
           export CCACHE_DIR=/home/runner/.ccache
           export CCACHE_MAXSIZE=10G
           export PATH="/usr/lib/ccache:$PATH"
-          
-          # ==========================================
-          # 所有的卡死修复和报错剔除都已经写在脚本里了
-          # 这里直接无脑运行即可！
-          # ==========================================
           chmod +x sheng-kernel_build.sh
-          bash sheng-kernel_build.sh "${{ github.event.inputs.kernel_version || '7.1' }}"
-          
+          bash sheng-kernel_build.sh
           echo "✅ 内核编译完成"
           ccache --show-stats || true
 
-      - name: "📦 收集并统计编译产物"
+      - name: 收集编译产物
         id: collect_artifacts
         run: |
           PKG_COUNT=$(ls -1 *.deb 2>/dev/null | wc -l)
           echo "📦 共找到 $PKG_COUNT 个 Debian 包文件"
           echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
 
-      - name: "📤 上传生成的配置文件"
+      - name: 上传 .deb 驱动包
         uses: actions/upload-artifact@v4
         with:
-          name: generated-config
-          path: sm8550.config
-
-      - name: "📤 上传系统驱动包 (.deb)"
-        uses: actions/upload-artifact@v4
-        with:
-          name: unified-kernel-debs-${{ github.event.inputs.kernel_version || '7.1' }}
+          name: kernel-${{ inputs.channel }}-${{ inputs.kernel_version }}-debs
           path: "*.deb"
           retention-days: 7
           if-no-files-found: error
 
-      - name: "📤 上传启动镜像 (boot.img)"
+      - name: 上传启动镜像 (boot.img)
         uses: actions/upload-artifact@v4
         with:
-          name: boot_images
+          name: boot_images-${{ inputs.channel }}
           path: |
             boot_sheng_singleboot.img
             boot_sheng_dualboot.img
 
-      - name: "🏷️ 自动发布 GitHub Release"
+      - name: 自动发布 GitHub Release
         if: steps.collect_artifacts.outputs.pkg_count > 0 && github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: kernel-${{ github.event.inputs.kernel_version || '7.1' }}
-          name: "Kernel v${{ github.event.inputs.kernel_version || '7.1' }}"
+          tag_name: kernel-${{ inputs.channel }}-${{ inputs.kernel_version }}
+          name: "Kernel ${{ inputs.channel }} v${{ inputs.kernel_version }}"
           body: |
-            **小米Pad6spro通用内核 v${{ github.event.inputs.kernel_version || '7.1' }}**
+            **小米Pad6spro ${{ inputs.channel }} 内核 v${{ inputs.kernel_version }}**
             
+            | 项目 | 详情 |
+            |------|------|
+            | 通道 | ${{ inputs.channel }} |
+            | 内核版本 | ${{ inputs.kernel_version }} |
+            | 架构 | ARM64 (sm8550) |
           draft: false
-          prerelease: false
+          prerelease: ${{ inputs.channel == 'stable' }}
           files: |
             *.deb
             *.img
-          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

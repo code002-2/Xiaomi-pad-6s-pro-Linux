@@ -1,23 +1,24 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
+source "$(dirname "$0")/lib/rootfs-common.sh"
+
+# --- Distro-specific configuration ---
 IMAGE_SIZE="8G"
-FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
+UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 
-usage() {
+# --- Password configuration ---
+ROOT_PASS="${ROOT_PASS:-1234}"
+USER_PASS="${USER_PASS:-luser}"
+USER_NAME="${USER_NAME:-luser}"
+
+# --- Argument parsing ---
+if [ $# -ne 3 ]; then
     echo "用法: $0 <distro_name> <kernel_version> <desktop_env>"
     echo "desktop_env 必须是 'gnome' 或 'kde'"
     exit 1
-}
-
-if [ $# -ne 3 ]; then
-    usage
 fi
-
-if [ "$(id -u)" -ne 0 ]; then
-    echo "请使用root权限运行"
-    exit 1
-fi
+if [ "$(id -u)" -ne 0 ]; then echo "请使用root权限运行"; exit 1; fi
 
 DISTRO=$1
 KERNEL=$2
@@ -26,133 +27,123 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 ROOTFS_IMG="kali_${DESKTOP}_desktop_${TIMESTAMP}.img"
 
 echo "=========================================="
-echo "⏳ 开始构建渗透测试版 Kali Linux ARM RootFS (防看门狗版)"
+echo "开始构建渗透测试版 Kali Linux ARM RootFS"
 echo "内核版本: $KERNEL | 桌面环境: ${DESKTOP^^}"
 echo "=========================================="
 
-rm -rf rootdir || true
-truncate -s $IMAGE_SIZE "$ROOTFS_IMG"
-mkfs.ext4 "$ROOTFS_IMG"
-mkdir rootdir
-mount -o loop "$ROOTFS_IMG" rootdir
+# Step 1: Create image
+create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
 
-echo "⬇️ 正在通过 Docker 提取 Kali Linux 官方 arm64 滚动版底包..."
+# Step 2: Docker extraction
+echo "正在通过 Docker 提取 Kali Linux 官方 arm64 滚动版底包..."
 docker pull --platform linux/arm64 kalilinux/kali-rolling:latest
 docker create --name kali-temp kalilinux/kali-rolling:latest
-docker export kali-temp | tar -x -C rootdir/
+docker export kali-temp | tar -x -C "$ROOTDIR/"
 docker rm kali-temp
 
-mount --bind /dev rootdir/dev
-mount --bind /dev/pts rootdir/dev/pts
-mount -t proc proc rootdir/proc
-mount -t sysfs sys rootdir/sys
+setup_chroot_mounts "$ROOTDIR"
+setup_dns "$ROOTDIR" 8.8.8.8 1.1.1.1
 
-rm -f rootdir/etc/resolv.conf
-echo "nameserver 8.8.8.8" > rootdir/etc/resolv.conf
-echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
-
+# Step 3: Desktop environment & base packages
 export DEBIAN_FRONTEND=noninteractive
+echo "正在更新 Kali 系统并安装核心组件与 ${DESKTOP^^} 桌面..."
 
-echo "📦 正在更新 Kali 系统并安装核心组件与 ${DESKTOP^^} 桌面..."
-chroot rootdir apt-get update
-
-# 🌟 核心分流：强制加入 udev 和 systemd-sysv 保障底层引导
-if [ "$DESKTOP" == "gnome" ]; then
-    chroot rootdir apt-get install -y --no-install-recommends \
+if [ "$DESKTOP" = "gnome" ]; then
+    chroot "$ROOTDIR" apt-get install -y --no-install-recommends \
         kali-linux-core kali-desktop-gnome gdm3 \
         systemd systemd-sysv udev sudo vim wget curl tar xz-utils pciutils findutils \
         network-manager wpasupplicant dialog kmod qrtr-tools ca-certificates init
-elif [ "$DESKTOP" == "kde" ]; then
-    chroot rootdir apt-get install -y --no-install-recommends \
+elif [ "$DESKTOP" = "kde" ]; then
+    chroot "$ROOTDIR" apt-get install -y --no-install-recommends \
         kali-linux-core kali-desktop-kde sddm \
         systemd systemd-sysv udev sudo vim wget curl tar xz-utils pciutils findutils \
         network-manager wpasupplicant dialog kmod qrtr-tools ca-certificates init
 else
-    echo "❌ 错误的桌面环境参数: $DESKTOP"
+    echo "错误的桌面环境参数: $DESKTOP"
     exit 1
 fi
 
-echo "🔨 正在扫描并注入本地内核与系统固件包..."
+# Step 4: Kernel injection
+echo "正在扫描并注入本地内核与系统固件包..."
 if ls *.deb 1> /dev/null 2>&1; then
     for pkg in *.deb; do
-        dpkg-deb --fsys-tarfile "$pkg" | tar -x --keep-directory-symlink -C rootdir/
+        dpkg-deb --fsys-tarfile "$pkg" | tar -x --keep-directory-symlink -C "$ROOTDIR/"
     done
-    KERNEL_MODULE_DIR=$(ls rootdir/lib/modules/ | head -n 1)
+    KERNEL_MODULE_DIR=$(ls "$ROOTDIR/lib/modules/" | head -n 1)
     if [ -n "$KERNEL_MODULE_DIR" ]; then
-        chroot rootdir /sbin/depmod -a "$KERNEL_MODULE_DIR" || true
+        chroot "$ROOTDIR" /sbin/depmod -a "$KERNEL_MODULE_DIR" || true
     fi
 fi
 
 if ls *.tar.gz 1> /dev/null 2>&1; then
     for tarball in *.tar.gz; do
-        tar -xz --keep-directory-symlink -f "$tarball" -C rootdir/
+        tar -xz --keep-directory-symlink -f "$tarball" -C "$ROOTDIR/"
     done
 fi
 
-chroot rootdir bash -c "echo 'root:1234' | chpasswd"
-echo "kali-sheng" > rootdir/etc/hostname
+# Step 5: Users & hostname
+chroot "$ROOTDIR" bash -c "echo 'root:${ROOT_PASS}' | chpasswd"
+echo "kali-sheng" > "$ROOTDIR/etc/hostname"
+chroot "$ROOTDIR" useradd -m -s /bin/bash "$USER_NAME"
+chroot "$ROOTDIR" bash -c "echo '${USER_NAME}:${USER_PASS}' | chpasswd"
+chroot "$ROOTDIR" usermod -aG sudo,audio,video,input,netdev "$USER_NAME"
+echo "%sudo ALL=(ALL:ALL) NOPASSWD: ALL" > "$ROOTDIR/etc/sudoers.d/sudo-nopasswd"
+chmod 440 "$ROOTDIR/etc/sudoers.d/sudo-nopasswd"
 
-chroot rootdir useradd -m -s /bin/bash luser
-chroot rootdir bash -c "echo 'luser:luser' | chpasswd"
-chroot rootdir usermod -aG sudo,audio,video,input,netdev luser
-echo "%sudo ALL=(ALL:ALL) NOPASSWD: ALL" > rootdir/etc/sudoers.d/sudo-nopasswd
-chmod 440 rootdir/etc/sudoers.d/sudo-nopasswd
+# Step 6: SELinux & service masking
+echo "彻底禁用 SELinux (骗过高通内核)..."
+mkdir -p "$ROOTDIR/etc/selinux"
+echo "SELINUX=disabled" > "$ROOTDIR/etc/selinux/config"
+echo "SELINUXTYPE=targeted" >> "$ROOTDIR/etc/selinux/config"
 
-# ==========================================
-# 🚨 极其关键：防高通看门狗崩溃与内核权限阻断
-# ==========================================
-echo "🩹 彻底禁用 SELinux (骗过高通内核)..."
-mkdir -p rootdir/etc/selinux
-echo "SELINUX=disabled" > rootdir/etc/selinux/config
-echo "SELINUXTYPE=targeted" >> rootdir/etc/selinux/config
+echo "拉黑 ModemManager 和 fwupd (防止扫描导致高通固件崩溃重启)..."
+chroot "$ROOTDIR" systemctl mask ModemManager.service || true
+chroot "$ROOTDIR" systemctl mask fwupd.service || true
+chroot "$ROOTDIR" systemctl mask systemd-networkd-wait-online.service || true
 
-echo "🩹 彻底拉黑 ModemManager 和 fwupd (防止扫描导致高通固件崩溃重启)..."
-chroot rootdir systemctl mask ModemManager.service || true
-chroot rootdir systemctl mask fwupd.service || true
-chroot rootdir systemctl mask systemd-networkd-wait-online.service || true
-# ==========================================
+# Step 7: Hardware quirks
+echo "注入底层自愈补丁..."
+setup_getty_ttyMSM0 "$ROOTDIR"
+chroot "$ROOTDIR" systemctl enable NetworkManager
+configure_touchscreen "$ROOTDIR"
 
-echo "🩹 注入底层自愈补丁..."
-ln -sf /lib/systemd/system/getty@.service rootdir/etc/systemd/system/getty.target.wants/getty@ttyMSM0.service
-chroot rootdir systemctl enable NetworkManager
-
-mkdir -p rootdir/etc/udev/rules.d/
-printf 'ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="1 0 0 0 1 0 0 0 1"\n' > rootdir/etc/udev/rules.d/99-touchscreen-sheng.rules
-
-# 🌟 自动登录配置
-if [ "$DESKTOP" == "gnome" ]; then
-    echo "🩹 配置 GDM3 (GNOME) 自动登录..."
-    chroot rootdir systemctl enable gdm3
-    chroot rootdir systemctl set-default graphical.target
-    mkdir -p rootdir/etc/gdm3
-    printf "[daemon]\nAutomaticLoginEnable=True\nAutomaticLogin=luser\n" > rootdir/etc/gdm3/daemon.conf
-elif [ "$DESKTOP" == "kde" ]; then
-    echo "🩹 配置 SDDM (KDE) 自动登录..."
-    chroot rootdir systemctl enable sddm
-    chroot rootdir systemctl set-default graphical.target
-    mkdir -p rootdir/etc/sddm.conf.d
-    printf "[Autologin]\nUser=luser\nSession=plasma\n" > rootdir/etc/sddm.conf.d/autologin.conf
+# Autologin
+if [ "$DESKTOP" = "gnome" ]; then
+    echo "配置 GDM3 (GNOME) 自动登录..."
+    chroot "$ROOTDIR" systemctl enable gdm3
+    chroot "$ROOTDIR" systemctl set-default graphical.target
+    mkdir -p "$ROOTDIR/etc/gdm3"
+    printf "[daemon]\nAutomaticLoginEnable=True\nAutomaticLogin=%s\n" "$USER_NAME" > "$ROOTDIR/etc/gdm3/daemon.conf"
+elif [ "$DESKTOP" = "kde" ]; then
+    echo "配置 SDDM (KDE) 自动登录..."
+    chroot "$ROOTDIR" systemctl enable sddm
+    chroot "$ROOTDIR" systemctl set-default graphical.target
+    mkdir -p "$ROOTDIR/etc/sddm.conf.d"
+    printf "[Autologin]\nUser=%s\nSession=plasma\n" "$USER_NAME" > "$ROOTDIR/etc/sddm.conf.d/autologin.conf"
 fi
 
-echo "⚙️ 正在预配置高通 WiFi 固件修复与驱动适配..."
-FW_DIR="rootdir/lib/firmware/ath12k/WCN7850/hw2.0"
+# WiFi fix
+echo "正在预配置高通 WiFi 固件修复..."
+FW_DIR="$ROOTDIR/lib/firmware/ath12k/WCN7850/hw2.0"
 if [ -f "$FW_DIR/board-2.bin" ]; then
     cp "$FW_DIR/board-2.bin" "$FW_DIR/board.bin"
 fi
 
-MOD_DIR="rootdir/lib/modules"
+# Module rename
+MOD_DIR="$ROOTDIR/lib/modules"
 TARGET_VER="7.0.0-sm8550-gf273227fab85"
 if [ -d "$MOD_DIR" ]; then
     for dir in "$MOD_DIR"/*; do
         if [ -d "$dir" ] && [ "$(basename "$dir")" != "$TARGET_VER" ]; then
             mv "$dir" "$MOD_DIR/$TARGET_VER"
-            chroot rootdir /sbin/depmod -a "$TARGET_VER" || true
+            chroot "$ROOTDIR" /sbin/depmod -a "$TARGET_VER" || true
             break
         fi
     done
 fi
 
-cat << 'EOF' > rootdir/etc/systemd/system/qrtr-force.service
+# QRTR service
+cat <<'EOF' > "$ROOTDIR/etc/systemd/system/qrtr-force.service"
 [Unit]
 Description=Qualcomm IPC Router Service (QRTR)
 After=network.target
@@ -164,27 +155,15 @@ Restart=always
 [Install]
 WantedBy=multi-user.target
 EOF
+chroot "$ROOTDIR" systemctl enable qrtr-force.service
 
-chroot rootdir systemctl enable qrtr-force.service
-printf "PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1\n" > rootdir/etc/fstab
-chroot rootdir apt-get clean
+# Step 8: fstab & cleanup
+generate_fstab "$ROOTDIR" "dual"
+chroot "$ROOTDIR" apt-get clean
+teardown_mounts "$ROOTDIR"
 
-echo "🧹 正在清理后台遗留进程并安全卸载..."
-fuser -k -9 -m rootdir || true
-sleep 2
-
-umount -l rootdir/dev/pts || true
-umount -l rootdir/dev || true
-umount -l rootdir/proc || true
-umount -l rootdir/sys || true
-umount -l rootdir || true
-sleep 2
-rm -rf rootdir
-
-tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
-SPARSE_IMG="sparse_${ROOTFS_IMG}"
-img2simg "$ROOTFS_IMG" "$SPARSE_IMG"
-7z a "kali_${DESKTOP}_desktop_${TIMESTAMP}.7z" "$SPARSE_IMG"
-rm -f "$ROOTFS_IMG" "$SPARSE_IMG"
+# Step 9: Pack
+apply_fs_uuid "$UUID" "$ROOTFS_IMG"
+pack_sparse_image "$ROOTFS_IMG" "kali_${DESKTOP}_desktop_${TIMESTAMP}.7z"
 
 echo "🎉 Kali Linux ARM (${DESKTOP^^} 版本) 构建圆满成功！"

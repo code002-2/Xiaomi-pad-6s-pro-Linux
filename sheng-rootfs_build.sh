@@ -1,9 +1,23 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
+# =============================================================================
+# sheng-rootfs_build.sh — Debian Trixie rootfs builder (refactored)
+# =============================================================================
+source "$(dirname "$0")/lib/rootfs-common.sh"
+
+# --- Distro-specific configuration ---
 IMAGE_SIZE="8G"
-FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
+DISTRO_VERSION="trixie"
+MIRROR="https://deb.debian.org/debian/"
+UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 
+# --- Password configuration (override via env vars) ---
+ROOT_PASS="${ROOT_PASS:-1234}"
+USER_PASS="${USER_PASS:-luser}"
+USER_NAME="${USER_NAME:-luser}"
+
+# --- Argument parsing ---
 if [ $# -lt 2 ] || [ $# -gt 4 ]; then
     echo "用法: $0 <distro-variant> <kernel_version> [boot_mode] [desktop_env]"
     echo "示例: $0 debian-desktop 7.1 all all"
@@ -11,35 +25,32 @@ if [ $# -lt 2 ] || [ $# -gt 4 ]; then
 fi
 
 if [ "$(id -u)" -ne 0 ]; then
-    echo "❌ 请使用 root 权限运行此脚本！"
+    echo "错误: 请使用 root 权限运行此脚本！"
     exit 1
 fi
 
 DISTRO=$1
 KERNEL=$2
 TARGET_MODE=${3:-all}
-TARGET_FLAVOUR=${4:-all} 
+TARGET_FLAVOUR=${4:-all}
 
 distro_type=$(echo "$DISTRO" | cut -d'-' -f1)
 distro_variant=$(echo "$DISTRO" | cut -d'-' -f2)
 
 if [ "$distro_type" != "debian" ]; then
-    echo "❌ 目前仅支持 debian 衍生版"
+    echo "错误: 目前仅支持 debian 衍生版"
     exit 1
 fi
 
-distro_version="trixie"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
-# ==========================================
-# 🎛️ 动态解析构建矩阵 (二维循环引擎)
-# ==========================================
+# --- Dynamic build matrix ---
 if [ "$TARGET_MODE" = "all" ]; then
     BOOTMODES=("dual" "single")
 elif [[ "$TARGET_MODE" =~ ^(dual|single)$ ]]; then
     BOOTMODES=("$TARGET_MODE")
 else
-    echo "❌ 不支持的启动模式: $TARGET_MODE"
+    echo "错误: 不支持的启动模式: $TARGET_MODE"
     exit 1
 fi
 
@@ -48,150 +59,113 @@ if [ "$TARGET_FLAVOUR" = "all" ]; then
 elif [[ "$TARGET_FLAVOUR" =~ ^(gnome|kde)$ ]]; then
     FLAVOURS=("$TARGET_FLAVOUR")
 else
-    echo "❌ 不支持的桌面环境: $TARGET_FLAVOUR"
+    echo "错误: 不支持的桌面环境: $TARGET_FLAVOUR"
     exit 1
 fi
 
-# ==========================================
-# 🛡️ 容错防线：挂载点清理
-# ==========================================
-cleanup_mounts() {
-    echo "🧹 正在触发挂载点安全清理机制..."
-    fuser -k -9 -m rootdir 2>/dev/null || true
-    sleep 2
-    umount -l rootdir/dev/pts 2>/dev/null || true
-    umount -l rootdir/dev 2>/dev/null || true
-    umount -l rootdir/proc 2>/dev/null || true
-    umount -l rootdir/sys 2>/dev/null || true
-    umount -l rootdir 2>/dev/null || true
-    rm -rf rootdir
-}
-trap cleanup_mounts EXIT ERR INT TERM
-
-# 🚀 启动二维构建矩阵 (桌面 x 模式)
+# --- Main build loop ---
 for FLAVOUR in "${FLAVOURS[@]}"; do
     for MODE in "${BOOTMODES[@]}"; do
-
         echo ""
         echo "======================================================"
-        echo "🔥 开始构建: Debian $distro_version | 桌面: ${FLAVOUR^^} | 模式: $MODE"
+        echo "开始构建: Debian $DISTRO_VERSION | 桌面: ${FLAVOUR^^} | 模式: $MODE"
         echo "======================================================"
 
-        ROOTFS_IMG="${distro_type}_${distro_version}_${FLAVOUR}_${MODE}_${TIMESTAMP}.img"
+        ROOTFS_IMG="${distro_type}_${DISTRO_VERSION}_${FLAVOUR}_${MODE}_${TIMESTAMP}.img"
 
-        cleanup_mounts 
-        mkdir -p rootdir
+        # Step 1: Create image
+        create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
+        setup_chroot_mounts "$ROOTDIR"
+        setup_dns "$ROOTDIR" 8.8.8.8 1.1.1.1 223.5.5.5
 
-        truncate -s $IMAGE_SIZE "$ROOTFS_IMG"
-        mkfs.ext4 -O ^metadata_csum "$ROOTFS_IMG"
-        mount -o loop "$ROOTFS_IMG" rootdir
+        # Step 2: Bootstrap
+        echo "正在使用 debootstrap 拉取基础系统..."
+        debootstrap --arch=arm64 "$DISTRO_VERSION" "$ROOTDIR" "$MIRROR"
 
-        echo "⬇️ 正在使用 debootstrap 拉取基础系统..."
-        debootstrap --arch=arm64 "$distro_version" rootdir http://deb.debian.org/debian/
+        # Step 3: Base packages
+        echo "正在安装基础环境组件..."
+        chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends systemd sudo vim wget curl network-manager openssh-server wpasupplicant dbus locales dialog"
 
-        mount --bind /dev rootdir/dev
-        mount --bind /dev/pts rootdir/dev/pts
-        mount -t proc proc rootdir/proc
-        mount -t sysfs sys rootdir/sys
+        # Step 4: Chinese locale & input
+        echo "正在配置系统中文语言与输入法..."
+        sed -i 's/^# *\(en_US.UTF-8\)/\1/' "$ROOTDIR/etc/locale.gen"
+        sed -i 's/^# *\(zh_CN.UTF-8\)/\1/' "$ROOTDIR/etc/locale.gen"
+        chroot "$ROOTDIR" locale-gen
 
-        rm -f rootdir/etc/resolv.conf
-        echo "nameserver 8.8.8.8" > rootdir/etc/resolv.conf
-        echo "nameserver 1.1.1.1" >> rootdir/etc/resolv.conf
-        echo "nameserver 223.5.5.5" >> rootdir/etc/resolv.conf
+        echo "LANG=zh_CN.UTF-8" > "$ROOTDIR/etc/default/locale"
+        echo "LANG=zh_CN.UTF-8" > "$ROOTDIR/etc/locale.conf"
+        chroot "$ROOTDIR" ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
-        echo "📦 正在安装基础环境组件..."
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends systemd sudo vim wget curl network-manager openssh-server wpasupplicant dbus locales dialog"
+        chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei fcitx5 fcitx5-chinese-addons fcitx5-frontend-gtk3 fcitx5-frontend-qt5"
 
-        echo "🌏 正在配置系统中文语言与输入法..."
-        sed -i 's/^# *\(en_US.UTF-8\)/\1/' rootdir/etc/locale.gen
-        sed -i 's/^# *\(zh_CN.UTF-8\)/\1/' rootdir/etc/locale.gen
-        chroot rootdir locale-gen
-        
-        echo "LANG=zh_CN.UTF-8" > rootdir/etc/default/locale
-        echo "LANG=zh_CN.UTF-8" > rootdir/etc/locale.conf
-        chroot rootdir ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-        
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei fcitx5 fcitx5-chinese-addons fcitx5-frontend-gtk3 fcitx5-frontend-qt5"
-        
-        cat > rootdir/etc/environment <<EOF
+        cat > "$ROOTDIR/etc/environment" <<EOF
 GTK_IM_MODULE=fcitx
 QT_IM_MODULE=fcitx
 XMODIFIERS=@im=fcitx
 EOF
 
-        echo "📦 正在注入设备专属 .deb 驱动包..."
+        # Step 5: Inject driver deb
+        echo "正在注入设备专属 .deb 驱动包..."
         wget -q https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/mipps/xiaomi-mipps-auth_0.11_arm64.deb
-        cp *.deb rootdir/tmp/
+        cp *.deb "$ROOTDIR/tmp/"
 
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y libglib2.0-0 libprotobuf-c1 libqmi-glib5 libmbim-glib4 initramfs-tools"
-        chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y /tmp/*.deb" || echo "⚠️ 部分 .deb 存在警告，继续执行。"
-        
-        chroot rootdir bash -c "echo 'root:1234' | chpasswd"
-        echo "debian-$FLAVOUR-$MODE" > rootdir/etc/hostname
+        chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y libglib2.0-0 libprotobuf-c1 libqmi-glib5 libmbim-glib4 initramfs-tools"
+        chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y /tmp/*.deb" || echo "警告: 部分 .deb 存在警告，继续执行。"
 
-        # =========================
-        # 🖥️ 桌面环境分发中心
-        # =========================
+        # Step 6: Users & hostname
+        setup_users "$ROOTDIR" "$ROOT_PASS" "$USER_NAME" "$USER_PASS" "sudo,audio,video,input"
+        echo "debian-$FLAVOUR-$MODE" > "$ROOTDIR/etc/hostname"
+
+        # Step 7: Desktop environment
         if [ "$distro_variant" = "desktop" ]; then
-            chroot rootdir useradd -m -s /bin/bash luser || true
-            chroot rootdir bash -c "echo 'luser:luser' | chpasswd"
-            chroot rootdir usermod -aG sudo,audio,video,input luser
-
             if [ "$FLAVOUR" = "gnome" ]; then
-                echo "🖥️ 安装 GNOME 桌面环境..."
-                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y gnome-shell gnome-session gnome-terminal gdm3 firefox-esr gnome-tweaks nautilus"
-                chroot rootdir systemctl enable gdm3
-                mkdir -p rootdir/etc/gdm3
-                cat > rootdir/etc/gdm3/daemon.conf <<EOF
+                echo "安装 GNOME 桌面环境..."
+                chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y gnome-shell gnome-session gnome-terminal gdm3 firefox-esr gnome-tweaks nautilus"
+                chroot "$ROOTDIR" systemctl enable gdm3
+                mkdir -p "$ROOTDIR/etc/gdm3"
+                cat > "$ROOTDIR/etc/gdm3/daemon.conf" <<EOF
 [daemon]
 AutomaticLoginEnable=true
-AutomaticLogin=luser
+AutomaticLogin=$USER_NAME
 EOF
 
             elif [ "$FLAVOUR" = "kde" ]; then
-                # 🚨 重点修改在这里：采纳了你的方案！
-                echo "🖥️ 安装 KDE Plasma 桌面环境 (使用官方 kde-standard 方案)..."
-                # 直接拉取 kde-standard (取代零碎包)，附加上你脚本里提取的网络和蓝牙插件
-                chroot rootdir bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y kde-standard sddm plasma-nm bluedevil firefox-esr"
-                chroot rootdir systemctl enable sddm
-                mkdir -p rootdir/etc/sddm.conf.d
-                cat > rootdir/etc/sddm.conf.d/autologin.conf <<EOF
+                echo "安装 KDE Plasma 桌面环境..."
+                chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y kde-standard sddm plasma-nm bluedevil firefox-esr"
+                chroot "$ROOTDIR" systemctl enable sddm
+                mkdir -p "$ROOTDIR/etc/sddm.conf.d"
+                cat > "$ROOTDIR/etc/sddm.conf.d/autologin.conf" <<EOF
 [Autologin]
-User=luser
+User=$USER_NAME
 Session=plasma
 EOF
             fi
 
-            chroot rootdir systemctl enable NetworkManager
-            chroot rootdir systemctl set-default graphical.target
+            chroot "$ROOTDIR" systemctl enable NetworkManager
+            chroot "$ROOTDIR" systemctl set-default graphical.target
         fi
 
-        # =========================
-        # 💽 FSTAB 挂载策略
-        # =========================
-        if [ "$MODE" = "dual" ]; then
-            echo "PARTLABEL=linux / ext4 defaults,noatime,errors=remount-ro 0 1" > rootdir/etc/fstab
-        else
-            echo "PARTLABEL=userdata / ext4 defaults,noatime,errors=remount-ro 0 1" > rootdir/etc/fstab
-        fi
+        # Step 8: Hardware quirks
+        setup_getty_ttyMSM0 "$ROOTDIR"
+        configure_touchscreen "$ROOTDIR"
+        fix_wifi_firmware "$ROOTDIR"
 
-        echo "🧹 清理场地准备打包..."
-        chroot rootdir apt-get clean
-        rm -f rootdir/tmp/*.deb
-        cleanup_mounts
+        # Step 9: fstab
+        generate_fstab "$ROOTDIR" "$MODE"
 
-        tune2fs -U $FILESYSTEM_UUID "$ROOTFS_IMG"
+        # Step 10: Cleanup & pack
+        echo "清理场地准备打包..."
+        chroot "$ROOTDIR" apt-get clean
+        rm -f "$ROOTDIR/tmp"/*.deb
+        teardown_mounts "$ROOTDIR"
 
-        echo "🔄 转换 Sparse 镜像并压缩..."
-        SPARSE_IMG="sparse_${ROOTFS_IMG}"
-        img2simg "$ROOTFS_IMG" "$SPARSE_IMG"
-        7z a "${ROOTFS_IMG%.img}.7z" "$SPARSE_IMG"
-        rm -f "$ROOTFS_IMG" "$SPARSE_IMG"
-        
-        echo "🎉 [${FLAVOUR^^} - $MODE] 版本完成！"
+        apply_fs_uuid "$UUID" "$ROOTFS_IMG"
 
+        echo "转换 Sparse 镜像并压缩..."
+        pack_sparse_image "$ROOTFS_IMG" "${ROOTFS_IMG%.img}.7z"
+
+        echo "[${FLAVOUR^^} - $MODE] 版本完成！"
     done
 done
 
-trap - EXIT ERR INT TERM
 echo "✅ Debian 镜像已打包完毕！"

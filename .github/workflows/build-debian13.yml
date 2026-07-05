@@ -1,163 +1,49 @@
-name: 🌀 Build Debian 13 Desktop
+name: Build Debian 13 Desktop
 
 on:
   workflow_dispatch:
     inputs:
       kernel_version:
-        description: '内核版本 (如 7.1)'
+        description: '内核版本'
         required: true
         default: '7.1'
       desktop_env:
-        description: '选择桌面环境'
+        description: '桌面环境'
         required: true
         type: choice
-        options:
-          - all
-          - gnome
-          - kde
+        options: [all, gnome, kde]
         default: 'all'
       boot_mode:
-        description: '选择启动模式'
+        description: '启动模式'
         required: true
         type: choice
-        options:
-          - all
-          - dual
-          - single
+        options: [all, dual, single]
         default: 'all'
       skip_release:
         description: '跳过创建GitHub Release'
         type: boolean
         default: false
   push:
-    branches:
-      - main
-      - master
+    branches: [main, master]
+    paths:
+      - 'sheng-rootfs_build.sh'
+      - 'lib/rootfs-common.sh'
+      - '.github/workflows/build-debian13.yml'
+      - '.github/workflows/_rootfs-template.yml'
 
 permissions:
   contents: write
 
 jobs:
-  prepare-release:
-    runs-on: ubuntu-24.04-arm
-    # 🚨 核心修复 1：将计算好的动态矩阵暴露出给下游 Job 使用
-    outputs:
-      release_tag: ${{ steps.tag.outputs.release_tag }}
-      matrix_desktop: ${{ steps.set-matrix.outputs.desktop }}
-      matrix_boot: ${{ steps.set-matrix.outputs.boot }}
-    steps:
-      - name: Generate release tag
-        id: tag
-        run: |
-          DE_SUFFIX="${{ github.event.inputs.desktop_env || 'all' }}"
-          TAG="debian13-${DE_SUFFIX}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
-          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
-
-      # 🚨 核心修复 2：用 Bash 脚本动态计算 JSON 格式的矩阵数组
-      - name: 🧮 Generate Dynamic Matrix
-        id: set-matrix
-        run: |
-          DESKTOP="${{ github.event.inputs.desktop_env || 'all' }}"
-          if [ "$DESKTOP" == "all" ]; then
-            echo 'desktop=["gnome", "kde"]' >> $GITHUB_OUTPUT
-          else
-            echo "desktop=[\"$DESKTOP\"]" >> $GITHUB_OUTPUT
-          fi
-          
-          BOOT="${{ github.event.inputs.boot_mode || 'all' }}"
-          if [ "$BOOT" == "all" ]; then
-            echo 'boot=["dual", "single"]' >> $GITHUB_OUTPUT
-          else
-            echo "boot=[\"$BOOT\"]" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create GitHub Release
-        if: ${{ !github.event.inputs.skip_release }}
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: "Debian 13 Desktop (${{ github.event.inputs.desktop_env || 'all' }}) - ${{ steps.tag.outputs.release_tag }}"
-          body: |
-            🌀 Debian 13 (Trixie) Desktop For SM8550
-            
-            ---
-            
-            ### 📋 构建组合
-            | 参数 | 详情 |
-            |------|------|
-            | 架构 | ARM64 (arm64) |
-            | 内核版本 | ${{ github.event.inputs.kernel_version || '7.1' }} |
-            | 包含桌面 | ${{ github.event.inputs.desktop_env || 'all' }} |
-            | 启动模式 | ${{ github.event.inputs.boot_mode || 'all' }} |
-            
-            ---
-            
-            ### 🔐 默认凭据
-            - 普通用户: `luser` / 密码: `luser`
-            - 管理员用户: `root` / 密码: `1234`
-            
-            ---
-            
-            ### 📦 镜像文件
-            如果你选择了 'all'，云端矩阵将并发生成全部组合的 `.7z` 镜像。
-          draft: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # ==========================================
-  # 🚀 云端多路并发构建矩阵
-  # ==========================================
-  build-debian:
-    name: Build (${{ matrix.desktop }} | ${{ matrix.boot }})
-    runs-on: ubuntu-24.04-arm
-    needs: prepare-release
-    strategy:
-      fail-fast: false 
-      # 🚨 核心修复 3：从上一阶段读取 JSON 格式的动态数组，彻底解决 if 报错！
-      matrix:
-        desktop: ${{ fromJSON(needs.prepare-release.outputs.matrix_desktop) }}
-        boot: ${{ fromJSON(needs.prepare-release.outputs.matrix_boot) }}
-        
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: "🔧 部署构建环境"
-        run: |
-          sudo apt update
-          sudo apt install -y debootstrap libarchive-tools p7zip-full curl wget android-sdk-libsparse-utils
-
-      - name: Download kernel bundle
-        run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version }}"
-          if [ -z "$KERNEL_VER" ]; then KERNEL_VER="7.1"; fi
-          
-          gh release download "kernel-bundle-${KERNEL_VER}" \
-            --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build RootFS
-        id: build
-        run: |
-          chmod +x sheng-rootfs_build.sh
-          # 把矩阵分配到的专属任务传给构建脚本
-          sudo bash sheng-rootfs_build.sh debian-desktop "${{ github.event.inputs.kernel_version || '7.1' }}" "${{ matrix.boot }}" "${{ matrix.desktop }}"
-          
-          PKG_COUNT=$(ls -1 *.7z 2>/dev/null | wc -l)
-          echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: debian-${{ matrix.desktop }}-${{ matrix.boot }}
-          path: "*.7z"
-          retention-days: 7
-
-      - name: Upload to Release
-        if: ${{ !github.event.inputs.skip_release && steps.build.outputs.pkg_count > 0 }}
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
-          files: "*.7z"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build:
+    uses: ./.github/workflows/_rootfs-template.yml
+    with:
+      distro: debian-desktop
+      script: sheng-rootfs_build.sh
+      kernel_version_default: '7.1'
+      desktop_matrix: '["all"]'
+      boot_matrix: '["all"]'
+      release_tag_prefix: debian13
+      release_body_title: "Debian 13 (Trixie) Desktop"
+      skip_release: ${{ github.event.inputs.skip_release }}
+    secrets: inherit

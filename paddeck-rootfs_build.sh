@@ -1,5 +1,13 @@
 #!/bin/bash
-set -e
+set -euo pipefail
+
+source "$(dirname "$0")/lib/rootfs-common.sh"
+
+# --- Password configuration ---
+ROOT_PASS="${ROOT_PASS:-1234}"
+USER_PASS="${USER_PASS:-luser}"
+USER_NAME="${USER_NAME:-luser}"
+
 
 IMAGE_SIZE="8G"
 FILESYSTEM_UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
@@ -61,7 +69,7 @@ sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' rootdir/etc/locale.gen
 chroot rootdir locale-gen en_US.UTF-8
 
 # 弃用 passwd，改用防转义的 chpasswd
-echo "root:1234" | chroot rootdir chpasswd
+echo "root:${ROOT_PASS}" | chroot rootdir chpasswd
 echo "paddeck-sm8550" > rootdir/etc/hostname
 # =====================================================================
 
@@ -79,7 +87,7 @@ chroot rootdir apt install -y /tmp/firmware-sheng-wififix.deb
 
 # 创建玩家账户并赋予护航权限组
 chroot rootdir useradd -m -s /bin/bash luser
-echo "luser:luser" | chroot rootdir chpasswd
+echo "${USER_NAME}:${USER_PASS}" | chroot rootdir chpasswd
 chroot rootdir usermod -aG sudo,audio,video,render,input luser
 
 echo "🚀 植入 Valve 官方 ARM64 Steam 客户端..."

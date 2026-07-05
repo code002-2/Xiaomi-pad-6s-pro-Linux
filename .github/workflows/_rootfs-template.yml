@@ -1,0 +1,122 @@
+name: RootFS Build Template
+
+on:
+  workflow_call:
+    inputs:
+      distro:
+        description: 'Distro identifier passed to script'
+        required: true
+        type: string
+      script:
+        description: 'Rootfs build script to run'
+        required: true
+        type: string
+      kernel_version_default:
+        description: 'Default kernel version'
+        required: true
+        type: string
+      desktop_matrix:
+        description: 'Desktop environment matrix (JSON array)'
+        required: false
+        type: string
+        default: '["all"]'
+      boot_matrix:
+        description: 'Boot mode matrix (JSON array)'
+        required: false
+        type: string
+        default: '["all"]'
+      release_tag_prefix:
+        description: 'Prefix for release tag'
+        required: true
+        type: string
+      release_body_title:
+        description: 'Title for release body'
+        required: false
+        type: string
+        default: ''
+      skip_release:
+        description: 'Skip creating GitHub Release'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      release_tag: ${{ steps.tag.outputs.release_tag }}
+    steps:
+      - name: Generate release tag
+        id: tag
+        run: |
+          TAG="${{ inputs.release_tag_prefix }}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        if: ${{ !inputs.skip_release }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          name: "${{ inputs.release_body_title || inputs.release_tag_prefix }} - ${{ steps.tag.outputs.release_tag }}"
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    runs-on: ubuntu-24.04-arm
+    needs: prepare-release
+    strategy:
+      fail-fast: false
+      matrix:
+        desktop: ${{ fromJSON(inputs.desktop_matrix) }}
+        boot: ${{ fromJSON(inputs.boot_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ inputs.release_tag_prefix }}-${{ hashFiles('.github/workflows/_rootfs-template.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-${{ inputs.release_tag_prefix }}-
+            ${{ runner.os }}-apt-
+
+      - name: Install build tools
+        run: |
+          sudo apt update
+          sudo apt install -y debootstrap libarchive-tools p7zip-full curl wget android-sdk-libsparse-utils
+
+      - name: Download kernel bundle
+        run: |
+          KERNEL_VER="${{ github.event.inputs.kernel_version || inputs.kernel_version_default }}"
+          gh release download "kernel-bundle-${KERNEL_VER}" \
+            --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build RootFS
+        id: build
+        run: |
+          KERNEL_VER="${{ github.event.inputs.kernel_version || inputs.kernel_version_default }}"
+          chmod +x ${{ inputs.script }}
+          sudo bash ${{ inputs.script }} ${{ inputs.distro }} "$KERNEL_VER" \
+            ${{ github.event.inputs.boot_mode || 'all' }} \
+            ${{ github.event.inputs.desktop_env || 'all' }}
+          echo "pkg_count=$(ls -1 *.7z 2>/dev/null | wc -l)" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.release_tag_prefix }}-${{ matrix.desktop }}-${{ matrix.boot }}
+          path: "*.7z"
+          retention-days: 7
+
+      - name: Upload to Release
+        if: ${{ !inputs.skip_release && steps.build.outputs.pkg_count > 0 }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          files: "*.7z"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
