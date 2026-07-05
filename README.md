@@ -42,9 +42,6 @@
 | Ubuntu 26.04 | `build-ubuntu26-rootfs.sh` | GNOME, KDE, XFCE | 测试 |
 | Arch Linux ARM | `sheng-arch-rootfs_build.sh` | GNOME, KDE | 测试 |
 | Fedora 44 | `sheng-fedora-rootfs_build.sh` | GNOME, KDE | 实验 |
-| Kali Linux | `sheng-kali-rootfs_build.sh` | GNOME, KDE | 实验 |
-| Deepin 25.1 | `deepin-rootfs_build.sh` | Deepin DE | 实验 |
-| PadDeck OS | `paddeck-rootfs_build.sh` | Sway (Steam) | 实验 |
 
 ---
 
@@ -93,7 +90,7 @@
 
 - Ubuntu 24.04 ARM64 (或等效环境)
 - root 权限
-- 工具: `debootstrap`, `mkbootimg`, `parted`, `img2simg`, `p7zip-full`, `docker` (Fedora/Kali)
+- 工具: `debootstrap`, `mkbootimg`, `parted`, `img2simg`, `p7zip-full`, `docker` (Fedora)
 
 ### 构建 rootfs
 
