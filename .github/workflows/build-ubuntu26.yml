@@ -7,6 +7,12 @@ on:
         description: '内核版本'
         required: true
         default: '7.0'
+      kernel_channel:
+        description: '内核通道'
+        required: true
+        type: choice
+        options: [mainline, stable]
+        default: 'mainline'
       skip_release:
         description: '跳过创建GitHub Release'
         type: boolean
@@ -29,6 +35,7 @@ jobs:
       distro: ubuntu
       script: build-ubuntu26-rootfs.sh
       kernel_version_default: '7.0'
+      kernel_channel_default: 'mainline'
       desktop_matrix: '["gnome", "kde", "xfce"]'
       release_tag_prefix: ubuntu26
       release_body_title: "Ubuntu 26.04 Desktop"

@@ -14,14 +14,16 @@ USER_PASS="${USER_PASS:-luser}"
 USER_NAME="${USER_NAME:-luser}"
 
 # --- Argument parsing ---
-if [ $# -ne 2 ]; then
-    echo "用法: $0 <distro_name> <kernel_version>"
+if [ $# -lt 2 ] || [ $# -gt 5 ]; then
+    echo "用法: $0 <distro_name> <kernel_version> [boot_mode] [desktop_env]"; echo "示例: $0 fedora 7.1 all gnome"
     exit 1
 fi
 if [ "$(id -u)" -ne 0 ]; then echo "请使用root权限运行"; exit 1; fi
 
 DISTRO=$1
 KERNEL=$2
+TARGET_MODE=${3:-all}
+TARGET_DE=${4:-gnome}
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 ROOTFS_IMG="fedora_desktop_${TIMESTAMP}.img"
 
@@ -53,10 +55,15 @@ chroot "$ROOTDIR" dnf -y install --exclude=kernel-core \
     systemd sudo vim wget curl tar xz pciutils findutils \
     NetworkManager wpa_supplicant dialog qrtr
 
-# Step 4: Desktop
-echo "正在安装 GNOME 桌面环境..."
-chroot "$ROOTDIR" dnf -y install @gnome-desktop --exclude=kernel-core
-chroot "$ROOTDIR" dnf -y install gdm
+# Step 4: Desktop environment
+echo "正在安装 ${TARGET_DE^^} 桌面环境..."
+if [ "$TARGET_DE" = "kde" ]; then
+    chroot "$ROOTDIR" dnf -y install @kde-desktop --exclude=kernel-core
+    chroot "$ROOTDIR" dnf -y install sddm
+else
+    chroot "$ROOTDIR" dnf -y install @gnome-desktop --exclude=kernel-core
+    chroot "$ROOTDIR" dnf -y install gdm
+fi
 
 # Step 5: Kernel injection
 echo "正在扫描并注入本地内核与系统固件包..."
@@ -109,10 +116,24 @@ mkdir -p "$ROOTDIR/etc/selinux"
 echo "SELINUX=disabled" > "$ROOTDIR/etc/selinux/config"
 echo "SELINUXTYPE=targeted" >> "$ROOTDIR/etc/selinux/config"
 
-# GDM autologin
-mkdir -p "$ROOTDIR/etc/gdm"
-printf "[daemon]\nAutomaticLoginEnable=True\nAutomaticLogin=%s\n" "$USER_NAME" > "$ROOTDIR/etc/gdm/custom.conf"
-chroot "$ROOTDIR" systemctl enable gdm
+# Desktop autologin config
+if [ "$TARGET_DE" = "kde" ]; then
+    mkdir -p "$ROOTDIR/etc/sddm.conf.d"
+    cat > "$ROOTDIR/etc/sddm.conf.d/autologin.conf" <<AUTHEOF
+[Autologin]
+User=$USER_NAME
+Session=plasma
+AUTHEOF
+    chroot "$ROOTDIR" systemctl enable sddm
+else
+    mkdir -p "$ROOTDIR/etc/gdm"
+    cat > "$ROOTDIR/etc/gdm/custom.conf" <<AUTHEOF2
+[daemon]
+AutomaticLoginEnable=True
+AutomaticLogin=$USER_NAME
+AUTHEOF2
+    chroot "$ROOTDIR" systemctl enable gdm
+fi
 chroot "$ROOTDIR" systemctl set-default graphical.target
 
 # WiFi fix

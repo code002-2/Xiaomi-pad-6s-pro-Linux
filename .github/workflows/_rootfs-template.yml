@@ -15,6 +15,11 @@ on:
         description: 'Default kernel version'
         required: true
         type: string
+      kernel_channel_default:
+        description: 'Default kernel channel (mainline/stable)'
+        required: false
+        type: string
+        default: 'mainline'
       desktop_matrix:
         description: 'Desktop environment matrix (JSON array)'
         required: false
@@ -90,6 +95,8 @@ jobs:
       - name: Download kernel bundle
         run: |
           KERNEL_VER="${{ github.event.inputs.kernel_version || inputs.kernel_version_default }}"
+          KERNEL_CHANNEL="${{ github.event.inputs.kernel_channel || inputs.kernel_channel_default }}"
+          echo "Downloading kernel bundle for channel=${KERNEL_CHANNEL} version=${KERNEL_VER}"
           gh release download "kernel-bundle-${KERNEL_VER}" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
         env:
@@ -99,6 +106,7 @@ jobs:
         id: build
         run: |
           KERNEL_VER="${{ github.event.inputs.kernel_version || inputs.kernel_version_default }}"
+          KERNEL_CHANNEL="${{ github.event.inputs.kernel_channel || inputs.kernel_channel_default }}"
           chmod +x ${{ inputs.script }}
           sudo bash ${{ inputs.script }} ${{ inputs.distro }} "$KERNEL_VER" \
             ${{ github.event.inputs.boot_mode || 'all' }} \

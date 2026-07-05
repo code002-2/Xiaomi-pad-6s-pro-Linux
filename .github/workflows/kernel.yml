@@ -65,7 +65,7 @@ jobs:
           export CCACHE_MAXSIZE=10G
           export PATH="/usr/lib/ccache:$PATH"
           chmod +x sheng-kernel_build.sh
-          bash sheng-kernel_build.sh
+          export KERNEL_CHANNEL="${{ inputs.channel }}"; bash sheng-kernel_build.sh
           echo "✅ 内核编译完成"
           ccache --show-stats || true
 

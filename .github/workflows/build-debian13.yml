@@ -7,6 +7,12 @@ on:
         description: '内核版本'
         required: true
         default: '7.1'
+      kernel_channel:
+        description: '内核通道'
+        required: true
+        type: choice
+        options: [mainline, stable]
+        default: 'mainline'
       desktop_env:
         description: '桌面环境'
         required: true
@@ -41,6 +47,7 @@ jobs:
       distro: debian-desktop
       script: sheng-rootfs_build.sh
       kernel_version_default: '7.1'
+      kernel_channel_default: 'mainline'
       desktop_matrix: '["all"]'
       boot_matrix: '["all"]'
       release_tag_prefix: debian13

@@ -32,6 +32,21 @@ export READELF="llvm-readelf"
 export STRIP="llvm-strip"
 
 # --- Kernel repo and branch ---
+# Channel controls which kernel source to use (mainline or stable)
+CHANNEL="${KERNEL_CHANNEL:-mainline}"
+
+case "$CHANNEL" in
+    stable)
+        KERNEL_REPO="ianchb/sm8550-mainline"
+        KERNEL_BRANCH="sheng-7.0.12"
+        ;;
+    *)
+        KERNEL_REPO="code002-2/sm8550-mainline"
+        KERNEL_BRANCH="sheng-mainline"
+        ;;
+esac
+
+# Allow env var override (takes precedence over channel)
 KERNEL_REPO="${KERNEL_REPO:-code002-2/sm8550-mainline}"
 KERNEL_BRANCH="${KERNEL_BRANCH:-sheng-mainline}"
 
