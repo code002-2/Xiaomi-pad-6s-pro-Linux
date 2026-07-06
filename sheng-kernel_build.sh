@@ -156,7 +156,10 @@ for pkg in linux-xiaomi-sheng alsa-xiaomi-sheng; do
     if [ -d "$pkg/lib" ]; then
         echo "正在安全融合 $pkg 中的 /lib 至 /usr/lib..."
         mkdir -p "$pkg/usr/lib"
-        cp -r "$pkg/lib"/* "$pkg/usr/lib/" 2>/dev/null || true
+        if ! cp -r "$pkg/lib"/* "$pkg/usr/lib/" 2>/dev/null; then
+            echo "错误: 复制 $pkg/lib 失败，中止构建" >&2
+            exit 1
+        fi
         rm -rf "$pkg/lib"
     fi
 done

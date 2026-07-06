@@ -112,11 +112,17 @@ EOF
 
         # Step 5: Inject driver deb
         echo "正在注入设备专属 .deb 驱动包..."
-        wget -q "https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/mipps/xiaomi-mipps-auth_0.11_arm64.deb"
+        wget "https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/mipps/xiaomi-mipps-auth_0.11_arm64.deb" || {
+            echo "错误: 下载 xiaomi-mipps-auth 失败" >&2
+            exit 1
+        }
         cp *.deb "$ROOTDIR/tmp/"
 
         chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y libglib2.0-0 libprotobuf-c1 libqmi-glib5 libmbim-glib4 initramfs-tools"
-        chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y /tmp/*.deb" || echo "警告: 部分 .deb 存在警告，继续执行。"
+        chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y /tmp/*.deb" || {
+            echo "错误: 安装 .deb 驱动包失败" >&2
+            exit 1
+        }
 
         # Step 6: Users & hostname
         setup_users "$ROOTDIR" "$ROOT_PASS" "$USER_NAME" "$USER_PASS" "sudo,audio,video,input"
@@ -130,9 +136,15 @@ EOF
 
                 # GNOME mobile packages for tablet UX (touch gestures, auto-rotate)
                 echo "正在安装 GNOME Mobile 平板优化包..."
-                wget -q "https://github.com/alghiffaryfa19/gnome-shell-mobile-builder/releases/download/gnome-shell-97/gnome-shell-mobile.deb"
-                wget -q "https://github.com/alghiffaryfa19/gnome-shell-mobile-builder/releases/download/mutter/mutter-mobile.deb"
-                wget -q "https://github.com/alghiffaryfa19/gnome-shell-mobile-builder/releases/download/gsd/gsd-mobile.deb"
+                for url in \
+                    "https://github.com/alghiffaryfa19/gnome-shell-mobile-builder/releases/download/gnome-shell-97/gnome-shell-mobile.deb" \
+                    "https://github.com/alghiffaryfa19/gnome-shell-mobile-builder/releases/download/mutter/mutter-mobile.deb" \
+                    "https://github.com/alghiffaryfa19/gnome-shell-mobile-builder/releases/download/gsd/gsd-mobile.deb"; do
+                    wget "$url" || {
+                        echo "错误: 下载 $url 失败" >&2
+                        exit 1
+                    }
+                done
                 cp ./*.deb "$ROOTDIR/tmp/"
                 chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --allow-downgrades -o Dpkg::Options::=\"--force-overwrite\" /tmp/*.deb" || true
                 chroot "$ROOTDIR" apt-mark hold gnome-shell mutter gnome-settings-daemon

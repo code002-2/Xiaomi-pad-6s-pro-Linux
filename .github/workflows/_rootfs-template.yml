@@ -25,6 +25,16 @@ on:
         required: false
         type: string
         default: ''
+      desktop_env:
+        description: 'Desktop environment from user input (overrides matrix default)'
+        required: false
+        type: string
+        default: ''
+      boot_mode:
+        description: 'Boot mode from user input (overrides matrix default)'
+        required: false
+        type: string
+        default: ''
       desktop_matrix:
         description: 'Desktop environment matrix (JSON array)'
         required: false
@@ -124,8 +134,8 @@ jobs:
         run: |
           KERNEL_VER="${{ inputs.kernel_version_default }}"
           KERNEL_CHANNEL="${{ inputs.kernel_channel || inputs.kernel_channel_default }}"
-          BOOT_MODE="${{ inputs.boot_matrix }}"
-          DESKTOP_ENV="${{ inputs.desktop_matrix }}"
+          BOOT_MODE="${{ inputs.boot_mode || 'all' }}"
+          DESKTOP_ENV="${{ inputs.desktop_env || 'all' }}"
           chmod +x ${{ inputs.script }}
           sudo KERNEL_CHANNEL="$KERNEL_CHANNEL" bash ${{ inputs.script }} ${{ inputs.distro }} "$KERNEL_VER" \
             "$BOOT_MODE" "$DESKTOP_ENV"

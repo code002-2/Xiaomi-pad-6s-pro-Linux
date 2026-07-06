@@ -59,12 +59,10 @@ for DE in "${DESKTOPS[@]}"; do
 
         ROOTFS_IMG="fedora_${DE}_${MODE}_${TIMESTAMP}.img"
 
-echo "=========================================="
-echo "开始构建纯净桌面版 Fedora ${FEDORA_VERSION} ARM RootFS"
-echo "内核版本: $KERNEL"
-echo "=========================================="
+        # Pre-flight checks
+        preflight_checks 10240
 
-# Step 1: Create image
+        # Step 1: Create image
 create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
 setup_chroot_mounts "$ROOTDIR"
 trap_teardown "$ROOTDIR"
@@ -113,7 +111,7 @@ if ls *.deb 1> /dev/null 2>&1; then
 
         echo "   正在安装 dracut 并生成初始内存盘..."
         chroot "$ROOTDIR" dnf -y install dracut
-        chroot "$ROOTDIR" dracut -N --kver "$KERNEL_MODULE_DIR" --force "/boot/initramfs-linux.img"
+        chroot "$ROOTDIR" dracut -N --kver "$KERNEL_MODULE_DIR" --force "/boot/initramfs-${KERNEL_MODULE_DIR}.img"
 
         if [ -f "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" ]; then
             echo "   正在适配 Bootloader 内核命名..."
@@ -171,3 +169,5 @@ echo "正在转换为 Sparse 格式加速刷机..."
 pack_sparse_image "$ROOTFS_IMG" "fedora_${DE}_${MODE}_${TIMESTAMP}.7z"
 
 echo "Fedora ${FEDORA_VERSION} 版本构建完成！"
+    done
+done

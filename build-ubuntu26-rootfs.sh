@@ -51,6 +51,9 @@ echo "桌面环境: $DESKTOP_ENV"
 echo "内核版本: $KERNEL"
 echo "=========================================="
 
+# Pre-flight checks
+preflight_checks 10240
+
 # Step 1: Create image
 create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
 setup_chroot_mounts "$ROOTDIR"

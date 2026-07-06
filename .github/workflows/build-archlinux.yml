@@ -43,6 +43,7 @@ jobs:
       kernel_version_default: '7.1'
       kernel_channel_default: 'mainline'
       kernel_channel: ${{ github.event.inputs.kernel_channel }}
+      desktop_env: ${{ github.event.inputs.desktop_env }}
       desktop_matrix: '["all"]'
       release_tag_prefix: archlinux
       release_body_title: "Arch Linux Desktop"

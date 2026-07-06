@@ -59,9 +59,12 @@ for DE in "${DESKTOPS[@]}"; do
         echo ""
         echo "=========================================="
         echo "开始执行 -> 桌面: ${DE^^} | 模式: $MODE | 目标: $ROOTFS_IMG"
-    echo "=========================================="
+        echo "=========================================="
 
-    # Step 1: Create image
+        # Pre-flight checks
+        preflight_checks 10240
+
+        # Step 1: Create image
     create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
     setup_chroot_mounts "$ROOTDIR"
     trap_teardown "$ROOTDIR"
@@ -136,7 +139,7 @@ for DE in "${DESKTOPS[@]}"; do
     fix_wifi_firmware "$ROOTDIR"
 
     # Step 6: fstab & cleanup
-    generate_fstab "$ROOTDIR" "dual"
+    generate_fstab "$ROOTDIR" "$MODE"
     chroot "$ROOTDIR" pacman -Scc --noconfirm
     teardown_mounts "$ROOTDIR"
 

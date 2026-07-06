@@ -5,6 +5,7 @@ on:
     workflows: ["Build Kernel"]
     types:
       - completed
+    branches: [main, master]
   workflow_dispatch:
     inputs:
       kernel_version:
