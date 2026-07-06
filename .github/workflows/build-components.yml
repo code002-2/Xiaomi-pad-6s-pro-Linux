@@ -256,7 +256,6 @@ jobs:
           find deb -type f -exec chmod 644 {} \;
           dpkg-deb -Zgzip --build deb
           mv deb.deb sheng-sensors_20240917-1_arm64.deb
-          mv sheng-sensors_20240917-1_arm64.deb "$GITHUB_WORKSPACE/"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
