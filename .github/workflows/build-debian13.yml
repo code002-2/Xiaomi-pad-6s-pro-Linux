@@ -48,6 +48,7 @@ jobs:
       script: sheng-rootfs_build.sh
       kernel_version_default: '7.1'
       kernel_channel_default: 'mainline'
+      kernel_channel: ${{ github.event.inputs.kernel_channel }}
       desktop_matrix: '["all"]'
       boot_matrix: '["all"]'
       release_tag_prefix: debian13

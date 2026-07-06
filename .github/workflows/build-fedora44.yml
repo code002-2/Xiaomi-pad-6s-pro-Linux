@@ -42,6 +42,7 @@ jobs:
       script: sheng-fedora-rootfs_build.sh
       kernel_version_default: '7.0'
       kernel_channel_default: 'mainline'
+      kernel_channel: ${{ github.event.inputs.kernel_channel }}
       desktop_matrix: '["all"]'
       release_tag_prefix: fedora44
       release_body_title: "Fedora 44 Desktop"

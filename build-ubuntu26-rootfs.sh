@@ -19,19 +19,26 @@ USER_NAME="${USER_NAME:-luser}"
 
 # --- Argument parsing ---
 usage() {
-    echo "用法: $0 <kernel_version> <desktop_environment>"
+    echo "用法: $0 <kernel_version> <desktop_environment> [boot_mode]"
     echo "desktop_environment: gnome, kde 或 xfce"
+    echo "boot_mode: dual 或 single (默认 dual)"
     exit 1
 }
 
-if [ $# -ne 2 ]; then usage; fi
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then usage; fi
 if [ "$(id -u)" -ne 0 ]; then echo "请使用root权限运行"; exit 1; fi
 
 KERNEL=$1
 DESKTOP_ENV=$2
+BOOT_MODE=${3:-dual}
 
 if [[ ! "$DESKTOP_ENV" =~ ^(gnome|kde|xfce)$ ]]; then
     echo "错误: desktop_environment 必须是 gnome, kde 或 xfce"
+    exit 1
+fi
+
+if [[ ! "$BOOT_MODE" =~ ^(dual|single)$ ]]; then
+    echo "错误: boot_mode 必须是 dual 或 single"
     exit 1
 fi
 
@@ -123,7 +130,7 @@ chroot "$ROOTDIR" apt install -y qrtr-tools || true
 chroot "$ROOTDIR" systemctl enable qrtr-ns || true
 
 # Step 11: fstab & cleanup
-generate_fstab "$ROOTDIR" "dual"
+generate_fstab "$ROOTDIR" "$BOOT_MODE"
 chroot "$ROOTDIR" apt clean
 chroot "$ROOTDIR" rm -rf /tmp/*.deb
 teardown_mounts "$ROOTDIR"

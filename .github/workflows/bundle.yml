@@ -35,33 +35,33 @@ jobs:
 
         mkdir bundle && cd bundle
 
-        echo "⬇️ Download kernel packages"
+        echo "Download kernel packages"
         gh release download "kernel-${CHANNEL}-${KERNEL_VER}" \
           --pattern "*.deb" \
           --repo "${{ github.repository }}" \
           --clobber || true
 
-        echo "⬇️ Download sheng_devauth"
+        echo "Download sheng_devauth"
         gh release download "sheng_devauth" \
           --pattern "*.deb" \
           --repo "${{ github.repository }}" \
           --clobber || true
 
-        echo "⬇️ Download sensor"
+        echo "Download sensor"
         gh release download "sensor" \
           --pattern "*.deb" \
           --repo "${{ github.repository }}" \
           --clobber || true
 
-        echo "📂 Final bundle:"
+        echo "Final bundle:"
         ls -lah
 
         COUNT=$(ls *.deb 2>/dev/null | wc -l)
         if [ "$COUNT" -lt 5 ]; then
-          echo "❌ Not enough packages (found $COUNT, need >= 5)"
+          echo "Not enough packages (found $COUNT, need >= 5)"
           exit 1
         fi
-        echo "✅ Bundle validated: $COUNT packages"
+        echo "Bundle validated: $COUNT packages"
 
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,8 +69,8 @@ jobs:
     - name: Create bundle release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: "kernel-bundle-${{ github.event.inputs.kernel_version }}"
-        name: "Kernel Bundle ${{ github.event.inputs.kernel_version }}"
+        tag_name: "kernel-bundle-${{ github.event.inputs.channel || 'mainline' }}-${{ github.event.inputs.kernel_version || '7.1' }}"
+        name: "Kernel Bundle ${{ github.event.inputs.channel || 'mainline' }} ${{ github.event.inputs.kernel_version || '7.1' }}"
         files: bundle/*.deb
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

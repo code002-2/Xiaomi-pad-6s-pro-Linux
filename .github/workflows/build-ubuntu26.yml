@@ -36,6 +36,7 @@ jobs:
       script: build-ubuntu26-rootfs.sh
       kernel_version_default: '7.0'
       kernel_channel_default: 'mainline'
+      kernel_channel: ${{ github.event.inputs.kernel_channel }}
       desktop_matrix: '["gnome", "kde", "xfce"]'
       release_tag_prefix: ubuntu26
       release_body_title: "Ubuntu 26.04 Desktop"

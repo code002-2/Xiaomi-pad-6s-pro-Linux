@@ -20,6 +20,11 @@ on:
         required: false
         type: string
         default: 'mainline'
+      kernel_channel:
+        description: 'Kernel channel from user input (overrides default)'
+        required: false
+        type: string
+        default: ''
       desktop_matrix:
         description: 'Desktop environment matrix (JSON array)'
         required: false
@@ -69,11 +74,11 @@ jobs:
             | 项目 | 详情 |
             |------|------|
             | 发行版 | ${{ inputs.release_tag_prefix }} |
-            | 内核版本 | ${{ github.event.inputs.kernel_version || inputs.kernel_version_default }} |
-            | 内核通道 | ${{ github.event.inputs.kernel_channel || inputs.kernel_channel_default }} |
+            | 内核版本 | ${{ inputs.kernel_version_default }} |
+            | 内核通道 | ${{ inputs.kernel_channel || inputs.kernel_channel_default }} |
             | 构建SHA | [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }}) |
-            | 桌面环境 | ${{ github.event.inputs.desktop_env || 'all' }} |
-            | 启动模式 | ${{ github.event.inputs.boot_mode || 'all' }} |
+            | 桌面环境 | ${{ inputs.desktop_matrix }} |
+            | 启动模式 | ${{ inputs.boot_matrix }} |
           draft: false
           prerelease: false
         env:
@@ -106,10 +111,10 @@ jobs:
 
       - name: Download kernel bundle
         run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version || inputs.kernel_version_default }}"
-          KERNEL_CHANNEL="${{ github.event.inputs.kernel_channel || inputs.kernel_channel_default }}"
+          KERNEL_VER="${{ inputs.kernel_version_default }}"
+          KERNEL_CHANNEL="${{ inputs.kernel_channel || inputs.kernel_channel_default }}"
           echo "Downloading kernel bundle for channel=${KERNEL_CHANNEL} version=${KERNEL_VER}"
-          gh release download "kernel-bundle-${KERNEL_VER}" \
+          gh release download "kernel-bundle-${KERNEL_CHANNEL}-${KERNEL_VER}" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -117,10 +122,10 @@ jobs:
       - name: Build RootFS
         id: build
         run: |
-          KERNEL_VER="${{ github.event.inputs.kernel_version || inputs.kernel_version_default }}"
-          KERNEL_CHANNEL="${{ github.event.inputs.kernel_channel || inputs.kernel_channel_default }}"
-          BOOT_MODE="${{ github.event.inputs.boot_mode || 'all' }}"
-          DESKTOP_ENV="${{ github.event.inputs.desktop_env || 'all' }}"
+          KERNEL_VER="${{ inputs.kernel_version_default }}"
+          KERNEL_CHANNEL="${{ inputs.kernel_channel || inputs.kernel_channel_default }}"
+          BOOT_MODE="${{ inputs.boot_matrix }}"
+          DESKTOP_ENV="${{ inputs.desktop_matrix }}"
           chmod +x ${{ inputs.script }}
           sudo KERNEL_CHANNEL="$KERNEL_CHANNEL" bash ${{ inputs.script }} ${{ inputs.distro }} "$KERNEL_VER" \
             "$BOOT_MODE" "$DESKTOP_ENV"
@@ -153,17 +158,15 @@ jobs:
       - name: 更新 Release 描述
         run: |
           TAG="${{ needs.prepare-release.outputs.release_tag }}"
-          echo "📝 更新 Release $TAG ..."
+          echo "Updating Release $TAG ..."
 
-          # 获取该 release 的所有资产
+          # Get all assets for this release
           ASSETS=$(gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null || echo "")
 
-          BODY=$(gh release view "$TAG" --json body --jq '.body' 2>/dev/null || echo "")
-
-          # 追加资产列表
+          # Build asset list
           if [ -n "$ASSETS" ]; then
             echo "" >> /tmp/assets.md
-            echo "### 📦 构建产物" >> /tmp/assets.md
+            echo "### Built artifacts" >> /tmp/assets.md
             echo "" >> /tmp/assets.md
             while IFS= read -r asset; do
               if [ -n "$asset" ]; then
@@ -178,13 +181,13 @@ jobs:
             done <<< "$ASSETS"
           fi
 
-          # 追加到 body
+          # Append to body
           if [ -s /tmp/assets.md ]; then
             cat /tmp/assets.md >> /tmp/new_body.md
             echo "" >> /tmp/new_body.md
           fi
           echo "---" >> /tmp/new_body.md
-          echo "**构建时间**: $(date -u '+%Y-%m-%d %H:%M UTC')" >> /tmp/new_body.md
+          echo "**Built at**: $(date -u '+%Y-%m-%d %H:%M UTC')" >> /tmp/new_body.md
 
           gh release edit "$TAG" --body-file /tmp/new_body.md
         env:

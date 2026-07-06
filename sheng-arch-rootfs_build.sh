@@ -17,9 +17,9 @@ USER_PASS="${USER_PASS:-luser}"
 USER_NAME="${USER_NAME:-luser}"
 
 # --- Argument parsing ---
-if [ $# -lt 2 ] || [ $# -gt 3 ]; then
-    echo "用法: $0 <distro_name> <kernel_version> [desktop_environment]"
-    echo "示例: $0 arch 7.1.0-rc6 kde"
+if [ $# -lt 2 ] || [ $# -gt 4 ]; then
+    echo "用法: $0 <distro_name> <kernel_version> [desktop_environment] [boot_mode]"
+    echo "示例: $0 arch 7.1.0-rc6 kde dual"
     exit 1
 fi
 if [ "$(id -u)" -ne 0 ]; then
@@ -30,6 +30,7 @@ fi
 DISTRO=$1
 KERNEL=$2
 TARGET_DE=${3:-gnome}
+TARGET_MODE=${4:-all}
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
 DESKTOPS=()
@@ -42,12 +43,22 @@ else
     exit 1
 fi
 
+if [ "$TARGET_MODE" = "all" ]; then
+    BOOTMODES=("dual" "single")
+elif [[ "$TARGET_MODE" =~ ^(dual|single)$ ]]; then
+    BOOTMODES=("$TARGET_MODE")
+else
+    echo "错误: 不支持的启动模式: $TARGET_MODE"
+    exit 1
+fi
+
 # --- Main build loop ---
 for DE in "${DESKTOPS[@]}"; do
-    ROOTFS_IMG="${DISTRO}_${DE}_${TIMESTAMP}.img"
-    echo ""
-    echo "=========================================="
-    echo "开始执行 -> 桌面: ${DE^^} | 目标: $ROOTFS_IMG"
+    for MODE in "${BOOTMODES[@]}"; do
+        ROOTFS_IMG="${DISTRO}_${DE}_${MODE}_${TIMESTAMP}.img"
+        echo ""
+        echo "=========================================="
+        echo "开始执行 -> 桌面: ${DE^^} | 模式: $MODE | 目标: $ROOTFS_IMG"
     echo "=========================================="
 
     # Step 1: Create image
@@ -127,14 +138,15 @@ for DE in "${DESKTOPS[@]}"; do
     # Step 6: fstab & cleanup
     generate_fstab "$ROOTDIR" "dual"
     chroot "$ROOTDIR" pacman -Scc --noconfirm
-teardown_mounts "$ROOTDIR"
+    teardown_mounts "$ROOTDIR"
 
     # Step 7: Pack
     apply_fs_uuid "$UUID" "$ROOTFS_IMG"
     pack_sparse_image "$ROOTFS_IMG" "${ROOTFS_IMG%.img}.7z"
 
-    echo "${DE^^} 版本构建完成！产物: ${ROOTFS_IMG%.img}.7z"
+    echo "${DE^^} - $MODE 版本构建完成！产物: ${ROOTFS_IMG%.img}.7z"
+    done
 done
 
 rm -f ArchLinuxARM-aarch64-latest.tar.gz
-echo "✅ 所有指定的桌面环境构建任务已全部结束！"
+echo "所有指定的桌面环境和启动模式构建任务已全部结束！"

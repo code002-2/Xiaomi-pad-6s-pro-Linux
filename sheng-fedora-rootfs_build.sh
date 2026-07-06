@@ -28,7 +28,36 @@ KERNEL=$2
 TARGET_MODE=${3:-all}
 TARGET_DE=${4:-gnome}
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-ROOTFS_IMG="fedora_desktop_${TIMESTAMP}.img"
+
+# --- Dynamic boot mode ---
+if [ "$TARGET_MODE" = "all" ]; then
+    BOOTMODES=("dual" "single")
+elif [[ "$TARGET_MODE" =~ ^(dual|single)$ ]]; then
+    BOOTMODES=("$TARGET_MODE")
+else
+    echo "错误: 不支持的启动模式: $TARGET_MODE"
+    exit 1
+fi
+
+# --- Dynamic desktop ---
+if [ "$TARGET_DE" = "all" ]; then
+    DESKTOPS=("gnome" "kde")
+elif [[ "$TARGET_DE" =~ ^(gnome|kde)$ ]]; then
+    DESKTOPS=("$TARGET_DE")
+else
+    echo "错误: 不支持的桌面环境: $TARGET_DE (仅支持 gnome, kde, all)"
+    exit 1
+fi
+
+# --- Main build loop ---
+for DE in "${DESKTOPS[@]}"; do
+    for MODE in "${BOOTMODES[@]}"; do
+        echo ""
+        echo "=========================================="
+        echo "开始构建: Fedora ${FEDORA_VERSION} | 桌面: ${DE^^} | 模式: $MODE"
+        echo "=========================================="
+
+        ROOTFS_IMG="fedora_${DE}_${MODE}_${TIMESTAMP}.img"
 
 echo "=========================================="
 echo "开始构建纯净桌面版 Fedora ${FEDORA_VERSION} ARM RootFS"
@@ -132,13 +161,13 @@ fix_wifi_firmware "$ROOTDIR"
 setup_qrtr_service "$ROOTDIR"
 
 # Step 8: fstab & cleanup
-generate_fstab "$ROOTDIR" "dual"
+generate_fstab "$ROOTDIR" "$MODE"
 chroot "$ROOTDIR" dnf clean all
 teardown_mounts "$ROOTDIR"
 
 # Step 9: Pack
 apply_fs_uuid "$UUID" "$ROOTFS_IMG"
 echo "正在转换为 Sparse 格式加速刷机..."
-pack_sparse_image "$ROOTFS_IMG" "fedora_desktop_${TIMESTAMP}.7z"
+pack_sparse_image "$ROOTFS_IMG" "fedora_${DE}_${MODE}_${TIMESTAMP}.7z"
 
 echo "Fedora ${FEDORA_VERSION} 版本构建完成！"
