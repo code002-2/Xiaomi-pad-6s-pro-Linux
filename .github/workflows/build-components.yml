@@ -53,17 +53,17 @@ jobs:
 
           mkdir -p deb/DEBIAN
           cp -r stage/usr deb/
-          cat > deb/DEBIAN/control <<EOF
-Package: fastrpc
-Version: 1.0.2-1
-Section: libs
-Priority: optional
-Architecture: arm64
-Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
-Depends: libyaml-0-2, systemd
-Description: Qualcomm FastRPC userspace library
- FastRPC implementation for Qualcomm DSP communication.
-EOF
+          {
+            echo "Package: fastrpc"
+            echo "Version: 1.0.2-1"
+            echo "Section: libs"
+            echo "Priority: optional"
+            echo "Architecture: arm64"
+            echo "Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>"
+            echo "Depends: libyaml-0-2, systemd"
+            echo "Description: Qualcomm FastRPC userspace library"
+            echo " FastRPC implementation for Qualcomm DSP communication."
+          } > deb/DEBIAN/control
           find deb -type d -exec chmod 755 {} \;
           find deb -type f -name "*.sh" -exec chmod 755 {} \;
           find deb -type f -exec chmod 644 {} \;
@@ -113,17 +113,17 @@ EOF
 
           mkdir -p deb/DEBIAN deb/usr
           cp -r stage/usr/* deb/usr/
-          cat > deb/DEBIAN/control <<EOF
-Package: libssc
-Version: 0.3.0-1
-Section: libs
-Priority: optional
-Architecture: arm64
-Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
-Depends: libglib2.0-0, libprotobuf-c1, libqmi-glib5
-Description: Library to expose Qualcomm Sensor Core sensors
- libssc userspace library for Qualcomm SSC.
-EOF
+          {
+            echo "Package: libssc"
+            echo "Version: 0.3.0-1"
+            echo "Section: libs"
+            echo "Priority: optional"
+            echo "Architecture: arm64"
+            echo "Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>"
+            echo "Depends: libglib2.0-0, libprotobuf-c1, libqmi-glib5"
+            echo "Description: Library to expose Qualcomm Sensor Core sensors"
+            echo " libssc userspace library for Qualcomm SSC."
+          } > deb/DEBIAN/control
           find deb -type d -exec chmod 755 {} \;
           find deb -type f -name "*.sh" -exec chmod 755 {} \;
           find deb -type f -exec chmod 644 {} \;
@@ -181,17 +181,17 @@ EOF
 
           mkdir -p deb/DEBIAN
           cp -r stage/usr deb/
-          cat > deb/DEBIAN/control <<EOF
-Package: iio-sensor-proxy
-Version: 99993.9-6
-Section: misc
-Priority: optional
-Architecture: arm64
-Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
-Depends: dbus, libglib2.0-0, libgudev-1.0-0, libpolkit-gobject-1-0
-Description: IIO sensors to D-Bus proxy (SSC patched)
- iio-sensor-proxy with Qualcomm Sensor Core support.
-EOF
+          {
+            echo "Package: iio-sensor-proxy"
+            echo "Version: 99993.9-6"
+            echo "Section: misc"
+            echo "Priority: optional"
+            echo "Architecture: arm64"
+            echo "Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>"
+            echo "Depends: dbus, libglib2.0-0, libgudev-1.0-0, libpolkit-gobject-1-0"
+            echo "Description: IIO sensors to D-Bus proxy (SSC patched)"
+            echo " iio-sensor-proxy with Qualcomm Sensor Core support."
+          } > deb/DEBIAN/control
           dpkg-deb --build deb
           mv deb.deb iio-sensor-proxy_99993.9-6_arm64.deb
 
@@ -231,16 +231,16 @@ EOF
 
           mkdir -p deb/DEBIAN
           cp -a sheng-sensors-file-199754bb37ae6d4706bd8d4b23e9e6fec2d959cc/. deb/
-          cat > deb/DEBIAN/control <<EOF
-Package: sheng-sensors
-Version: 20240917-1
-Section: misc
-Priority: optional
-Architecture: arm64
-Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
-Description: Sensor files for Xiaomi Pad 6s Pro
- Proprietary sensor configuration files.
-EOF
+          {
+            echo "Package: sheng-sensors"
+            echo "Version: 20240917-1"
+            echo "Section: misc"
+            echo "Priority: optional"
+            echo "Architecture: arm64"
+            echo "Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>"
+            echo "Description: Sensor files for Xiaomi Pad 6s Pro"
+            echo " Proprietary sensor configuration files."
+          } > deb/DEBIAN/control
           find deb -type d -exec chmod 755 {} \;
           find deb -type f -name "*.sh" -exec chmod 755 {} \;
           find deb -type f -exec chmod 644 {} \;
@@ -282,39 +282,40 @@ EOF
           chmod 0755 xiaomi_devauth
           cp xiaomi_devauth sheng-devauth/usr/bin/
 
-          cat > sheng-devauth/DEBIAN/postinst <<'POSTINST'
-          #!/bin/sh
-          set -e
-          if command -v systemctl >/dev/null 2>&1; then
-            systemctl daemon-reload || true
-            systemctl enable sheng-devauth.service || true
-            systemctl start sheng-devauth.service || true
-          fi
-          exit 0
-          POSTINST
+          {
+            echo '#!/bin/sh'
+            echo 'set -e'
+            echo 'if command -v systemctl >/dev/null 2>&1; then'
+            echo '  systemctl daemon-reload || true'
+            echo '  systemctl enable sheng-devauth.service || true'
+            echo '  systemctl start sheng-devauth.service || true'
+            echo 'fi'
+            echo 'exit 0'
+          } > sheng-devauth/DEBIAN/postinst
           chmod 0755 sheng-devauth/DEBIAN/postinst
 
-          cat > sheng-devauth/DEBIAN/prerm <<'PRERM'
-          #!/bin/sh
-          set -e
-          if command -v systemctl >/dev/null 2>&1; then
-            systemctl stop sheng-devauth.service || true
-            systemctl disable sheng-devauth.service || true
-          fi
-          exit 0
-          PRERM
+          {
+            echo '#!/bin/sh'
+            echo 'set -e'
+            echo 'if command -v systemctl >/dev/null 2>&1; then'
+            echo '  systemctl stop sheng-devauth.service || true'
+            echo '  systemctl disable sheng-devauth.service || true'
+            echo 'fi'
+            echo 'exit 0'
+          } > sheng-devauth/DEBIAN/prerm
+ENDSCRIPT
           chmod 0755 sheng-devauth/DEBIAN/prerm
 
-          cat > sheng-devauth/DEBIAN/control <<EOF
-Package: sheng-devauth
-Version: 1.0
-Section: misc
-Priority: optional
-Architecture: arm64
-Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
-Description: Xiaomi keyboard authentication service
- Service used in pair with kernel driver to authenticate Xiaomi devices.
-EOF
+          {
+            echo "Package: sheng-devauth"
+            echo "Version: 1.0"
+            echo "Section: misc"
+            echo "Priority: optional"
+            echo "Architecture: arm64"
+            echo "Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>"
+            echo "Description: Xiaomi keyboard authentication service"
+            echo " Service used in pair with kernel driver to authenticate Xiaomi devices."
+          } > sheng-devauth/DEBIAN/control
 
           dpkg-deb --build sheng-devauth
 
