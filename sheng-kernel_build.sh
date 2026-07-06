@@ -57,7 +57,7 @@ git clone "https://github.com/${KERNEL_REPO}.git" --branch "$KERNEL_BRANCH" --de
 cd linux
 
 # --- Copy kernel config ---
-cp ../sm8550.config .Config
+cp ../sm8550.config .config
 
 # --- Compile ---
 make -j"$(nproc)" ARCH=arm64 CC="ccache clang" LLVM=1
@@ -108,6 +108,21 @@ make -j"$(nproc)" ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH="../linux
 
 # Safely remove build symlinks in module directories
 find "../linux-xiaomi-sheng/lib/modules" -type l -name "build" -delete 2>/dev/null || true
+
+# --- Build EFI boot image ---
+if command -v ukify &>/dev/null; then
+    echo "正在构建 EFI 引导镜像..."
+    ukify build \
+        --linux="arch/$ARCH/boot/Image.gz" \
+        --os-type=linux \
+        --cmdline="root=PARTLABEL=linux rw rootwait console=tty0" \
+        --initrd="boot/initramfs-linux.img" \
+        --output="bootaa64.efi"
+    install -Dm644 bootaa64.efi "$PKGDIR/boot/bootaa64.efi"
+    echo "EFI boot image 构建完成: bootaa64.efi"
+else
+    echo "警告: ukify 不可用，跳过 EFI 构建" >&2
+fi
 
 cd ..
 

@@ -52,7 +52,7 @@ jobs:
       - name: 部署 LLVM 交叉编译环境
         run: |
           sudo apt update
-          sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils
+          sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils systemd-ukify systemd-boot-efi
           mkdir -p /home/runner/.ccache
           ccache --set-config=max_size=10G
           ccache --set-config=cache_dir=/home/runner/.ccache
@@ -85,6 +85,13 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+      - name: 上传 EFI 引导镜像
+        uses: actions/upload-artifact@v4
+        with:
+          name: efi_boot-${{ inputs.channel }}
+          path: bootaa64.efi
+          retention-days: 7
+
       - name: 上传启动镜像 (boot.img)
         uses: actions/upload-artifact@v4
         with:
@@ -112,5 +119,6 @@ jobs:
           files: |
             *.deb
             *.img
+            bootaa64.efi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
