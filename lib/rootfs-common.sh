@@ -13,6 +13,12 @@
 # ---------------------------------------------------------------------------
 create_image() {
     local image_size="$1" image_path="$2" fs_uuid="$3"
+
+    if [ -z "$image_size" ] || [ -z "$image_path" ] || [ -z "$fs_uuid" ]; then
+        echo "错误: create_image 需要 <size> <path> <uuid> 三个参数" >&2
+        return 1
+    fi
+
     ROOTDIR="rootdir"
 
     rm -rf "$ROOTDIR" || true
@@ -28,6 +34,12 @@ create_image() {
 # ---------------------------------------------------------------------------
 setup_chroot_mounts() {
     local rootdir="$1"
+
+    if [ ! -d "$rootdir" ]; then
+        echo "错误: chroot 目录 '$rootdir' 不存在" >&2
+        return 1
+    fi
+
     mount --bind /dev  "$rootdir/dev"
     mount --bind /dev/pts "$rootdir/dev/pts"
     mount -t proc proc "$rootdir/proc"
@@ -70,6 +82,8 @@ fix_wifi_firmware() {
     if [ -f "$fw_path/board-2.bin" ]; then
         cp "$fw_path/board-2.bin" "$fw_path/board.bin"
         echo "board.bin 伪装成功"
+    else
+        echo "警告: 未找到 $fw_path/board-2.bin，跳过 WiFi 固件修复" >&2
     fi
 }
 
@@ -79,6 +93,11 @@ fix_wifi_firmware() {
 # ---------------------------------------------------------------------------
 setup_users() {
     local rootdir="$1" root_pass="$2" uname="$3" upass="$4" groups="${5:-sudo,audio,video,input}"
+
+    if [ -z "$root_pass" ] || [ -z "$uname" ] || [ -z "$upass" ]; then
+        echo "错误: setup_users 需要 <rootdir> <root_pass> <user_name> <user_pass> [groups]" >&2
+        return 1
+    fi
 
     chroot "$rootdir" bash -c "echo 'root:${root_pass}' | chpasswd"
 
@@ -115,6 +134,48 @@ generate_fstab() {
 }
 
 # ---------------------------------------------------------------------------
+# setup_autologin  — 配置显示管理器自动登录
+#   参数: <rootdir> <desktop_env:gnome|kde|xfce> <username>
+# ---------------------------------------------------------------------------
+setup_autologin() {
+    local rootdir="$1" desktop="$2" username="$3"
+
+    case "$desktop" in
+        gnome)
+            mkdir -p "$rootdir/etc/gdm3"
+            cat > "$rootdir/etc/gdm3/daemon.conf" <<EOF
+[daemon]
+AutomaticLoginEnable=true
+AutomaticLogin=${username}
+EOF
+            chroot "$rootdir" systemctl enable gdm3 2>/dev/null || true
+            ;;
+        kde)
+            mkdir -p "$rootdir/etc/sddm.conf.d"
+            cat > "$rootdir/etc/sddm.conf.d/autologin.conf" <<EOF
+[Autologin]
+User=${username}
+Session=plasma
+EOF
+            chroot "$rootdir" systemctl enable sddm 2>/dev/null || true
+            ;;
+        xfce)
+            mkdir -p "$rootdir/etc/lightdm/lightdm.conf.d"
+            cat > "$rootdir/etc/lightdm/lightdm.conf.d/autologin.conf" <<EOF
+[Seat:*]
+autologin-user=${username}
+autologin-user-timeout=0
+EOF
+            chroot "$rootdir" systemctl enable lightdm 2>/dev/null || true
+            ;;
+        *)
+            echo "警告: 未知的桌面环境 '$desktop'，跳过自动登录配置" >&2
+            return 1
+            ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
 # setup_systemd_resolved_symlink  — 指向 systemd-resolved stub
 #   参数: <rootdir>
 # ---------------------------------------------------------------------------
@@ -130,6 +191,9 @@ setup_systemd_resolved_symlink() {
 # ---------------------------------------------------------------------------
 teardown_mounts() {
     local rootdir="$1"
+    if [ ! -d "$rootdir" ]; then
+        return 0
+    fi
     fuser -k -9 -m "$rootdir" 2>/dev/null || true
     sleep 2
     umount -l "$rootdir/dev/pts" 2>/dev/null || true
@@ -147,9 +211,22 @@ teardown_mounts() {
 # ---------------------------------------------------------------------------
 pack_sparse_image() {
     local image_path="$1" output_7z="$2"
+
+    if [ ! -f "$image_path" ]; then
+        echo "错误: 镜像文件 '$image_path' 不存在" >&2
+        return 1
+    fi
+
     local sparse_img="sparse_${image_path}"
-    img2simg "$image_path" "$sparse_img"
-    7z a -mx=1 "$output_7z" "$sparse_img"
+    if ! img2simg "$image_path" "$sparse_img"; then
+        echo "错误: img2simg 转换失败" >&2
+        return 1
+    fi
+    if ! 7z a -mx=1 "$output_7z" "$sparse_img"; then
+        echo "错误: 7z 压缩失败" >&2
+        rm -f "$sparse_img"
+        return 1
+    fi
     rm -f "$image_path" "$sparse_img"
 }
 

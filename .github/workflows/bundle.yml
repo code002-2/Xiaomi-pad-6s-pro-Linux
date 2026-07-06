@@ -69,8 +69,8 @@ jobs:
     - name: Create bundle release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: kernel-bundle-${{ github.event.inputs.kernel_version }}
-        name: Kernel Bundle ${{ github.event.inputs.kernel_version }}
+        tag_name: "kernel-bundle-${{ github.event.inputs.kernel_version }}"
+        name: "Kernel Bundle ${{ github.event.inputs.kernel_version }}"
         files: bundle/*.deb
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

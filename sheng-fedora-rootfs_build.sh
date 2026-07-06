@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+# =============================================================================
+# sheng-fedora-rootfs_build.sh — Fedora 44 rootfs builder (refactored)
+# =============================================================================
 source "$(dirname "$0")/lib/rootfs-common.sh"
 
 # --- Distro-specific configuration ---
@@ -34,6 +37,8 @@ echo "=========================================="
 
 # Step 1: Create image
 create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
+setup_chroot_mounts "$ROOTDIR"
+trap_teardown "$ROOTDIR"
 
 # Step 2: Docker extraction
 echo "正在通过 Docker 提取 Fedora ${FEDORA_VERSION} 基础根文件系统..."
@@ -42,7 +47,6 @@ docker create --name fedora-temp "fedora:${FEDORA_VERSION}"
 docker export fedora-temp | tar -x -C "$ROOTDIR/"
 docker rm fedora-temp
 
-setup_chroot_mounts "$ROOTDIR"
 setup_dns "$ROOTDIR" 8.8.8.8 1.1.1.1
 
 # Step 3: Base packages
@@ -96,12 +100,9 @@ if ls *.tar.gz 1> /dev/null 2>&1; then
     done
 fi
 
-# Step 6: Users & hostname
-chroot "$ROOTDIR" bash -c "echo 'root:${ROOT_PASS}' | chpasswd"
+# Step 6: Users & hostname — 使用公共库
+setup_users "$ROOTDIR" "$ROOT_PASS" "$USER_NAME" "$USER_PASS" "wheel,audio,video,input"
 echo "fedora-sheng" > "$ROOTDIR/etc/hostname"
-chroot "$ROOTDIR" useradd -m -s /bin/bash "$USER_NAME"
-chroot "$ROOTDIR" bash -c "echo '${USER_NAME}:${USER_PASS}' | chpasswd"
-chroot "$ROOTDIR" usermod -aG wheel,audio,video,input "$USER_NAME"
 echo "%wheel ALL=(ALL:ALL) NOPASSWD: ALL" > "$ROOTDIR/etc/sudoers.d/wheel"
 chmod 440 "$ROOTDIR/etc/sudoers.d/wheel"
 
@@ -116,36 +117,16 @@ mkdir -p "$ROOTDIR/etc/selinux"
 echo "SELINUX=disabled" > "$ROOTDIR/etc/selinux/config"
 echo "SELINUXTYPE=targeted" >> "$ROOTDIR/etc/selinux/config"
 
-# Desktop autologin config
-if [ "$TARGET_DE" = "kde" ]; then
-    mkdir -p "$ROOTDIR/etc/sddm.conf.d"
-    cat > "$ROOTDIR/etc/sddm.conf.d/autologin.conf" <<AUTHEOF
-[Autologin]
-User=$USER_NAME
-Session=plasma
-AUTHEOF
-    chroot "$ROOTDIR" systemctl enable sddm
-else
-    mkdir -p "$ROOTDIR/etc/gdm"
-    cat > "$ROOTDIR/etc/gdm/custom.conf" <<AUTHEOF2
-[daemon]
-AutomaticLoginEnable=True
-AutomaticLogin=$USER_NAME
-AUTHEOF2
-    chroot "$ROOTDIR" systemctl enable gdm
-fi
+# Desktop autologin — 使用公共库
+setup_autologin "$ROOTDIR" "$TARGET_DE" "$USER_NAME"
 chroot "$ROOTDIR" systemctl set-default graphical.target
 
-# WiFi fix
+# WiFi fix — 使用公共库
 echo "正在预配置高通 WiFi 固件修复..."
-FW_DIR="$ROOTDIR/usr/lib/firmware/ath12k/WCN7850/hw2.0"
-if [ -f "$FW_DIR/board-2.bin" ]; then
-    cp "$FW_DIR/board-2.bin" "$FW_DIR/board.bin"
-    echo "   board.bin 伪装成功！"
-fi
+fix_wifi_firmware "$ROOTDIR"
 
 # QRTR force service
-cat <<'EOF' > "$ROOTDIR/etc/systemd/system/qrtr-force.service"
+cat > "$ROOTDIR/etc/systemd/system/qrtr-force.service" <<'EOF'
 [Unit]
 Description=Qualcomm IPC Router Service (QRTR)
 After=network.target
@@ -162,6 +143,7 @@ chroot "$ROOTDIR" systemctl enable qrtr-force.service
 # Step 8: fstab & cleanup
 generate_fstab "$ROOTDIR" "dual"
 chroot "$ROOTDIR" dnf clean all
+trap - EXIT ERR INT TERM
 teardown_mounts "$ROOTDIR"
 
 # Step 9: Pack

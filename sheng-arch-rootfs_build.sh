@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+# =============================================================================
+# sheng-arch-rootfs_build.sh — Arch Linux ARM rootfs builder (refactored)
+# =============================================================================
 source "$(dirname "$0")/lib/rootfs-common.sh"
 
 # --- Distro-specific configuration ---
@@ -8,7 +11,7 @@ IMAGE_SIZE="8G"
 UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 ALARM_MIRROR="https://mirror.archlinuxarm.org"
 
-# --- Password configuration ---
+# --- Password configuration (override via env vars) ---
 ROOT_PASS="${ROOT_PASS:-1234}"
 USER_PASS="${USER_PASS:-luser}"
 USER_NAME="${USER_NAME:-luser}"
@@ -19,7 +22,10 @@ if [ $# -lt 2 ] || [ $# -gt 3 ]; then
     echo "示例: $0 arch 7.1.0-rc6 kde"
     exit 1
 fi
-if [ "$(id -u)" -ne 0 ]; then echo "错误: 必须使用 root 权限运行此脚本！"; exit 1; fi
+if [ "$(id -u)" -ne 0 ]; then
+    echo "错误: 必须使用 root 权限运行此脚本！"
+    exit 1
+fi
 
 DISTRO=$1
 KERNEL=$2
@@ -46,6 +52,8 @@ for DE in "${DESKTOPS[@]}"; do
 
     # Step 1: Create image
     create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
+    setup_chroot_mounts "$ROOTDIR"
+    trap_teardown "$ROOTDIR"
 
     # Step 2: Download & extract Arch base
     echo "正在初始化 Arch 基础系统..."
@@ -54,7 +62,6 @@ for DE in "${DESKTOPS[@]}"; do
     fi
     bsdtar -xpf ArchLinuxARM-aarch64-latest.tar.gz -C "$ROOTDIR"
 
-    setup_chroot_mounts "$ROOTDIR"
     setup_dns "$ROOTDIR" 8.8.8.8 1.1.1.1 208.67.222.222
 
     echo "Server = $ALARM_MIRROR/\$arch/\$repo" > "$ROOTDIR/etc/pacman.d/mirrorlist"
@@ -70,14 +77,10 @@ for DE in "${DESKTOPS[@]}"; do
     echo "正在安装 ${DE^^} 桌面环境..."
     if [ "$DE" = "gnome" ]; then
         chroot "$ROOTDIR" bash -c "pacman -Sgq gnome | grep -vE 'gnome-books|gnome-boxes' | pacman -S --noconfirm --needed - gdm gnome-tweaks"
-        mkdir -p "$ROOTDIR/etc/gdm"
-        printf "[daemon]\nAutomaticLoginEnable=True\nAutomaticLogin=%s\n" "$USER_NAME" > "$ROOTDIR/etc/gdm/custom.conf"
-        chroot "$ROOTDIR" systemctl enable gdm
+        setup_autologin "$ROOTDIR" "gnome" "$USER_NAME"
     elif [ "$DE" = "kde" ]; then
         chroot "$ROOTDIR" pacman -S --noconfirm --needed plasma-meta sddm konsole dolphin ark gwenview
-        mkdir -p "$ROOTDIR/etc/sddm.conf.d"
-        printf "[Autologin]\nUser=%s\nSession=plasma\n" "$USER_NAME" > "$ROOTDIR/etc/sddm.conf.d/autologin.conf"
-        chroot "$ROOTDIR" systemctl enable sddm
+        setup_autologin "$ROOTDIR" "kde" "$USER_NAME"
     fi
     chroot "$ROOTDIR" systemctl set-default graphical.target
 
@@ -122,7 +125,7 @@ for DE in "${DESKTOPS[@]}"; do
         echo "   qrtr-ns 服务已在系统中找到并启用！"
     else
         echo "   未找到官方 qrtr-ns.service，正在手动生成守护进程..."
-        cat <<'QREOF' > "$ROOTDIR/etc/systemd/system/qrtr-ns.service"
+        cat > "$ROOTDIR/etc/systemd/system/qrtr-ns.service" <<'QREOF'
 [Unit]
 Description=Qualcomm IPC Router Service (QRTR)
 After=network.target
@@ -139,15 +142,14 @@ QREOF
 
     setup_getty_ttyMSM0 "$ROOTDIR"
     configure_touchscreen "$ROOTDIR"
-
-    FW_DIR="$ROOTDIR/usr/lib/firmware/ath12k/WCN7850/hw2.0"
-    if [ -f "$FW_DIR/board-2.bin" ]; then cp "$FW_DIR/board-2.bin" "$FW_DIR/board.bin"; fi
+    fix_wifi_firmware "$ROOTDIR"
 
     ln -sf /run/systemd/resolve/stub-resolv.conf "$ROOTDIR/etc/resolv.conf"
 
     # Step 6: fstab & cleanup
     generate_fstab "$ROOTDIR" "dual"
     chroot "$ROOTDIR" pacman -Scc --noconfirm
+    trap - EXIT ERR INT TERM
     teardown_mounts "$ROOTDIR"
 
     # Step 7: Pack

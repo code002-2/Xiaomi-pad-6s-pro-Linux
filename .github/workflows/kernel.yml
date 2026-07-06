@@ -65,7 +65,8 @@ jobs:
           export CCACHE_MAXSIZE=10G
           export PATH="/usr/lib/ccache:$PATH"
           chmod +x sheng-kernel_build.sh
-          export KERNEL_CHANNEL="${{ inputs.channel }}"; bash sheng-kernel_build.sh
+          export KERNEL_CHANNEL="${{ inputs.channel }}"
+          bash sheng-kernel_build.sh
           echo "✅ 内核编译完成"
           ccache --show-stats || true
 
@@ -100,7 +101,7 @@ jobs:
           name: "Kernel ${{ inputs.channel }} v${{ inputs.kernel_version }}"
           body: |
             **小米Pad6spro ${{ inputs.channel }} 内核 v${{ inputs.kernel_version }}**
-            
+
             | 项目 | 详情 |
             |------|------|
             | 通道 | ${{ inputs.channel }} |

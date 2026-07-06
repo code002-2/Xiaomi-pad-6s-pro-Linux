@@ -76,6 +76,9 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         # Step 1: Create image
         create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
         setup_chroot_mounts "$ROOTDIR"
+        # Register teardown trap for cleanup on failure
+        trap_teardown "$ROOTDIR"
+
         setup_dns "$ROOTDIR" 8.8.8.8 1.1.1.1 223.5.5.5
 
         # Step 2: Bootstrap
@@ -106,7 +109,7 @@ EOF
 
         # Step 5: Inject driver deb
         echo "正在注入设备专属 .deb 驱动包..."
-        wget -q https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/mipps/xiaomi-mipps-auth_0.11_arm64.deb
+        wget -q "https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/mipps/xiaomi-mipps-auth_0.11_arm64.deb"
         cp *.deb "$ROOTDIR/tmp/"
 
         chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y libglib2.0-0 libprotobuf-c1 libqmi-glib5 libmbim-glib4 initramfs-tools"
@@ -121,24 +124,15 @@ EOF
             if [ "$FLAVOUR" = "gnome" ]; then
                 echo "安装 GNOME 桌面环境..."
                 chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y gnome-shell gnome-session gnome-terminal gdm3 firefox-esr gnome-tweaks nautilus"
-                chroot "$ROOTDIR" systemctl enable gdm3
-                mkdir -p "$ROOTDIR/etc/gdm3"
-                cat > "$ROOTDIR/etc/gdm3/daemon.conf" <<EOF
-[daemon]
-AutomaticLoginEnable=true
-AutomaticLogin=$USER_NAME
-EOF
 
+                # Use common library for autologin
+                setup_autologin "$ROOTDIR" "gnome" "$USER_NAME"
             elif [ "$FLAVOUR" = "kde" ]; then
                 echo "安装 KDE Plasma 桌面环境..."
                 chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y kde-standard sddm plasma-nm bluedevil firefox-esr"
-                chroot "$ROOTDIR" systemctl enable sddm
-                mkdir -p "$ROOTDIR/etc/sddm.conf.d"
-                cat > "$ROOTDIR/etc/sddm.conf.d/autologin.conf" <<EOF
-[Autologin]
-User=$USER_NAME
-Session=plasma
-EOF
+
+                # Use common library for autologin
+                setup_autologin "$ROOTDIR" "kde" "$USER_NAME"
             fi
 
             chroot "$ROOTDIR" systemctl enable NetworkManager
@@ -157,6 +151,8 @@ EOF
         echo "清理场地准备打包..."
         chroot "$ROOTDIR" apt-get clean
         rm -f "$ROOTDIR/tmp"/*.deb
+        # Remove trap before manual teardown to avoid double-cleanup
+        trap - EXIT ERR INT TERM
         teardown_mounts "$ROOTDIR"
 
         apply_fs_uuid "$UUID" "$ROOTFS_IMG"

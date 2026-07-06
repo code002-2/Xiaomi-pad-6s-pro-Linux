@@ -107,10 +107,11 @@ jobs:
         run: |
           KERNEL_VER="${{ github.event.inputs.kernel_version || inputs.kernel_version_default }}"
           KERNEL_CHANNEL="${{ github.event.inputs.kernel_channel || inputs.kernel_channel_default }}"
+          BOOT_MODE="${{ github.event.inputs.boot_mode || 'all' }}"
+          DESKTOP_ENV="${{ github.event.inputs.desktop_env || 'all' }}"
           chmod +x ${{ inputs.script }}
-          sudo bash ${{ inputs.script }} ${{ inputs.distro }} "$KERNEL_VER" \
-            ${{ github.event.inputs.boot_mode || 'all' }} \
-            ${{ github.event.inputs.desktop_env || 'all' }}
+          sudo KERNEL_CHANNEL="$KERNEL_CHANNEL" bash ${{ inputs.script }} ${{ inputs.distro }} "$KERNEL_VER" \
+            "$BOOT_MODE" "$DESKTOP_ENV"
           echo "pkg_count=$(ls -1 *.7z 2>/dev/null | wc -l)" >> $GITHUB_OUTPUT
 
       - name: Upload artifact

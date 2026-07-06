@@ -14,7 +14,7 @@ set -euo pipefail
 # =============================================================================
 
 # --- ccache configuration ---
-if [ -z "$CCACHE_DIR" ]; then
+if [ -z "${CCACHE_DIR:-}" ]; then
     export CCACHE_DIR="/home/runner/.ccache"
     export CCACHE_MAXSIZE="10G"
     export CCACHE_SLOPPINESS="file_macro,locale,time_macros"
@@ -57,10 +57,10 @@ git clone "https://github.com/${KERNEL_REPO}.git" --branch "$KERNEL_BRANCH" --de
 cd linux
 
 # --- Copy kernel config ---
-cp ../sm8550.config .config
+cp ../sm8550.config .Config
 
 # --- Compile ---
-make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1
+make -j"$(nproc)" ARCH=arm64 CC="ccache clang" LLVM=1
 _kernel_version="$(make kernelrelease -s)"
 
 # --- Update DEBIAN control ---
@@ -72,10 +72,10 @@ ARCH=arm64
 # --- Install kernel images ---
 mkdir -p "$PKGDIR/boot"
 
-install -Dm644 arch/$ARCH/boot/Image.gz \
+install -Dm644 arch/"$ARCH"/boot/Image.gz \
     "$PKGDIR/boot/Image.gz"
 
-install -Dm644 arch/$ARCH/boot/dts/qcom/sm8550-xiaomi-sheng.dtb \
+install -Dm644 arch/"$ARCH"/boot/dts/qcom/sm8550-xiaomi-sheng.dtb \
     "$PKGDIR/boot/sm8550-xiaomi-sheng.dtb"
 
 install -Dm644 .config \
@@ -85,7 +85,11 @@ install -Dm644 System.map \
     "$PKGDIR/boot/System.map-${_kernel_version}"
 
 # --- Build boot images ---
-chmod +x ../mkbootimg
+if [ -f "../mkbootimg" ]; then
+    chmod +x ../mkbootimg
+else
+    echo "警告: mkbootimg 不存在，跳过 boot.img 构建" >&2
+fi
 
 cat arch/arm64/boot/Image.gz arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb > Image.gz-dtb_sheng
 
@@ -93,12 +97,17 @@ install -Dm644 Image.gz-dtb_sheng \
     "$PKGDIR/boot/Image.gz-dtb_sheng"
 
 mv Image.gz-dtb_sheng zImage_sheng
-../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=linux" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_dualboot.img
-../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=userdata" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_singleboot.img
+
+if [ -f "../mkbootimg" ]; then
+    ../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=linux" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_dualboot.img
+    ../mkbootimg --kernel zImage_sheng --cmdline "root=PARTLABEL=userdata" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_sheng_singleboot.img
+fi
 
 # --- Install modules ---
-make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=../linux-xiaomi-sheng modules_install
-rm ../linux-xiaomi-sheng/lib/modules/**/build
+make -j"$(nproc)" ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH="../linux-xiaomi-sheng" modules_install
+
+# Safely remove build symlinks in module directories
+find "../linux-xiaomi-sheng/lib/modules" -type l -name "build" -delete 2>/dev/null || true
 
 cd ..
 
@@ -137,7 +146,7 @@ done
 
 # --- Build .deb packages ---
 echo "开始构建deb..."
-dpkg-deb --build --root-owner-group linux-xiaomi-sheng
-dpkg-deb --build --root-owner-group firmware-xiaomi-sheng
-dpkg-deb --build --root-owner-group alsa-xiaomi-sheng
-dpkg-deb --build --root-owner-group sheng-devauth
+dpkg-deb --root-owner-group --build linux-xiaomi-sheng
+dpkg-deb --root-owner-group --build firmware-xiaomi-sheng
+dpkg-deb --root-owner-group --build alsa-xiaomi-sheng
+dpkg-deb --root-owner-group --build sheng-devauth
