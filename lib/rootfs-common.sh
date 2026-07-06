@@ -170,19 +170,104 @@ EOF
             ;;
         *)
             echo "警告: 未知的桌面环境 '$desktop'，跳过自动登录配置" >&2
-            return 1
+            return 0
             ;;
     esac
 }
 
 # ---------------------------------------------------------------------------
+# detect_kernel_module_dir  — 检测 chroot 中的内核模块目录
+#   参数: <rootdir>
+#   返回: 模块目录名（如 6.1.0 或 usr/lib/modules/6.1.0）
+# ---------------------------------------------------------------------------
+detect_kernel_module_dir() {
+    local rootdir="$1"
+    # Try /usr/lib/modules first (usr-merged systems: Arch, Fedora, modern Debian)
+    local moddir
+    moddir=$(ls -1t "$rootdir/usr/lib/modules/" 2>/dev/null | head -n 1)
+    if [ -n "$moddir" ]; then
+        echo "$moddir"
+        return 0
+    fi
+    # Fall back to /lib/modules (older Debian/Ubuntu)
+    moddir=$(ls -1t "$rootdir/lib/modules/" 2>/dev/null | head -n 1)
+    if [ -n "$moddir" ]; then
+        echo "$moddir"
+        return 0
+    fi
+    return 1
+}
+
+# ---------------------------------------------------------------------------
+# setup_qrtr_service  — 统一 QRTR 服务创建
+#   参数: <rootdir>
+#   行为: 优先启用系统自带的 qrtr-ns.service，若不存在则创建内联版本
+# ---------------------------------------------------------------------------
+setup_qrtr_service() {
+    local rootdir="$1"
+    if chroot "$rootdir" systemctl enable qrtr-ns 2>/dev/null; then
+        echo "   qrtr-ns 服务已在系统中找到并启用！"
+    else
+        echo "   未找到官方 qrtr-ns.service，正在创建守护进程..."
+        cat > "$rootdir/etc/systemd/system/qrtr-ns.service" <<'EOF'
+[Unit]
+Description=Qualcomm IPC Router Service (QRTR)
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/qrtr-ns -f
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        chroot "$rootdir" systemctl enable qrtr-ns
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # setup_systemd_resolved_symlink  — 指向 systemd-resolved stub
 #   参数: <rootdir>
+#   注意: 调用此函数后不应再调用 setup_dns()，两者冲突
 # ---------------------------------------------------------------------------
 setup_systemd_resolved_symlink() {
     local rootdir="$1"
     chroot "$rootdir" systemctl enable systemd-resolved 2>/dev/null || true
     ln -sf /run/systemd/resolve/stub-resolv.conf "$rootdir/etc/resolv.conf"
+}
+
+# ---------------------------------------------------------------------------
+# preflight_checks  — 预飞检查：工具可用性、磁盘空间、权限
+#   参数: <required_min_space_mb>（默认 10240 = 10GB）
+# ---------------------------------------------------------------------------
+preflight_checks() {
+    local min_space_mb="${1:-10240}"
+
+    # 检查 root 权限
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "错误: 此脚本必须以 root 权限运行" >&2
+        return 1
+    fi
+
+    # 检查必要工具
+    local tools="debootstrap truncate mkfs.ext4 img2simg 7z dpkg-deb tune2fs fuser"
+    for tool in $tools; do
+        if ! command -v "$tool" &>/dev/null; then
+            echo "错误: 缺少必要工具 '$tool'" >&2
+            return 1
+        fi
+    done
+
+    # 检查磁盘空间
+    local avail_kb
+    avail_kb=$(df --output=avail "$PWD" 2>/dev/null | tail -1)
+    if [ -n "$avail_kb" ]; then
+        local avail_mb=$((avail_kb / 1024))
+        if [ "$avail_mb" -lt "$min_space_mb" ]; then
+            echo "错误: 磁盘空间不足（需要 ${min_space_mb}MB，可用 ${avail_mb}MB）" >&2
+            return 1
+        fi
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -242,8 +327,18 @@ apply_fs_uuid() {
 # ---------------------------------------------------------------------------
 # trap_teardown  — 注册 EXIT/ERR/INT/TERM 信号处理器，确保卸载挂载
 #   参数: <rootdir>
+#   注意: 调用方应在整个构建完成后清除 trap，而非逐次清除
 # ---------------------------------------------------------------------------
 trap_teardown() {
     local rootdir="$1"
-    trap 'teardown_mounts "$rootdir"' EXIT ERR INT TERM
+    TEARDOWN_ROOTDIR="$rootdir"
+    trap '_teardown_handler' EXIT ERR INT TERM
+}
+
+# Internal handler that only runs once
+_teardown_handler() {
+    if [ -n "${TEARDOWN_ROOTDIR:-}" ]; then
+        teardown_mounts "$TEARDOWN_ROOTDIR"
+        TEARDOWN_ROOTDIR=""
+    fi
 }

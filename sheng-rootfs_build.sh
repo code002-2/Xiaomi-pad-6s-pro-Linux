@@ -71,6 +71,9 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         echo "开始构建: Debian $DISTRO_VERSION | 桌面: ${FLAVOUR^^} | 模式: $MODE"
         echo "======================================================"
 
+        # Pre-flight checks
+        preflight_checks 10240
+
         ROOTFS_IMG="${distro_type}_${DISTRO_VERSION}_${FLAVOUR}_${MODE}_${TIMESTAMP}.img"
 
         # Step 1: Create image
@@ -160,8 +163,6 @@ EOF
         echo "清理场地准备打包..."
         chroot "$ROOTDIR" apt-get clean
         rm -f "$ROOTDIR/tmp"/*.deb
-        # Remove trap before manual teardown to avoid double-cleanup
-        trap - EXIT ERR INT TERM
         teardown_mounts "$ROOTDIR"
 
         apply_fs_uuid "$UUID" "$ROOTFS_IMG"

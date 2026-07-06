@@ -17,7 +17,7 @@ USER_PASS="${USER_PASS:-luser}"
 USER_NAME="${USER_NAME:-luser}"
 
 # --- Argument parsing ---
-if [ $# -lt 2 ] || [ $# -gt 5 ]; then
+if [ $# -lt 2 ] || [ $# -gt 4 ]; then
     echo "用法: $0 <distro_name> <kernel_version> [boot_mode] [desktop_env]"; echo "示例: $0 fedora 7.1 all gnome"
     exit 1
 fi
@@ -77,7 +77,7 @@ if ls *.deb 1> /dev/null 2>&1; then
         dpkg-deb --fsys-tarfile "$pkg" | tar -x --keep-directory-symlink -C "$ROOTDIR/"
     done
 
-    KERNEL_MODULE_DIR=$(ls -1t "$ROOTDIR/usr/lib/modules/" | head -n 1)
+    KERNEL_MODULE_DIR=$(detect_kernel_module_dir "$ROOTDIR")
     if [ -n "$KERNEL_MODULE_DIR" ]; then
         echo "   动态识别到真实内核版本目录: $KERNEL_MODULE_DIR"
         chroot "$ROOTDIR" /usr/sbin/depmod -a "$KERNEL_MODULE_DIR" || true
@@ -92,6 +92,9 @@ if ls *.deb 1> /dev/null 2>&1; then
             cp "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" "$ROOTDIR/boot/vmlinuz-linux"
         fi
     fi
+else
+    echo "错误: 当前目录下未找到任何 .deb 内核包，无法生成可启动 rootfs！" >&2
+    exit 1
 fi
 
 if ls *.tar.gz 1> /dev/null 2>&1; then
@@ -125,25 +128,12 @@ chroot "$ROOTDIR" systemctl set-default graphical.target
 echo "正在预配置高通 WiFi 固件修复..."
 fix_wifi_firmware "$ROOTDIR"
 
-# QRTR force service
-cat > "$ROOTDIR/etc/systemd/system/qrtr-force.service" <<'EOF'
-[Unit]
-Description=Qualcomm IPC Router Service (QRTR)
-After=network.target
-
-[Service]
-ExecStart=/usr/bin/qrtr-ns -f
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-chroot "$ROOTDIR" systemctl enable qrtr-force.service
+# QRTR service — 使用公共库统一创建
+setup_qrtr_service "$ROOTDIR"
 
 # Step 8: fstab & cleanup
 generate_fstab "$ROOTDIR" "dual"
 chroot "$ROOTDIR" dnf clean all
-trap - EXIT ERR INT TERM
 teardown_mounts "$ROOTDIR"
 
 # Step 9: Pack
@@ -151,4 +141,4 @@ apply_fs_uuid "$UUID" "$ROOTFS_IMG"
 echo "正在转换为 Sparse 格式加速刷机..."
 pack_sparse_image "$ROOTFS_IMG" "fedora_desktop_${TIMESTAMP}.7z"
 
-echo "🎉 Fedora ${FEDORA_VERSION} 版本构建圆满成功！"
+echo "Fedora ${FEDORA_VERSION} 版本构建完成！"

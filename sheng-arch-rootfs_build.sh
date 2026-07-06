@@ -55,14 +55,11 @@ for DE in "${DESKTOPS[@]}"; do
     setup_chroot_mounts "$ROOTDIR"
     trap_teardown "$ROOTDIR"
 
-    # Step 2: Download & extract Arch base
     echo "正在初始化 Arch 基础系统..."
     if [ ! -f "ArchLinuxARM-aarch64-latest.tar.gz" ]; then
         wget -q https://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
     fi
     bsdtar -xpf ArchLinuxARM-aarch64-latest.tar.gz -C "$ROOTDIR"
-
-    setup_dns "$ROOTDIR" 8.8.8.8 1.1.1.1 208.67.222.222
 
     echo "Server = $ALARM_MIRROR/\$arch/\$repo" > "$ROOTDIR/etc/pacman.d/mirrorlist"
 
@@ -92,19 +89,19 @@ for DE in "${DESKTOPS[@]}"; do
             dpkg-deb --fsys-tarfile "$pkg" | tar -x --keep-directory-symlink -C "$ROOTDIR/"
         done
 
-        KERNEL_MODULE_DIR=$(ls -1t "$ROOTDIR/usr/lib/modules/" | head -n 1)
+        KERNEL_MODULE_DIR=$(detect_kernel_module_dir "$ROOTDIR")
         if [ -n "$KERNEL_MODULE_DIR" ]; then
             chroot "$ROOTDIR" /usr/bin/depmod -a "$KERNEL_MODULE_DIR" || true
             chroot "$ROOTDIR" pacman -S --noconfirm --needed mkinitcpio
-            sed -i 's/autodetect //g' "$ROOTDIR/etc/mkinitcpio.conf"
-            sed -i 's/autodetect//g' "$ROOTDIR/etc/mkinitcpio.conf"
+            sed -i 's/autodetect[^,]*//g' "$ROOTDIR/etc/mkinitcpio.conf"
             chroot "$ROOTDIR" mkinitcpio -k "$KERNEL_MODULE_DIR" -g "/boot/initramfs-linux.img"
             if [ -f "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" ]; then
                 cp "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" "$ROOTDIR/boot/Image"
             fi
         fi
     else
-        echo "警告: 当前目录下未找到任何 .deb 内核包！"
+        echo "错误: 当前目录下未找到任何 .deb 内核包，无法生成可启动 rootfs！" >&2
+        exit 1
     fi
 
     # Step 5: System quirks
@@ -120,37 +117,17 @@ for DE in "${DESKTOPS[@]}"; do
 
     chroot "$ROOTDIR" systemctl enable systemd-resolved NetworkManager
 
-    # QRTR fallback service
-    if chroot "$ROOTDIR" systemctl enable qrtr-ns 2>/dev/null; then
-        echo "   qrtr-ns 服务已在系统中找到并启用！"
-    else
-        echo "   未找到官方 qrtr-ns.service，正在手动生成守护进程..."
-        cat > "$ROOTDIR/etc/systemd/system/qrtr-ns.service" <<'QREOF'
-[Unit]
-Description=Qualcomm IPC Router Service (QRTR)
-After=network.target
-
-[Service]
-ExecStart=/usr/bin/qrtr-ns -f
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-QREOF
-        chroot "$ROOTDIR" systemctl enable qrtr-ns
-    fi
+    # QRTR service — 使用公共库统一创建
+    setup_qrtr_service "$ROOTDIR"
 
     setup_getty_ttyMSM0 "$ROOTDIR"
     configure_touchscreen "$ROOTDIR"
     fix_wifi_firmware "$ROOTDIR"
 
-    ln -sf /run/systemd/resolve/stub-resolv.conf "$ROOTDIR/etc/resolv.conf"
-
     # Step 6: fstab & cleanup
     generate_fstab "$ROOTDIR" "dual"
     chroot "$ROOTDIR" pacman -Scc --noconfirm
-    trap - EXIT ERR INT TERM
-    teardown_mounts "$ROOTDIR"
+teardown_mounts "$ROOTDIR"
 
     # Step 7: Pack
     apply_fs_uuid "$UUID" "$ROOTFS_IMG"

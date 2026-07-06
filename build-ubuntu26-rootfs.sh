@@ -71,11 +71,14 @@ if ls *.deb 1> /dev/null 2>&1; then
     cp *.deb "$ROOTDIR/tmp/"
     chroot "$ROOTDIR" bash -c "apt install -y /tmp/*.deb || true"
 
-    KERNEL_MODULE_DIR=$(ls "$ROOTDIR/lib/modules/" | head -n 1)
+    KERNEL_MODULE_DIR=$(detect_kernel_module_dir "$ROOTDIR")
     if [ -n "$KERNEL_MODULE_DIR" ]; then
         echo "动态识别到真实内核版本目录: $KERNEL_MODULE_DIR"
         chroot "$ROOTDIR" /sbin/depmod -a "$KERNEL_MODULE_DIR" || true
     fi
+else
+    echo "错误: 当前目录下未找到任何 .deb 内核包，无法生成可启动 rootfs！" >&2
+    exit 1
 fi
 
 # Step 6: Locale & hostname
@@ -123,7 +126,6 @@ chroot "$ROOTDIR" systemctl enable qrtr-ns || true
 generate_fstab "$ROOTDIR" "dual"
 chroot "$ROOTDIR" apt clean
 chroot "$ROOTDIR" rm -rf /tmp/*.deb
-trap - EXIT ERR INT TERM
 teardown_mounts "$ROOTDIR"
 
 # Step 12: Pack
@@ -132,4 +134,4 @@ echo "原始镜像生成完成: $ROOTFS_IMG"
 echo "正在转换为 Sparse 镜像..."
 pack_sparse_image "$ROOTFS_IMG" "ubuntu26_${DESKTOP_ENV}_${TIMESTAMP}.7z"
 
-echo "🎉 Ubuntu 构建成功！"
+echo "Ubuntu 构建成功！"

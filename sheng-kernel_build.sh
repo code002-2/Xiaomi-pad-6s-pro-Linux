@@ -53,7 +53,7 @@ KERNEL_BRANCH="${KERNEL_BRANCH:-sheng-mainline}"
 echo "Building kernel from https://github.com/${KERNEL_REPO}.git (branch: ${KERNEL_BRANCH})"
 
 # --- Clone kernel source ---
-git clone "https://github.com/${KERNEL_REPO}.git" --branch "$KERNEL_BRANCH" --depth 1 linux
+git clone "https://github.com/${KERNEL_REPO}.git" --branch "$KERNEL_BRANCH" --depth 1 --single-branch linux
 cd linux
 
 # --- Copy kernel config ---
@@ -127,27 +127,29 @@ fi
 cd ..
 
 # --- Firmware injection ---
-git clone --depth 1 https://github.com/lzxcr/linux-firmware-sheng.git /tmp/temp_fw
+TMPFW=$(mktemp -d)
+git clone --depth 1 --single-branch https://github.com/lzxcr/linux-firmware-sheng.git "$TMPFW/fw"
 
 echo "正在将固件注入打包目录，并强制转入 /usr/lib..."
 mkdir -p firmware-xiaomi-sheng/usr/lib
-if [ -d "/tmp/temp_fw/lib" ]; then
-    cp -r /tmp/temp_fw/lib/* firmware-xiaomi-sheng/usr/lib/
+if [ -d "$TMPFW/fw/lib" ]; then
+    cp -r "$TMPFW/fw/lib"/* firmware-xiaomi-sheng/usr/lib/
 else
-    cp -r /tmp/temp_fw/* firmware-xiaomi-sheng/usr/lib/ 2>/dev/null || true
+    cp -r "$TMPFW/fw"/* firmware-xiaomi-sheng/usr/lib/ 2>/dev/null || true
 fi
-rm -rf /tmp/temp_fw
+rm -rf "$TMPFW"
 
 # --- ALSA UCM2 injection ---
 mkdir -p alsa-xiaomi-sheng/usr/share/alsa/ucm2
-git clone --depth 1 https://github.com/map220v/alsa-ucm-conf.git /tmp/temp_alsa
+TMPSA=$(mktemp -d)
+git clone --depth 1 --single-branch https://github.com/map220v/alsa-ucm-conf.git "$TMPSA/alsa"
 
-if [ -d "/tmp/temp_alsa/ucm2" ]; then
-    cp -r /tmp/temp_alsa/ucm2/* alsa-xiaomi-sheng/usr/share/alsa/ucm2/
+if [ -d "$TMPSA/alsa/ucm2" ]; then
+    cp -r "$TMPSA/alsa/ucm2"/* alsa-xiaomi-sheng/usr/share/alsa/ucm2/
 else
-    cp -r /tmp/temp_alsa/* alsa-xiaomi-sheng/usr/share/alsa/ucm2/ 2>/dev/null || true
+    cp -r "$TMPSA/alsa"/* alsa-xiaomi-sheng/usr/share/alsa/ucm2/ 2>/dev/null || true
 fi
-rm -rf /tmp/temp_alsa
+rm -rf "$TMPSA"
 
 # --- UsrMerge ---
 for pkg in linux-xiaomi-sheng alsa-xiaomi-sheng; do
