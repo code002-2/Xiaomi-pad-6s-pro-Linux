@@ -1,5 +1,7 @@
 name: Build Component DEBs (ARM64)
 
+# NOTE: push trigger below is for CI verification only; use workflow_dispatch for production builds.
+
 on:
   workflow_dispatch:
     inputs:
