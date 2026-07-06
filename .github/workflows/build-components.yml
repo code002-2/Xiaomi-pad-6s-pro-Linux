@@ -243,11 +243,8 @@ jobs:
             }
           }
           tar -xf source.tar.gz
-          echo "Extracted contents:" && ls -la
-
           mkdir -p deb/DEBIAN
-          cp -a sheng-sensors-file-199754bb37ae6d4706bd8d4b23e9e6fec2d959cc/. deb/
-          echo "deb contents:" && ls -la deb/
+          cp -a sheng-sensors-file-199754bb37ae6d4706bd8d4b23e9e6fec2d959cc/usr deb/
           {
             echo "Package: sheng-sensors"
             echo "Version: 20240917-1"
@@ -259,9 +256,8 @@ jobs:
             echo " Proprietary sensor configuration files."
           } > deb/DEBIAN/control
           find deb -type d -exec chmod 755 {} \;
-          find deb -type f -name "*.sh" -exec chmod 755 {} \;
           find deb -type f -exec chmod 644 {} \;
-          dpkg-deb --build deb
+          dpkg-deb -Zgzip --build deb
           mv deb.deb sheng-sensors_20240917-1_arm64.deb
           mv sheng-sensors_20240917-1_arm64.deb "$GITHUB_WORKSPACE/"
 
