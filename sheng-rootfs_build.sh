@@ -18,16 +18,8 @@ USER_PASS="${USER_PASS:-luser}"
 USER_NAME="${USER_NAME:-luser}"
 
 # --- Argument parsing ---
-if [ $# -lt 2 ] || [ $# -gt 4 ]; then
-    echo "用法: $0 <distro-variant> <kernel_version> [boot_mode] [desktop_env]"
-    echo "示例: $0 debian-desktop 7.1 all all"
-    exit 1
-fi
-
-if [ "$(id -u)" -ne 0 ]; then
-    echo "错误: 请使用 root 权限运行此脚本！"
-    exit 1
-fi
+validate_args 2 4 $# '<distro-variant> <kernel_version> [boot_mode] [desktop_env]  (e.g. debian-desktop 7.1 all all)'
+validate_root
 
 DISTRO=$1
 KERNEL=$2
@@ -42,26 +34,11 @@ if [ "$distro_type" != "debian" ]; then
     exit 1
 fi
 
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+TIMESTAMP=$(generate_timestamp)
 
 # --- Dynamic build matrix ---
-if [ "$TARGET_MODE" = "all" ]; then
-    BOOTMODES=("dual" "single")
-elif [[ "$TARGET_MODE" =~ ^(dual|single)$ ]]; then
-    BOOTMODES=("$TARGET_MODE")
-else
-    echo "错误: 不支持的启动模式: $TARGET_MODE"
-    exit 1
-fi
-
-if [ "$TARGET_FLAVOUR" = "all" ]; then
-    FLAVOURS=("gnome" "kde")
-elif [[ "$TARGET_FLAVOUR" =~ ^(gnome|kde)$ ]]; then
-    FLAVOURS=("$TARGET_FLAVOUR")
-else
-    echo "错误: 不支持的桌面环境: $TARGET_FLAVOUR"
-    exit 1
-fi
+mapfile -t BOOTMODES < <(parse_boot_modes "$TARGET_MODE") || exit 1
+mapfile -t FLAVOURS < <(parse_desktops "$TARGET_FLAVOUR") || exit 1
 
 # --- Main build loop ---
 for FLAVOUR in "${FLAVOURS[@]}"; do

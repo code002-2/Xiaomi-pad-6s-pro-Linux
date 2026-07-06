@@ -87,6 +87,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
+          update: true
           tag_name: fastrpc
           name: "fastrpc"
           files: "*.deb"
@@ -148,6 +149,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
+          update: true
           tag_name: libssc
           name: "libssc"
           files: "*.deb"
@@ -214,6 +216,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
+          update: true
           tag_name: iio_sensor_patched
           name: "iio_sensor_patched"
           files: "*.deb"
@@ -271,6 +274,7 @@ jobs:
           name: "sensors"
           files: "*.deb"
           fail_on_unmatched_globs: true
+          update: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -340,6 +344,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
+          update: true
           tag_name: sheng_devauth
           name: "sheng_devauth"
           files: "*.deb"
@@ -390,6 +395,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
+          update: true
           tag_name: alsa
           name: "alsa"
           files: "*.deb"

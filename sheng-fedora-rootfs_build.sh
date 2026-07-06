@@ -17,37 +17,17 @@ USER_PASS="${USER_PASS:-luser}"
 USER_NAME="${USER_NAME:-luser}"
 
 # --- Argument parsing ---
-if [ $# -lt 2 ] || [ $# -gt 4 ]; then
-    echo "用法: $0 <distro_name> <kernel_version> [boot_mode] [desktop_env]"; echo "示例: $0 fedora 7.1 all gnome"
-    exit 1
-fi
-if [ "$(id -u)" -ne 0 ]; then echo "请使用root权限运行"; exit 1; fi
+validate_args 2 4 $# '<distro_name> <kernel_version> [boot_mode] [desktop_env]  (e.g. fedora 7.1 all gnome)'
+validate_root
 
 DISTRO=$1
 KERNEL=$2
 TARGET_MODE=${3:-all}
 TARGET_DE=${4:-gnome}
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+TIMESTAMP=$(generate_timestamp)
 
-# --- Dynamic boot mode ---
-if [ "$TARGET_MODE" = "all" ]; then
-    BOOTMODES=("dual" "single")
-elif [[ "$TARGET_MODE" =~ ^(dual|single)$ ]]; then
-    BOOTMODES=("$TARGET_MODE")
-else
-    echo "错误: 不支持的启动模式: $TARGET_MODE"
-    exit 1
-fi
-
-# --- Dynamic desktop ---
-if [ "$TARGET_DE" = "all" ]; then
-    DESKTOPS=("gnome" "kde")
-elif [[ "$TARGET_DE" =~ ^(gnome|kde)$ ]]; then
-    DESKTOPS=("$TARGET_DE")
-else
-    echo "错误: 不支持的桌面环境: $TARGET_DE (仅支持 gnome, kde, all)"
-    exit 1
-fi
+mapfile -t BOOTMODES < <(parse_boot_modes "$TARGET_MODE") || exit 1
+mapfile -t DESKTOPS < <(parse_desktops "$TARGET_DE") || exit 1
 
 # --- Main build loop ---
 for DE in "${DESKTOPS[@]}"; do
@@ -105,13 +85,7 @@ fi
 
 # Step 5: Kernel injection
 echo "正在扫描并注入本地内核与系统固件包..."
-deb_files=( *.deb )
-if [ ${#deb_files[@]} -gt 0 ] && [ -f "${deb_files[0]}" ]; then
-    for pkg in "${deb_files[@]}"; do
-        echo "   -> 正在提取并覆盖注入 $pkg ..."
-        dpkg-deb --fsys-tarfile "$pkg" | tar -x --keep-directory-symlink -C "$ROOTDIR/"
-    done
-
+if inject_deb_kernel "$ROOTDIR"; then
     KERNEL_MODULE_DIR=$(detect_kernel_module_dir "$ROOTDIR")
     if [ -n "$KERNEL_MODULE_DIR" ]; then
         echo "   动态识别到真实内核版本目录: $KERNEL_MODULE_DIR"
@@ -132,6 +106,7 @@ else
     exit 1
 fi
 
+# tar.gz firmware injection (if present)
 tar_files=( *.tar.gz )
 if [ ${#tar_files[@]} -gt 0 ] && [ -f "${tar_files[0]}" ]; then
     for tarball in "${tar_files[@]}"; do

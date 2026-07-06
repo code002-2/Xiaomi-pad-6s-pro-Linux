@@ -18,42 +18,17 @@ USER_NAME="${USER_NAME:-luser}"
 
 # --- Argument parsing ---
 # Usage: <distro_name> <kernel_version> [boot_mode] [desktop_env]
-#   boot_mode: dual, single, or all (default all)
-#   desktop_env: gnome, kde, or all (default gnome)
-if [ $# -lt 2 ] || [ $# -gt 4 ]; then
-    echo "用法: $0 <distro_name> <kernel_version> [boot_mode] [desktop_env]"
-    echo "示例: $0 arch 7.1.0-rc6 all kde"
-    exit 1
-fi
-if [ "$(id -u)" -ne 0 ]; then
-    echo "错误: 必须使用 root 权限运行此脚本！"
-    exit 1
-fi
+validate_args 2 4 $# '<distro_name> <kernel_version> [boot_mode] [desktop_env]  (e.g. arch 7.1.0-rc6 all kde)'
+validate_root
 
 DISTRO=$1
 KERNEL=$2
 TARGET_MODE="${3:-all}"
 TARGET_DE="${4:-gnome}"
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+TIMESTAMP=$(generate_timestamp)
 
-DESKTOPS=()
-if [ "$TARGET_DE" = "all" ]; then
-    DESKTOPS=("gnome" "kde")
-elif [[ "$TARGET_DE" =~ ^(gnome|kde)$ ]]; then
-    DESKTOPS=("$TARGET_DE")
-else
-    echo "错误: 不支持的选项: $TARGET_DE (仅支持 gnome, kde, all)"
-    exit 1
-fi
-
-if [ "$TARGET_MODE" = "all" ]; then
-    BOOTMODES=("dual" "single")
-elif [[ "$TARGET_MODE" =~ ^(dual|single)$ ]]; then
-    BOOTMODES=("$TARGET_MODE")
-else
-    echo "错误: 不支持的启动模式: $TARGET_MODE"
-    exit 1
-fi
+mapfile -t DESKTOPS < <(parse_desktops "$TARGET_DE") || exit 1
+mapfile -t BOOTMODES < <(parse_boot_modes "$TARGET_MODE") || exit 1
 
 # --- Main build loop ---
 for DE in "${DESKTOPS[@]}"; do
@@ -106,26 +81,19 @@ for DE in "${DESKTOPS[@]}"; do
 
     # Step 4: Kernel injection
     echo "正在注入本地内核与生成 Initramfs..."
-    deb_files=( *.deb )
-    if [ ${#deb_files[@]} -gt 0 ] && [ -f "${deb_files[0]}" ]; then
-        for pkg in "${deb_files[@]}"; do
-            echo "   -> 注入包: $pkg"
-            dpkg-deb --fsys-tarfile "$pkg" | tar -x --keep-directory-symlink -C "$ROOTDIR/"
-        done
-
-        KERNEL_MODULE_DIR=$(detect_kernel_module_dir "$ROOTDIR")
-        if [ -n "$KERNEL_MODULE_DIR" ]; then
-            chroot "$ROOTDIR" /usr/bin/depmod -a "$KERNEL_MODULE_DIR" || true
-            chroot "$ROOTDIR" pacman -S --noconfirm --needed mkinitcpio
-            sed -i 's/autodetect[^,]*//g' "$ROOTDIR/etc/mkinitcpio.conf"
-            chroot "$ROOTDIR" mkinitcpio -k "$KERNEL_MODULE_DIR" -g "/boot/initramfs-linux.img"
-            if [ -f "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" ]; then
-                cp "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" "$ROOTDIR/boot/Image"
-            fi
-        fi
-    else
+    if ! inject_deb_kernel "$ROOTDIR"; then
         echo "错误: 当前目录下未找到任何 .deb 内核包，无法生成可启动 rootfs！" >&2
         exit 1
+    fi
+
+    KERNEL_MODULE_DIR=$(detect_kernel_module_dir "$ROOTDIR")
+    if [ -n "$KERNEL_MODULE_DIR" ]; then
+        chroot "$ROOTDIR" pacman -S --noconfirm --needed mkinitcpio
+        sed -i 's/autodetect[^,]*//g' "$ROOTDIR/etc/mkinitcpio.conf"
+        chroot "$ROOTDIR" mkinitcpio -k "$KERNEL_MODULE_DIR" -g "/boot/initramfs-linux.img"
+        if [ -f "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" ]; then
+            cp "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" "$ROOTDIR/boot/Image"
+        fi
     fi
 
     # Step 5: System quirks

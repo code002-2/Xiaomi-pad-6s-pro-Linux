@@ -4,6 +4,7 @@ set -euo pipefail
 # =============================================================================
 # sheng-kernel_build.sh — Unified kernel build script for Xiaomi Pad 6S Pro
 # =============================================================================
+source "$(dirname "$0")/lib/rootfs-common.sh"
 # Controls which kernel branch to build via environment variables:
 #   KERNEL_REPO  — GitHub repo (default: code002-2/sm8550-mainline)
 #   KERNEL_BRANCH — Git branch (default: sheng-mainline)
@@ -157,42 +158,13 @@ fi
 cd ..
 
 # --- Firmware injection ---
-TMPFW=$(mktemp -d)
-git clone --depth 1 --single-branch https://github.com/lzxcr/linux-firmware-sheng.git "$TMPFW/fw"
-
-echo "正在将固件注入打包目录，并强制转入 /usr/lib..."
-mkdir -p firmware-xiaomi-sheng/usr/lib
-if [ -d "$TMPFW/fw/lib" ]; then
-    cp -r "$TMPFW/fw/lib"/* firmware-xiaomi-sheng/usr/lib/
-else
-    cp -r "$TMPFW/fw"/* firmware-xiaomi-sheng/usr/lib/ 2>/dev/null || true
-fi
-rm -rf "$TMPFW"
+download_firmware
 
 # --- ALSA UCM2 injection ---
-mkdir -p alsa-xiaomi-sheng/usr/share/alsa/ucm2
-TMPSA=$(mktemp -d)
-git clone --depth 1 --single-branch https://github.com/map220v/alsa-ucm-conf.git "$TMPSA/alsa"
-
-if [ -d "$TMPSA/alsa/ucm2" ]; then
-    cp -r "$TMPSA/alsa/ucm2"/* alsa-xiaomi-sheng/usr/share/alsa/ucm2/
-else
-    cp -r "$TMPSA/alsa"/* alsa-xiaomi-sheng/usr/share/alsa/ucm2/ 2>/dev/null || true
-fi
-rm -rf "$TMPSA"
+download_alsa_ucm
 
 # --- UsrMerge ---
-for pkg in linux-xiaomi-sheng alsa-xiaomi-sheng; do
-    if [ -d "$pkg/lib" ]; then
-        echo "正在安全融合 $pkg 中的 /lib 至 /usr/lib..."
-        mkdir -p "$pkg/usr/lib"
-        if ! cp -r "$pkg/lib"/* "$pkg/usr/lib/" 2>/dev/null; then
-            echo "错误: 复制 $pkg/lib 失败，中止构建" >&2
-            exit 1
-        fi
-        rm -rf "$pkg/lib"
-    fi
-done
+usr_merge linux-xiaomi-sheng alsa-xiaomi-sheng
 
 # --- Build .deb packages ---
 echo "开始构建deb..."

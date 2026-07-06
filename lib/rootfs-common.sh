@@ -359,3 +359,174 @@ _teardown_handler() {
         exit 1
     fi
 }
+
+# ---------------------------------------------------------------------------
+# parse_boot_modes  -- 解析启动模式参数
+#   参数: <target_mode> (all, dual, single)
+#   返回: 以换行符分隔的模式列表
+#   用法: mapfile -t BOOTMODES < <(parse_boot_modes "$TARGET_MODE")
+# ---------------------------------------------------------------------------
+parse_boot_modes() {
+    local target="$1"
+    case "${target:-all}" in
+        all)    printf '%s\n' "dual" "single" ;;
+        dual)   echo "dual" ;;
+        single) echo "single" ;;
+        *)      echo "Error: unsupported boot mode: $target (use: dual, single, all)" >&2
+                return 1 ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# parse_desktops  -- 解析桌面环境参数
+#   参数: <target_de> (all, gnome, kde, xfce)
+#   返回: 以换行符分隔的桌面环境列表
+# ---------------------------------------------------------------------------
+parse_desktops() {
+    local target="$1"
+    case "${target:-all}" in
+        all)    printf '%s\n' "gnome" "kde" ;;
+        gnome)  echo "gnome" ;;
+        kde)    echo "kde" ;;
+        xfce)   echo "xfce" ;;
+        *)      echo "Error: unsupported desktop: $target (use: gnome, kde, xfce, all)" >&2
+                return 1 ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# generate_timestamp  -- 生成构建时间戳 YYYYMMDD_HHMMSS
+# ---------------------------------------------------------------------------
+generate_timestamp() {
+    date +"%Y%m%d_%H%M%S"
+}
+
+# ---------------------------------------------------------------------------
+# validate_root  -- 检查 root 权限，失败则退出
+# ---------------------------------------------------------------------------
+validate_root() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "Error: must run as root" >&2
+        exit 1
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# validate_args  -- 通用参数数量校验
+#   参数: <min> <max> <actual_count> <usage_msg>
+# ---------------------------------------------------------------------------
+validate_args() {
+    local min="$1" max="$2" actual="$3" usage="$4"
+    if [ "$actual" -lt "$min" ] || [ "$actual" -gt "$max" ]; then
+        echo "Usage: $usage" >&2
+        exit 1
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# inject_deb_kernel  -- 将 .deb 内核包注入到 chroot
+#   参数: <rootdir> [deb_pattern]
+#   默认 deb_pattern: ./*.deb
+#   返回: 0 成功，1 未找到 .deb
+# ---------------------------------------------------------------------------
+inject_deb_kernel() {
+    local rootdir="$1" pattern="${2:-./*.deb}"
+    local deb_files=( $pattern )
+    if [ ${#deb_files[@]} -eq 0 ] || [ ! -f "${deb_files[0]}" ]; then
+        echo "Error: no .deb kernel packages matching '$pattern' found" >&2
+        return 1
+    fi
+    for pkg in "${deb_files[@]}"; do
+        echo "  -> injecting: $pkg"
+        dpkg-deb --fsys-tarfile "$pkg" | tar -x --keep-directory-symlink -C "$rootdir/"
+    done
+
+    local mod_dir
+    mod_dir=$(detect_kernel_module_dir "$rootdir")
+    if [ -n "$mod_dir" ]; then
+        echo "  detected kernel module dir: $mod_dir"
+        chroot "$rootdir" depmod -a "$mod_dir" 2>/dev/null || true
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# capture_package_list  -- 在 chroot 中列出已安装包并写入文件
+#   参数: <rootdir> <output_path>
+# ---------------------------------------------------------------------------
+capture_package_list() {
+    local rootdir="$1" output="$2"
+    if [ -x "$rootdir/usr/bin/dpkg" ]; then
+        chroot "$rootdir" dpkg -l > "$output" 2>/dev/null
+    elif [ -x "$rootdir/usr/bin/pacman" ]; then
+        chroot "$rootdir" pacman -Q > "$output" 2>/dev/null
+    elif [ -x "$rootdir/usr/bin/rpm" ]; then
+        chroot "$rootdir" rpm -qa > "$output" 2>/dev/null
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# download_firmware  -- 下载并提取 linux-firmware-sheng
+#   参数: <output_dir> (默认: firmware-xiaomi-sheng/usr/lib)
+# ---------------------------------------------------------------------------
+download_firmware() {
+    local outdir="${1:-firmware-xiaomi-sheng/usr/lib}"
+    mkdir -p "$outdir"
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    git clone --depth 1 --single-branch https://github.com/lzxcr/linux-firmware-sheng.git "$tmpdir/fw" 2>/dev/null || {
+        echo "Warning: firmware repo clone failed" >&2
+        rm -rf "$tmpdir"
+        return 1
+    }
+    if [ -d "$tmpdir/fw/lib" ]; then
+        cp -r "$tmpdir/fw/lib"/* "$outdir/"
+    else
+        cp -r "$tmpdir/fw"/* "$outdir/" 2>/dev/null || true
+    fi
+    rm -rf "$tmpdir"
+    echo "Firmware extracted to $outdir"
+}
+
+# ---------------------------------------------------------------------------
+# download_alsa_ucm  -- 下载并提取 ALSA UCM2 配置
+#   参数: <output_dir> (默认: alsa-xiaomi-sheng/usr/share/alsa/ucm2)
+# ---------------------------------------------------------------------------
+download_alsa_ucm() {
+    local outdir="${1:-alsa-xiaomi-sheng/usr/share/alsa/ucm2}"
+    mkdir -p "$outdir"
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    git clone --depth 1 --single-branch https://github.com/map220v/alsa-ucm-conf.git "$tmpdir/alsa" 2>/dev/null || {
+        echo "Warning: ALSA UCM repo clone failed" >&2
+        rm -rf "$tmpdir"
+        return 1
+    }
+    if [ -d "$tmpdir/alsa/ucm2" ]; then
+        cp -r "$tmpdir/alsa/ucm2"/* "$outdir/"
+    else
+        cp -r "$tmpdir/alsa"/* "$outdir/" 2>/dev/null || true
+    fi
+    rm -rf "$tmpdir"
+    echo "ALSA UCM2 extracted to $outdir"
+}
+
+# ---------------------------------------------------------------------------
+# usr_merge  -- 将 /lib 合并到 /usr/lib（UsrMerge 过渡）
+#   参数: <pkg_dirs...>
+# ---------------------------------------------------------------------------
+usr_merge() {
+    local rc=0
+    for pkg in "$@"; do
+        if [ -d "$pkg/lib" ]; then
+            echo "UsrMerge: merging $pkg/lib -> $pkg/usr/lib..."
+            mkdir -p "$pkg/usr/lib"
+            if ! cp -r "$pkg/lib"/* "$pkg/usr/lib/" 2>/dev/null; then
+                echo "Error: usr_merge $pkg/lib failed" >&2
+                rc=1
+            else
+                rm -rf "$pkg/lib"
+            fi
+        fi
+    done
+    return "$rc"
+}
