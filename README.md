@@ -1,5 +1,11 @@
 # Xiaomi Pad 6S Pro Linux Port
 
+[![GitHub Release](https://img.shields.io/github/v/release/code002-2/Xiaomi-pad-6s-pro-Linux?style=flat-square&logo=github&color=blue)](https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases)
+[![Build Kernel](https://img.shields.io/github/actions/workflow/status/code002-2/Xiaomi-pad-6s-pro-Linux/kernel.yml?style=flat-square&logo=linux&label=Kernel%20Build)](https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/actions/workflows/kernel.yml)
+[![Build Debian 13](https://img.shields.io/github/actions/workflow/status/code002-2/Xiaomi-pad-6s-pro-Linux/build-debian13.yml?style=flat-square&logo=debian&label=Debian%2013%20Rootfs)](https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/actions/workflows/build-debian13.yml)
+[![Build Ubuntu 26](https://img.shields.io/github/actions/workflow/status/code002-2/Xiaomi-pad-6s-pro-Linux/build-ubuntu26.yml?style=flat-square&logo=ubuntu&label=Ubuntu%2026%20Rootfs)](https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/actions/workflows/build-ubuntu26.yml)
+
+
 为小米平板 6S Pro 12.4 (SM8550, 代号 "sheng") 编译和打包 Linux 内核与 rootfs 镜像，支持多个主流发行版。
 
 > 项目基于 [@alghiffaryfa19](https://github.com/alghiffaryfa19) 的上游项目二次开发。

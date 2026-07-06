@@ -238,10 +238,13 @@ setup_systemd_resolved_symlink() {
 
 # ---------------------------------------------------------------------------
 # preflight_checks  — 预飞检查：工具可用性、磁盘空间、权限
-#   参数: <required_min_space_mb>（默认 10240 = 10GB）
+#   参数: <required_min_space_mb> [extra_tool ...]
+#   用法: preflight_checks 10240              # 基础工具
+#         preflight_checks 10240 debootstrap   # 额外需求
 # ---------------------------------------------------------------------------
 preflight_checks() {
     local min_space_mb="${1:-10240}"
+    shift || true
 
     # 检查 root 权限
     if [ "$(id -u)" -ne 0 ]; then
@@ -249,8 +252,13 @@ preflight_checks() {
         return 1
     fi
 
-    # 检查必要工具
-    local tools="debootstrap truncate mkfs.ext4 img2simg 7z dpkg-deb tune2fs fuser"
+    # 通用必要工具（所有发行版都需要）
+    local tools="truncate mkfs.ext4 img2simg 7z dpkg-deb tune2fs fuser"
+    # 追加发行版特定的工具检查
+    for tool in "$@"; do
+        tools="$tools $tool"
+    done
+
     for tool in $tools; do
         if ! command -v "$tool" &>/dev/null; then
             echo "错误: 缺少必要工具 '$tool'" >&2
@@ -332,15 +340,22 @@ apply_fs_uuid() {
 trap_teardown() {
     local rootdir="$1"
     TEARDOWN_ROOTDIR="$rootdir"
-    trap '_teardown_handler' EXIT ERR INT TERM
+    # Register EXIT handler for cleanup only (no exit 1 — normal exit succeeds).
+    # ERR/INT/TERM handlers clean up AND exit with failure.
+    trap '_teardown_handler cleanup' EXIT
+    trap '_teardown_handler fatal' ERR INT TERM
 }
 
-# Internal handler that only runs once
+# Internal handler that runs cleanup, optionally with a failing exit.
+#   _teardown_handler cleanup  — run teardown, then return (normal exit proceeds)
+#   _teardown_handler fatal    — run teardown, then exit 1
 _teardown_handler() {
+    local mode="${1:-fatal}"
     if [ -n "${TEARDOWN_ROOTDIR:-}" ]; then
         teardown_mounts "$TEARDOWN_ROOTDIR"
         TEARDOWN_ROOTDIR=""
     fi
-    # Always exit after teardown to avoid cascading failures
-    exit 1
+    if [ "$mode" = "fatal" ]; then
+        exit 1
+    fi
 }

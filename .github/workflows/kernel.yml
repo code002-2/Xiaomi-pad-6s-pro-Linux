@@ -19,6 +19,10 @@ on:
       - 'sheng-kernel_build.sh'
       - '.github/workflows/kernel.yml'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.channel || 'mainline' }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -90,6 +94,7 @@ jobs:
           name: efi_boot-${{ inputs.channel }}
           path: bootaa64.efi
           retention-days: 7
+          if-no-files-found: ignore
 
       - name: 上传启动镜像 (boot.img)
         uses: actions/upload-artifact@v4
@@ -98,10 +103,12 @@ jobs:
           path: |
             boot_sheng_singleboot.img
             boot_sheng_dualboot.img
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: 自动发布 GitHub Release
+        uses: softprops/action-gh-release@v2
         if: steps.collect_artifacts.outputs.pkg_count > 0 && github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v1
         with:
           tag_name: kernel-${{ inputs.channel }}-${{ inputs.kernel_version }}
           name: "Kernel ${{ inputs.channel }} v${{ inputs.kernel_version }}"
@@ -113,8 +120,6 @@ jobs:
             | 通道 | ${{ inputs.channel }} |
             | 内核版本 | ${{ inputs.kernel_version }} |
             | 架构 | ARM64 (sm8550) |
-          draft: false
-          prerelease: ${{ inputs.channel == 'stable' }}
           files: |
             *.deb
             *.img

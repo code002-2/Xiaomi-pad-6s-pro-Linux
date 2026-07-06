@@ -58,7 +58,7 @@ echo "Kernel: $KERNEL"
 echo "=========================================="
 
 # Pre-flight checks
-preflight_checks 10240
+preflight_checks 10240 debootstrap
 
 # Step 1: Create image
 create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
@@ -83,8 +83,9 @@ chroot "$ROOTDIR" apt-get install -y --no-install-recommends \
     wpasupplicant dbus kmod initramfs-tools
 
 # Step 5: Kernel injection
-if ls *.deb 1> /dev/null 2>&1; then
-    cp *.deb "$ROOTDIR/tmp/"
+deb_files=( *.deb )
+if [ ${#deb_files[@]} -gt 0 ] && [ -f "${deb_files[0]}" ]; then
+    cp "${deb_files[@]}" "$ROOTDIR/tmp/"
     chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y /tmp/*.deb" || {
         echo "Error: Kernel .deb installation failed, rootfs will not boot!" >&2
         exit 1

@@ -60,50 +60,29 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.release_tag_prefix }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  prepare-release:
-    runs-on: ubuntu-24.04-arm
-    outputs:
-      release_tag: ${{ steps.tag.outputs.release_tag }}
-    steps:
-      - name: Generate release tag
-        id: tag
-        run: |
-          TAG="${{ inputs.release_tag_prefix }}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
-          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
-
-      - name: Create GitHub Release (early)
-        if: ${{ !inputs.skip_release }}
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: "${{ inputs.release_body_title || inputs.release_tag_prefix }} - ${{ steps.tag.outputs.release_tag }}"
-          body: |
-            **${{ inputs.release_body_title || inputs.release_tag_prefix }}**
-
-            | 项目 | 详情 |
-            |------|------|
-            | 发行版 | ${{ inputs.release_tag_prefix }} |
-            | 内核版本 | ${{ inputs.kernel_version_default }} |
-            | 内核通道 | ${{ inputs.kernel_channel || inputs.kernel_channel_default }} |
-            | 构建SHA | [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }}) |
-            | 桌面环境 | ${{ inputs.desktop_matrix }} |
-            | 启动模式 | ${{ inputs.boot_matrix }} |
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build:
     runs-on: ubuntu-24.04-arm
-    needs: prepare-release
     strategy:
       fail-fast: false
       matrix:
         desktop: ${{ fromJSON(inputs.desktop_matrix) }}
         boot: ${{ fromJSON(inputs.boot_matrix) }}
+    outputs:
+      release_tag: ${{ steps.tag.outputs.release_tag }}
+      build_success: ${{ steps.build.outcome }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Generate release tag
+        id: tag
+        run: |
+          TAG="${{ inputs.release_tag_prefix }}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Cache apt packages
         uses: actions/cache@v4
@@ -124,6 +103,15 @@ jobs:
           KERNEL_VER="${{ inputs.kernel_version_default }}"
           KERNEL_CHANNEL="${{ inputs.kernel_channel || inputs.kernel_channel_default }}"
           echo "Downloading kernel bundle for channel=${KERNEL_CHANNEL} version=${KERNEL_VER}"
+
+          # Verify the kernel bundle release exists before attempting download
+          if ! gh release view "kernel-bundle-${KERNEL_CHANNEL}-${KERNEL_VER}" \
+              --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "错误: 内核 Bundle 发布 'kernel-bundle-${KERNEL_CHANNEL}-${KERNEL_VER}' 不存在！" >&2
+            echo "请先通过 'Build Kernel' + 'Build Kernel Bundle' workflow 构建内核。" >&2
+            exit 1
+          fi
+
           gh release download "kernel-bundle-${KERNEL_CHANNEL}-${KERNEL_VER}" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber
         env:
@@ -147,58 +135,90 @@ jobs:
           name: ${{ inputs.release_tag_prefix }}-${{ matrix.desktop }}-${{ matrix.boot }}
           path: "*.7z"
           retention-days: 7
+          if-no-files-found: error
 
-      - name: Upload to Release
-        if: ${{ !inputs.skip_release && steps.build.outputs.pkg_count > 0 }}
-        uses: softprops/action-gh-release@v1
+  create-release:
+    name: "创建 Release"
+    runs-on: ubuntu-24.04-arm
+    needs: [build]
+    permissions:
+      contents: write
+    if: ${{ !inputs.skip_release && needs.build.result == 'success' }}
+    steps:
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          tag_name: ${{ needs.build.outputs.release_tag }}
+          name: "${{ inputs.release_body_title || inputs.release_tag_prefix }} - ${{ needs.build.outputs.release_tag }}"
+          body: |
+            **${{ inputs.release_body_title || inputs.release_tag_prefix }}**
+
+            | 项目 | 详情 |
+            |------|------|
+            | 发行版 | ${{ inputs.release_tag_prefix }} |
+            | 内核版本 | ${{ inputs.kernel_version_default }} |
+            | 内核通道 | ${{ inputs.kernel_channel || inputs.kernel_channel_default }} |
+            | 构建SHA | [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }}) |
+            | 桌面环境 | ${{ inputs.desktop_matrix }} |
+            | 启动模式 | ${{ inputs.boot_matrix }} |
+          draft: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ inputs.release_tag_prefix }}-*
+          merge-multiple: true
+
+      - name: Upload assets to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.release_tag }}
           files: "*.7z"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  update-release:
-    name: "更新 Release 信息"
-    runs-on: ubuntu-24.04-arm
-    needs: [prepare-release, build]
-    permissions:
-      contents: write
-    if: ${{ !inputs.skip_release }}
-    steps:
-      - name: 更新 Release 描述
+      - name: Build asset list and finalize Release
         run: |
-          TAG="${{ needs.prepare-release.outputs.release_tag }}"
-          echo "Updating Release $TAG ..."
-
-          # Get all assets for this release
-          ASSETS=$(gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null || echo "")
+          TAG="${{ needs.build.outputs.release_tag }}"
 
           # Build asset list
+          ASSETS=$(gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null || echo "")
+
+          echo "" > /tmp/release_body.md
+          echo "### Built artifacts" >> /tmp/release_body.md
+          echo "" >> /tmp/release_body.md
+
           if [ -n "$ASSETS" ]; then
-            echo "" >> /tmp/assets.md
-            echo "### Built artifacts" >> /tmp/assets.md
-            echo "" >> /tmp/assets.md
             while IFS= read -r asset; do
               if [ -n "$asset" ]; then
                 SIZE=$(gh release view "$TAG" --json assets --jq ".assets[] | select(.name==\"$asset\") | .sizeBytes" 2>/dev/null || echo "?")
                 if [ "$SIZE" != "?" ] && [ "$SIZE" -gt 0 ] 2>/dev/null; then
                   HUMAN_SIZE=$((SIZE / 1024 / 1024))
-                  echo "- \`$asset\` (~${HUMAN_SIZE}MB)" >> /tmp/assets.md
+                  echo "- \`$asset\` (~${HUMAN_SIZE}MB)" >> /tmp/release_body.md
                 else
-                  echo "- \`$asset\`" >> /tmp/assets.md
+                  echo "- \`$asset\`" >> /tmp/release_body.md
                 fi
               fi
             done <<< "$ASSETS"
           fi
 
-          # Append to body
-          if [ -s /tmp/assets.md ]; then
-            cat /tmp/assets.md >> /tmp/new_body.md
-            echo "" >> /tmp/new_body.md
-          fi
-          echo "---" >> /tmp/new_body.md
-          echo "**Built at**: $(date -u '+%Y-%m-%d %H:%M UTC')" >> /tmp/new_body.md
+          echo "" >> /tmp/release_body.md
+          echo "---" >> /tmp/release_body.md
+          echo "**Built at**: $(date -u '+%Y-%m-%d %H:%M UTC')" >> /tmp/release_body.md
 
-          gh release edit "$TAG" --body-file /tmp/new_body.md
+          # Append to existing body — fetch and prepend
+          EXISTING_BODY=$(gh release view "$TAG" --json body --jq '.body' 2>/dev/null || echo "")
+          if [ -n "$EXISTING_BODY" ]; then
+            printf '%s\n\n%s' "$EXISTING_BODY" "$(cat /tmp/release_body.md)" > /tmp/combined_body.md
+            gh release edit "$TAG" --body-file /tmp/combined_body.md
+          else
+            gh release edit "$TAG" --body-file /tmp/release_body.md
+          fi
+
+          # Publish the draft
+          gh release edit "$TAG" --draft=false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

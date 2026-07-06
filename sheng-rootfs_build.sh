@@ -72,7 +72,7 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
         echo "======================================================"
 
         # Pre-flight checks
-        preflight_checks 10240
+        preflight_checks 10240 debootstrap
 
         ROOTFS_IMG="${distro_type}_${DISTRO_VERSION}_${FLAVOUR}_${MODE}_${TIMESTAMP}.img"
 
@@ -94,8 +94,10 @@ for FLAVOUR in "${FLAVOURS[@]}"; do
 
         # Step 4: Chinese locale & input
         echo "正在配置系统中文语言与输入法..."
-        sed -i 's/^# *\(en_US.UTF-8\)/\1/' "$ROOTDIR/etc/locale.gen"
-        sed -i 's/^# *\(zh_CN.UTF-8\)/\1/' "$ROOTDIR/etc/locale.gen"
+        if [ -f "$ROOTDIR/etc/locale.gen" ]; then
+            sed -i 's/^# *\(en_US.UTF-8\)/\1/' "$ROOTDIR/etc/locale.gen"
+            sed -i 's/^# *\(zh_CN.UTF-8\)/\1/' "$ROOTDIR/etc/locale.gen"
+        fi
         chroot "$ROOTDIR" locale-gen
 
         echo "LANG=zh_CN.UTF-8" > "$ROOTDIR/etc/default/locale"
@@ -112,15 +114,19 @@ EOF
 
         # Step 5: Inject driver deb
         echo "正在注入设备专属 .deb 驱动包..."
-        wget "https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/mipps/xiaomi-mipps-auth_0.11_arm64.deb" || {
+        DOWNLOAD_DIR="$(mktemp -d)"
+        wget -nv -O "$DOWNLOAD_DIR/xiaomi-mipps-auth_0.11_arm64.deb" \
+            "https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/releases/download/mipps/xiaomi-mipps-auth_0.11_arm64.deb" || {
             echo "错误: 下载 xiaomi-mipps-auth 失败" >&2
+            rm -rf "$DOWNLOAD_DIR"
             exit 1
         }
-        cp xiaomi-mipps-auth_0.11_arm64.deb "$ROOTDIR/tmp/"
+        cp "$DOWNLOAD_DIR"/*.deb "$ROOTDIR/tmp/"
 
         chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y libglib2.0-0 libprotobuf-c1 libqmi-glib5 libmbim-glib4 initramfs-tools"
         chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y /tmp/*.deb" || {
             echo "错误: 安装 .deb 驱动包失败" >&2
+            rm -rf "$DOWNLOAD_DIR"
             exit 1
         }
 
@@ -136,16 +142,28 @@ EOF
 
                 # GNOME mobile packages for tablet UX (touch gestures, auto-rotate)
                 echo "正在安装 GNOME Mobile 平板优化包..."
+                GNOME_DEB_DIR="$(mktemp -d)"
                 for url in \
                     "https://github.com/alghiffaryfa19/gnome-shell-mobile-builder/releases/download/gnome-shell-97/gnome-shell-mobile.deb" \
                     "https://github.com/alghiffaryfa19/gnome-shell-mobile-builder/releases/download/mutter/mutter-mobile.deb" \
                     "https://github.com/alghiffaryfa19/gnome-shell-mobile-builder/releases/download/gsd/gsd-mobile.deb"; do
-                    wget "$url" || {
+                    fname="$(basename "$url")"
+                    wget -nv -O "$GNOME_DEB_DIR/$fname" "$url" || {
                         echo "错误: 下载 $url 失败" >&2
+                        rm -rf "$GNOME_DEB_DIR" "$DOWNLOAD_DIR"
                         exit 1
                     }
                 done
-                cp gnome-shell-mobile.deb mutter-mobile.deb gsd-mobile.deb "$ROOTDIR/tmp/"
+                # Verify all three files were downloaded
+                for f in gnome-shell-mobile.deb mutter-mobile.deb gsd-mobile.deb; do
+                    if [ ! -f "$GNOME_DEB_DIR/$f" ]; then
+                        echo "错误: 缺少 $f，下载可能不完整" >&2
+                        rm -rf "$GNOME_DEB_DIR" "$DOWNLOAD_DIR"
+                        exit 1
+                    fi
+                done
+                cp "$GNOME_DEB_DIR"/*.deb "$ROOTDIR/tmp/"
+                rm -rf "$GNOME_DEB_DIR"
                 chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --allow-downgrades -o Dpkg::Options::=\"--force-overwrite\" /tmp/*.deb" || {
                     echo "错误: 安装 GNOME Mobile 平板优化包失败" >&2
                     exit 1
@@ -177,7 +195,7 @@ EOF
         # Step 10: Cleanup & pack
         echo "清理场地准备打包..."
         chroot "$ROOTDIR" apt-get clean
-        rm -f "$ROOTDIR/tmp"/*.deb
+        rm -rf "$ROOTDIR/tmp"/*.deb "$DOWNLOAD_DIR"
         teardown_mounts "$ROOTDIR"
 
         apply_fs_uuid "$UUID" "$ROOTFS_IMG"

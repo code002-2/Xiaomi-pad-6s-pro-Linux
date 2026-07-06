@@ -19,17 +19,25 @@ on:
         options: [mainline, stable]
         default: "mainline"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.channel || 'mainline' }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
 jobs:
   bundle:
+    # Only run when the triggering workflow completed successfully
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: write
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
     - name: Download all source releases
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         KERNEL_VER="${{ github.event.inputs.kernel_version || '7.1' }}"
         CHANNEL="${{ github.event.inputs.channel || 'mainline' }}"
@@ -64,11 +72,8 @@ jobs:
         fi
         echo "Bundle validated: $COUNT packages"
 
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
     - name: Create bundle release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: "kernel-bundle-${{ github.event.inputs.channel || 'mainline' }}-${{ github.event.inputs.kernel_version || '7.1' }}"
         name: "Kernel Bundle ${{ github.event.inputs.channel || 'mainline' }} ${{ github.event.inputs.kernel_version || '7.1' }}"

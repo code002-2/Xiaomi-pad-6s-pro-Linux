@@ -40,5 +40,3 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Write helper script
-write_paddeck.py

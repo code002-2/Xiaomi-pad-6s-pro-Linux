@@ -37,6 +37,10 @@ on:
       - '.github/workflows/build-debian13.yml'
       - '.github/workflows/_rootfs-template.yml'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 

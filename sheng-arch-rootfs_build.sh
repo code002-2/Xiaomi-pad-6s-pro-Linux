@@ -17,9 +17,12 @@ USER_PASS="${USER_PASS:-luser}"
 USER_NAME="${USER_NAME:-luser}"
 
 # --- Argument parsing ---
+# Usage: <distro_name> <kernel_version> [boot_mode] [desktop_env]
+#   boot_mode: dual, single, or all (default all)
+#   desktop_env: gnome, kde, or all (default gnome)
 if [ $# -lt 2 ] || [ $# -gt 4 ]; then
-    echo "用法: $0 <distro_name> <kernel_version> [desktop_environment] [boot_mode]"
-    echo "示例: $0 arch 7.1.0-rc6 kde dual"
+    echo "用法: $0 <distro_name> <kernel_version> [boot_mode] [desktop_env]"
+    echo "示例: $0 arch 7.1.0-rc6 all kde"
     exit 1
 fi
 if [ "$(id -u)" -ne 0 ]; then
@@ -29,8 +32,8 @@ fi
 
 DISTRO=$1
 KERNEL=$2
-TARGET_MODE=${3:-all}
-TARGET_DE=${4:-gnome}
+TARGET_MODE="${3:-all}"
+TARGET_DE="${4:-gnome}"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
 DESKTOPS=()
@@ -62,7 +65,7 @@ for DE in "${DESKTOPS[@]}"; do
         echo "=========================================="
 
         # Pre-flight checks
-        preflight_checks 10240
+        preflight_checks 10240 bsdtar pacman
 
         # Step 1: Create image
     create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
@@ -103,8 +106,9 @@ for DE in "${DESKTOPS[@]}"; do
 
     # Step 4: Kernel injection
     echo "正在注入本地内核与生成 Initramfs..."
-    if ls *.deb 1> /dev/null 2>&1; then
-        for pkg in *.deb; do
+    deb_files=( *.deb )
+    if [ ${#deb_files[@]} -gt 0 ] && [ -f "${deb_files[0]}" ]; then
+        for pkg in "${deb_files[@]}"; do
             echo "   -> 注入包: $pkg"
             dpkg-deb --fsys-tarfile "$pkg" | tar -x --keep-directory-symlink -C "$ROOTDIR/"
         done

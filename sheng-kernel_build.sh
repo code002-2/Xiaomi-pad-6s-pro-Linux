@@ -32,27 +32,29 @@ export READELF="llvm-readelf"
 export STRIP="llvm-strip"
 
 # --- Kernel repo and branch ---
-# Channel controls which kernel source to use (mainline or stable)
+# Channel controls which kernel source to use (mainline or stable).
+# These can be overridden via KERNEL_REPO / KERNEL_BRANCH env vars.
 CHANNEL="${KERNEL_CHANNEL:-mainline}"
 
+# Set defaults based on channel, then allow env var override
 case "$CHANNEL" in
     stable)
-        KERNEL_REPO="ianchb/sm8550-mainline"
-        KERNEL_BRANCH="sheng-7.1.3"
+        DEFAULT_REPO="ianchb/sm8550-mainline"
+        DEFAULT_BRANCH="sheng-7.1.3"
         ;;
     *)
-        KERNEL_REPO="code002-2/sm8550-mainline"
-        KERNEL_BRANCH="sheng-mainline"
+        DEFAULT_REPO="code002-2/sm8550-mainline"
+        DEFAULT_BRANCH="sheng-mainline"
         ;;
 esac
 
-# Allow env var override (takes precedence over channel)
-KERNEL_REPO="${KERNEL_REPO:-code002-2/sm8550-mainline}"
-KERNEL_BRANCH="${KERNEL_BRANCH:-sheng-mainline}"
+KERNEL_REPO="${KERNEL_REPO:-$DEFAULT_REPO}"
+KERNEL_BRANCH="${KERNEL_BRANCH:-$DEFAULT_BRANCH}"
 
 echo "Building kernel from https://github.com/${KERNEL_REPO}.git (branch: ${KERNEL_BRANCH})"
 
 # --- Clone kernel source ---
+rm -rf linux
 git clone "https://github.com/${KERNEL_REPO}.git" --branch "$KERNEL_BRANCH" --depth 1 --single-branch linux
 cd linux
 
@@ -120,15 +122,34 @@ find "../linux-xiaomi-sheng/lib/modules" -type l -name "build" -delete 2>/dev/nu
 
 # --- Build EFI boot image ---
 if command -v ukify &>/dev/null; then
-    echo "正在构建 EFI 引导镜像..."
-    ukify build \
-        --linux="arch/$ARCH/boot/Image.gz" \
-        --os-type=linux \
-        --cmdline="root=PARTLABEL=linux rw rootwait console=tty0" \
-        --initrd="boot/initramfs-linux.img" \
-        --output="bootaa64.efi"
-    install -Dm644 bootaa64.efi "$PKGDIR/boot/bootaa64.efi"
-    echo "EFI boot image 构建完成: bootaa64.efi"
+    # Locate or build initramfs
+    INITRAMFS=""
+    for candidate in "boot/initramfs-linux.img" "boot/initrd.img-${_kernel_version}" "boot/initramfs-${_kernel_version}.img"; do
+        if [ -f "$candidate" ]; then
+            INITRAMFS="$candidate"
+            break
+        fi
+    done
+    if [ -z "$INITRAMFS" ]; then
+        echo "警告: 未找到 initramfs，尝试 dracut 生成..." >&2
+        if command -v dracut &>/dev/null; then
+            dracut --force "boot/initramfs-linux.img" "$_kernel_version" && INITRAMFS="boot/initramfs-linux.img"
+        fi
+    fi
+
+    if [ -n "$INITRAMFS" ]; then
+        echo "正在构建 EFI 引导镜像 (initramfs: $INITRAMFS)..."
+        ukify build \
+            --linux="arch/$ARCH/boot/Image.gz" \
+            --os-type=linux \
+            --cmdline="root=PARTLABEL=linux rw rootwait console=tty0" \
+            --initrd="$INITRAMFS" \
+            --output="bootaa64.efi"
+        install -Dm644 bootaa64.efi "$PKGDIR/boot/bootaa64.efi"
+        echo "EFI boot image 构建完成: bootaa64.efi"
+    else
+        echo "警告: 无法生成 initramfs，跳过 EFI 构建" >&2
+    fi
 else
     echo "警告: ukify 不可用，跳过 EFI 构建" >&2
 fi

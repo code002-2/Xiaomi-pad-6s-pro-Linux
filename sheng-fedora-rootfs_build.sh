@@ -60,7 +60,7 @@ for DE in "${DESKTOPS[@]}"; do
         ROOTFS_IMG="fedora_${DE}_${MODE}_${TIMESTAMP}.img"
 
         # Pre-flight checks
-        preflight_checks 10240
+        preflight_checks 10240 dnf docker
 
         # Step 1: Create image
 create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
@@ -105,8 +105,9 @@ fi
 
 # Step 5: Kernel injection
 echo "正在扫描并注入本地内核与系统固件包..."
-if ls *.deb 1> /dev/null 2>&1; then
-    for pkg in *.deb; do
+deb_files=( *.deb )
+if [ ${#deb_files[@]} -gt 0 ] && [ -f "${deb_files[0]}" ]; then
+    for pkg in "${deb_files[@]}"; do
         echo "   -> 正在提取并覆盖注入 $pkg ..."
         dpkg-deb --fsys-tarfile "$pkg" | tar -x --keep-directory-symlink -C "$ROOTDIR/"
     done
@@ -131,8 +132,9 @@ else
     exit 1
 fi
 
-if ls *.tar.gz 1> /dev/null 2>&1; then
-    for tarball in *.tar.gz; do
+tar_files=( *.tar.gz )
+if [ ${#tar_files[@]} -gt 0 ] && [ -f "${tar_files[0]}" ]; then
+    for tarball in "${tar_files[@]}"; do
         tar -xz --keep-directory-symlink -f "$tarball" -C "$ROOTDIR/"
     done
 fi
