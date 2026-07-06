@@ -10,7 +10,6 @@ mkbootimg
 parted
 
 # Large kernel config files (store externally or regenerate)
-sm8550.config
 config-postmarketos-qcom-sm8550.aarch64
 
 # Build temp directories
