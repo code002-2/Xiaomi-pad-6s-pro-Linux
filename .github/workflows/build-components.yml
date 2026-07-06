@@ -9,6 +9,10 @@ on:
         type: choice
         options: [all, fastrpc, libssc, iio, sensors, devauth, alsa]
         default: 'all'
+  push:
+    branches: [main, master, sheng]
+    paths:
+      - '.github/workflows/build-components.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
