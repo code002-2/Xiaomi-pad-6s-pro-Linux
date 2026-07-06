@@ -48,8 +48,8 @@ jobs:
           --repo "${{ github.repository }}" \
           --clobber || true
 
-        echo "Download sensor"
-        gh release download "sensor" \
+        echo "Download sensor packages"
+        gh release download "sensors" \
           --pattern "*.deb" \
           --repo "${{ github.repository }}" \
           --clobber || true

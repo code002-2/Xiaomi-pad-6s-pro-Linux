@@ -40,10 +40,10 @@ setup_chroot_mounts() {
         return 1
     fi
 
-    mount --bind /dev  "$rootdir/dev"
-    mount --bind /dev/pts "$rootdir/dev/pts"
-    mount -t proc proc "$rootdir/proc"
-    mount -t sysfs sys  "$rootdir/sys"
+    mount --bind /dev  "$rootdir/dev" || { echo "错误: 挂载 /dev 失败" >&2; return 1; }
+    mount --bind /dev/pts "$rootdir/dev/pts" || { echo "错误: 挂载 /dev/pts 失败" >&2; return 1; }
+    mount -t proc proc "$rootdir/proc" || { echo "错误: 挂载 /proc 失败" >&2; return 1; }
+    mount -t sysfs sys  "$rootdir/sys" || { echo "错误: 挂载 /sys 失败" >&2; return 1; }
 }
 
 # ---------------------------------------------------------------------------
@@ -341,4 +341,6 @@ _teardown_handler() {
         teardown_mounts "$TEARDOWN_ROOTDIR"
         TEARDOWN_ROOTDIR=""
     fi
+    # Always exit after teardown to avoid cascading failures
+    exit 1
 }

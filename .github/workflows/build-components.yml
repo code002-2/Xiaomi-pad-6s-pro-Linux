@@ -121,15 +121,15 @@ jobs:
           mkdir -p deb/DEBIAN
           cp -r fastrpc-${{ matrix.version }}/stage/usr deb/
           cat > deb/DEBIAN/control <<EOF
-          Package: fastrpc
-          Version: ${{ matrix.version }}-${{ matrix.rel }}
-          Section: libs
-          Priority: optional
-          Architecture: arm64
-          Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
-          Depends: ${{ matrix.deb_depends }}
-          Description: ${{ matrix.deb_desc }}
-          EOF
+Package: fastrpc
+Version: ${{ matrix.version }}-${{ matrix.rel }}
+Section: libs
+Priority: optional
+Architecture: arm64
+Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
+Depends: ${{ matrix.deb_depends }}
+Description: ${{ matrix.deb_desc }}
+EOF
 
           find deb -type d -exec chmod 755 {} \;
           # Preserve executable bits on scripts, set 644 on regular files
@@ -159,15 +159,15 @@ jobs:
           mkdir -p deb/DEBIAN deb/usr
           cp -r source/stage/usr/* deb/usr/
           cat > deb/DEBIAN/control <<EOF
-          Package: libssc
-          Version: ${{ matrix.version }}-${{ matrix.rel }}
-          Section: libs
-          Priority: optional
-          Architecture: arm64
-          Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
-          Depends: ${{ matrix.deb_depends }}
-          Description: ${{ matrix.deb_desc }}
-          EOF
+Package: libssc
+Version: ${{ matrix.version }}-${{ matrix.rel }}
+Section: libs
+Priority: optional
+Architecture: arm64
+Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
+Depends: ${{ matrix.deb_depends }}
+Description: ${{ matrix.deb_desc }}
+EOF
           find deb -type d -exec chmod 755 {} \;
           # Preserve executable bits on scripts, set 644 on regular files
           find deb -type f -name "*.sh" -exec chmod 755 {} \;
@@ -201,15 +201,15 @@ jobs:
           mkdir -p deb/DEBIAN
           cp -r iio-sensor-proxy-${{ matrix.version }}/stage/usr deb/
           cat > deb/DEBIAN/control <<EOF
-          Package: iio-sensor-proxy
-          Version: 9999${{ matrix.version }}-${{ matrix.rel }}
-          Section: misc
-          Priority: optional
-          Architecture: arm64
-          Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
-          Depends: ${{ matrix.deb_depends }}
-          Description: ${{ matrix.deb_desc }}
-          EOF
+Package: iio-sensor-proxy
+Version: 9999${{ matrix.version }}-${{ matrix.rel }}
+Section: misc
+Priority: optional
+Architecture: arm64
+Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
+Depends: ${{ matrix.deb_depends }}
+Description: ${{ matrix.deb_desc }}
+EOF
           dpkg-deb --build deb
           mv deb.deb iio-sensor-proxy_9999${{ matrix.version }}-${{ matrix.rel }}_arm64.deb
 
@@ -227,14 +227,14 @@ jobs:
           mkdir -p deb/DEBIAN
           cp -a sheng-sensors-file-${{ matrix.commit }}/. deb/
           cat > deb/DEBIAN/control <<EOF
-          Package: sheng-sensors
-          Version: ${{ matrix.version }}-${{ matrix.rel }}
-          Section: misc
-          Priority: optional
-          Architecture: arm64
-          Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
-          Description: ${{ matrix.deb_desc }}
-          EOF
+Package: sheng-sensors
+Version: ${{ matrix.version }}-${{ matrix.rel }}
+Section: misc
+Priority: optional
+Architecture: arm64
+Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
+Description: ${{ matrix.deb_desc }}
+EOF
           find deb -type d -exec chmod 755 {} \;
           # Preserve executable bits on scripts, set 644 on regular files
           find deb -type f -name "*.sh" -exec chmod 755 {} \;

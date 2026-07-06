@@ -69,9 +69,16 @@ trap_teardown "$ROOTDIR"
 
 # Step 2: Docker extraction
 echo "正在通过 Docker 提取 Fedora ${FEDORA_VERSION} 基础根文件系统..."
-docker pull --platform linux/arm64 "fedora:${FEDORA_VERSION}"
+timeout 300 docker pull --platform linux/arm64 "fedora:${FEDORA_VERSION}" || {
+    echo "错误: Docker 拉取 Fedora ${FEDORA_VERSION} 超时或失败" >&2
+    exit 1
+}
 docker create --name fedora-temp "fedora:${FEDORA_VERSION}"
-docker export fedora-temp | tar -x -C "$ROOTDIR/"
+timeout 600 docker export fedora-temp | tar -x -C "$ROOTDIR/" || {
+    echo "错误: Docker 导出失败" >&2
+    docker rm fedora-temp 2>/dev/null || true
+    exit 1
+}
 docker rm fedora-temp
 
 setup_dns "$ROOTDIR" 8.8.8.8 1.1.1.1
@@ -148,7 +155,7 @@ echo "SELINUX=disabled" > "$ROOTDIR/etc/selinux/config"
 echo "SELINUXTYPE=targeted" >> "$ROOTDIR/etc/selinux/config"
 
 # Desktop autologin — 使用公共库
-setup_autologin "$ROOTDIR" "$TARGET_DE" "$USER_NAME"
+setup_autologin "$ROOTDIR" "$DE" "$USER_NAME"
 chroot "$ROOTDIR" systemctl set-default graphical.target
 
 # WiFi fix — 使用公共库

@@ -91,6 +91,15 @@ else
     echo "警告: mkbootimg 不存在，跳过 boot.img 构建" >&2
 fi
 
+if [ ! -f "arch/$ARCH/boot/Image.gz" ]; then
+    echo "错误: 未找到 arch/$ARCH/boot/Image.gz" >&2
+    exit 1
+fi
+if [ ! -f "arch/$ARCH/boot/dts/qcom/sm8550-xiaomi-sheng.dtb" ]; then
+    echo "错误: 未找到 sm8550-xiaomi-sheng.dtb" >&2
+    exit 1
+fi
+
 cat arch/arm64/boot/Image.gz arch/arm64/boot/dts/qcom/sm8550-xiaomi-sheng.dtb > Image.gz-dtb_sheng
 
 install -Dm644 Image.gz-dtb_sheng \

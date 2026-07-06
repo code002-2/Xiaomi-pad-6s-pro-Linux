@@ -116,7 +116,7 @@ EOF
             echo "错误: 下载 xiaomi-mipps-auth 失败" >&2
             exit 1
         }
-        cp *.deb "$ROOTDIR/tmp/"
+        cp xiaomi-mipps-auth_0.11_arm64.deb "$ROOTDIR/tmp/"
 
         chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y libglib2.0-0 libprotobuf-c1 libqmi-glib5 libmbim-glib4 initramfs-tools"
         chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y /tmp/*.deb" || {
@@ -145,7 +145,7 @@ EOF
                         exit 1
                     }
                 done
-                cp ./*.deb "$ROOTDIR/tmp/"
+                cp gnome-shell-mobile.deb mutter-mobile.deb gsd-mobile.deb "$ROOTDIR/tmp/"
                 chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --allow-downgrades -o Dpkg::Options::=\"--force-overwrite\" /tmp/*.deb" || true
                 chroot "$ROOTDIR" apt-mark hold gnome-shell mutter gnome-settings-daemon
 

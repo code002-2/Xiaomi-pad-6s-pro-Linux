@@ -63,8 +63,8 @@ trap_teardown "$ROOTDIR"
 debootstrap --arch=arm64 "$UBUNTU_SUITE" "$ROOTDIR" "$UBUNTU_MIRROR"
 
 # Step 3: Apt sources
-printf "deb %s %s main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" > "$ROOTDIR/etc/apt/sources.list"
-printf "deb %s %s-updates main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" >> "$ROOTDIR/etc/apt/sources.list"
+printf "deb %s/ %s main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" > "$ROOTDIR/etc/apt/sources.list"
+printf "deb %s/ %s-updates main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" >> "$ROOTDIR/etc/apt/sources.list"
 printf "deb %s %s-backports main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" >> "$ROOTDIR/etc/apt/sources.list"
 printf "deb %s %s-security main restricted universe multiverse\n" "$UBUNTU_MIRROR" "$UBUNTU_SUITE" >> "$ROOTDIR/etc/apt/sources.list"
 
@@ -79,7 +79,10 @@ chroot "$ROOTDIR" apt install -y --no-install-recommends \
 # Step 5: Kernel injection
 if ls *.deb 1> /dev/null 2>&1; then
     cp *.deb "$ROOTDIR/tmp/"
-    chroot "$ROOTDIR" bash -c "apt install -y /tmp/*.deb || true"
+    chroot "$ROOTDIR" bash -c "apt install -y /tmp/*.deb" || {
+        echo "错误: 内核 .deb 安装失败，rootfs 无法启动！" >&2
+        exit 1
+    }
 
     KERNEL_MODULE_DIR=$(detect_kernel_module_dir "$ROOTDIR")
     if [ -n "$KERNEL_MODULE_DIR" ]; then
