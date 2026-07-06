@@ -303,7 +303,6 @@ jobs:
             echo 'fi'
             echo 'exit 0'
           } > sheng-devauth/DEBIAN/prerm
-ENDSCRIPT
           chmod 0755 sheng-devauth/DEBIAN/prerm
 
           {
