@@ -270,6 +270,7 @@ jobs:
           tag_name: sensors
           name: "sensors"
           files: "*.deb"
+          fail_on_unmatched_globs: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
