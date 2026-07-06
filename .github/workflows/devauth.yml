@@ -1,0 +1,86 @@
+name: Build sheng-devauth DEB (ARM64)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential dpkg-dev git
+
+      - name: Clone source repository
+        run: |
+          git clone https://github.com/map220v/sheng_devauth.git source
+
+      - name: Build binary
+        run: |
+          cd source
+          make
+
+      - name: Prepare DEB structure
+        run: |
+          mkdir -p sheng-devauth/usr/bin
+          mkdir -p sheng-devauth/DEBIAN
+
+          chmod 0755 source/xiaomi_devauth
+          cp source/xiaomi_devauth sheng-devauth/usr/bin/
+
+          cat > sheng-devauth/DEBIAN/postinst <<'POSTINST'
+          #!/bin/sh
+          set -e
+          if command -v systemctl >/dev/null 2>&1; then
+            systemctl daemon-reload || true
+            systemctl enable sheng-devauth.service || true
+            systemctl start sheng-devauth.service || true
+          fi
+          exit 0
+          POSTINST
+          chmod 0755 sheng-devauth/DEBIAN/postinst
+
+          cat > sheng-devauth/DEBIAN/prerm <<'PRERM'
+          #!/bin/sh
+          set -e
+          if command -v systemctl >/dev/null 2>&1; then
+            systemctl stop sheng-devauth.service || true
+            systemctl disable sheng-devauth.service || true
+          fi
+          exit 0
+          PRERM
+          chmod 0755 sheng-devauth/DEBIAN/prerm
+
+          cat > sheng-devauth/DEBIAN/control <<EOF
+          Package: sheng-devauth
+          Version: 1.0
+          Section: misc
+          Priority: optional
+          Architecture: arm64
+          Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
+          Description: Xiaomi keyboard authentication service
+           Service used in pair with kernel driver to authenticate Xiaomi devices.
+          EOF
+
+      - name: Build DEB
+        run: |
+          dpkg-deb --build sheng-devauth
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sheng-devauth-deb
+          path: sheng-devauth.deb
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: sheng_devauth
+          name: "sheng_devauth"
+          draft: false
+          prerelease: false
+          files: "*.deb"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

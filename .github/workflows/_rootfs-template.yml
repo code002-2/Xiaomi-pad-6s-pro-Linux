@@ -57,13 +57,25 @@ jobs:
           TAG="${{ inputs.release_tag_prefix }}-$(date -u '+%Y%m%d')-${GITHUB_SHA::8}"
           echo "release_tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release (early)
         if: ${{ !inputs.skip_release }}
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag.outputs.release_tag }}
           name: "${{ inputs.release_body_title || inputs.release_tag_prefix }} - ${{ steps.tag.outputs.release_tag }}"
+          body: |
+            **${{ inputs.release_body_title || inputs.release_tag_prefix }}**
+
+            | 项目 | 详情 |
+            |------|------|
+            | 发行版 | ${{ inputs.release_tag_prefix }} |
+            | 内核版本 | ${{ github.event.inputs.kernel_version || inputs.kernel_version_default }} |
+            | 内核通道 | ${{ github.event.inputs.kernel_channel || inputs.kernel_channel_default }} |
+            | 构建SHA | [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }}) |
+            | 桌面环境 | ${{ github.event.inputs.desktop_env || 'all' }} |
+            | 启动模式 | ${{ github.event.inputs.boot_mode || 'all' }} |
           draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -127,5 +139,53 @@ jobs:
         with:
           tag_name: ${{ needs.prepare-release.outputs.release_tag }}
           files: "*.7z"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-release:
+    name: "更新 Release 信息"
+    runs-on: ubuntu-24.04-arm
+    needs: [prepare-release, build]
+    permissions:
+      contents: write
+    if: ${{ !inputs.skip_release }}
+    steps:
+      - name: 更新 Release 描述
+        run: |
+          TAG="${{ needs.prepare-release.outputs.release_tag }}"
+          echo "📝 更新 Release $TAG ..."
+
+          # 获取该 release 的所有资产
+          ASSETS=$(gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null || echo "")
+
+          BODY=$(gh release view "$TAG" --json body --jq '.body' 2>/dev/null || echo "")
+
+          # 追加资产列表
+          if [ -n "$ASSETS" ]; then
+            echo "" >> /tmp/assets.md
+            echo "### 📦 构建产物" >> /tmp/assets.md
+            echo "" >> /tmp/assets.md
+            while IFS= read -r asset; do
+              if [ -n "$asset" ]; then
+                SIZE=$(gh release view "$TAG" --json assets --jq ".assets[] | select(.name==\"$asset\") | .sizeBytes" 2>/dev/null || echo "?")
+                if [ "$SIZE" != "?" ] && [ "$SIZE" -gt 0 ] 2>/dev/null; then
+                  HUMAN_SIZE=$((SIZE / 1024 / 1024))
+                  echo "- \`$asset\` (~${HUMAN_SIZE}MB)" >> /tmp/assets.md
+                else
+                  echo "- \`$asset\`" >> /tmp/assets.md
+                fi
+              fi
+            done <<< "$ASSETS"
+          fi
+
+          # 追加到 body
+          if [ -s /tmp/assets.md ]; then
+            cat /tmp/assets.md >> /tmp/new_body.md
+            echo "" >> /tmp/new_body.md
+          fi
+          echo "---" >> /tmp/new_body.md
+          echo "**构建时间**: $(date -u '+%Y-%m-%d %H:%M UTC')" >> /tmp/new_body.md
+
+          gh release edit "$TAG" --body-file /tmp/new_body.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

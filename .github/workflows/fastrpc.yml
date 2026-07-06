@@ -1,0 +1,91 @@
+name: Build fastrpc DEB (ARM64)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+
+    env:
+      PKGNAME: fastrpc
+      PKGVERSION: 1.0.2
+      PKGREL: 1
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            build-essential autoconf automake libtool \
+            pkg-config git wget unzip dpkg-dev \
+            libyaml-dev linux-libc-dev
+
+      - name: Download source
+        run: |
+          wget https://github.com/qualcomm/${PKGNAME}/archive/refs/tags/v${PKGVERSION}.zip
+          unzip v${PKGVERSION}.zip
+
+      - name: Build project
+        run: |
+          cd ${PKGNAME}-${PKGVERSION}
+          autoreconf -is
+          ./configure --prefix=/usr
+          make -j$(nproc)
+
+      - name: Install into staging
+        run: |
+          cd ${PKGNAME}-${PKGVERSION}
+          mkdir -p stage
+          make DESTDIR=$PWD/stage install
+
+      - name: Add systemd service
+        run: |
+          cd ${PKGNAME}-${PKGVERSION}
+          mkdir -p stage/usr/lib/systemd/system
+          wget -O adsprpcd-sensorspd.service \
+            https://raw.githubusercontent.com/alghiffaryfa19/sheng-sensors-patch/refs/heads/main/fastrpc-1.0.2/adsprpcd-sensorspd.service
+          cp adsprpcd-sensorspd.service stage/usr/lib/systemd/system/
+
+      - name: Prepare DEB structure
+        run: |
+          mkdir -p deb/DEBIAN
+          cp -r ${PKGNAME}-${PKGVERSION}/stage/usr deb/
+          cat > deb/DEBIAN/control <<EOF
+          Package: ${PKGNAME}
+          Version: ${PKGVERSION}-${PKGREL}
+          Section: libs
+          Priority: optional
+          Architecture: arm64
+          Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
+          Depends: libyaml-0-2, systemd
+          Description: Qualcomm FastRPC userspace library
+           FastRPC implementation for Qualcomm DSP communication.
+          EOF
+
+      - name: Fix permissions
+        run: |
+          find deb -type d -exec chmod 755 {} \;
+          find deb -type f -exec chmod 644 {} \;
+
+      - name: Build DEB package
+        run: |
+          dpkg-deb --build deb
+          mv deb.deb ${PKGNAME}_${PKGVERSION}-${PKGREL}_arm64.deb
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fastrpc-deb
+          path: fastrpc_*.deb
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: fastrpc
+          name: "fastrpc"
+          draft: false
+          prerelease: false
+          files: "*.deb"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

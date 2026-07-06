@@ -125,6 +125,15 @@ EOF
                 echo "安装 GNOME 桌面环境..."
                 chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y gnome-shell gnome-session gnome-terminal gdm3 firefox-esr gnome-tweaks nautilus"
 
+                # GNOME mobile packages for tablet UX (touch gestures, auto-rotate)
+                echo "正在安装 GNOME Mobile 平板优化包..."
+                wget -q "https://github.com/alghiffaryfa19/gnome-shell-mobile-builder/releases/download/gnome-shell-97/gnome-shell-mobile.deb"
+                wget -q "https://github.com/alghiffaryfa19/gnome-shell-mobile-builder/releases/download/mutter/mutter-mobile.deb"
+                wget -q "https://github.com/alghiffaryfa19/gnome-shell-mobile-builder/releases/download/gsd/gsd-mobile.deb"
+                cp ./*.deb "$ROOTDIR/tmp/"
+                chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --allow-downgrades -o Dpkg::Options::=\"--force-overwrite\" /tmp/*.deb" || true
+                chroot "$ROOTDIR" apt-mark hold gnome-shell mutter gnome-settings-daemon
+
                 # Use common library for autologin
                 setup_autologin "$ROOTDIR" "gnome" "$USER_NAME"
             elif [ "$FLAVOUR" = "kde" ]; then
