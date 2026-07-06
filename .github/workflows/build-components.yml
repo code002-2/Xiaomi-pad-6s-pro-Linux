@@ -29,7 +29,7 @@ env:
 jobs:
   fastrpc:
     name: Build fastrpc
-    if: github.event.inputs.component == 'all' || github.event.inputs.component == 'fastrpc'
+    if: ${{ github.event_name == 'push' || github.event.inputs.component == 'all' || github.event.inputs.component == 'fastrpc' }}
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -95,7 +95,7 @@ jobs:
 
   libssc:
     name: Build libssc
-    if: github.event.inputs.component == 'all' || github.event.inputs.component == 'libssc'
+    if: ${{ github.event_name == 'push' || github.event.inputs.component == 'all' || github.event.inputs.component == 'libssc' }}
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -156,7 +156,7 @@ jobs:
 
   iio-sensor-proxy:
     name: Build iio-sensor-proxy
-    if: github.event.inputs.component == 'all' || github.event.inputs.component == 'iio'
+    if: ${{ github.event_name == 'push' || github.event.inputs.component == 'all' || github.event.inputs.component == 'iio' }}
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -222,7 +222,7 @@ jobs:
 
   sensors:
     name: Build sensors
-    if: github.event.inputs.component == 'all' || github.event.inputs.component == 'sensors'
+    if: ${{ github.event_name == 'push' || github.event.inputs.component == 'all' || github.event.inputs.component == 'sensors' }}
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -278,7 +278,7 @@ jobs:
 
   devauth:
     name: Build devauth
-    if: github.event.inputs.component == 'all' || github.event.inputs.component == 'devauth'
+    if: ${{ github.event_name == 'push' || github.event.inputs.component == 'all' || github.event.inputs.component == 'devauth' }}
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -350,7 +350,7 @@ jobs:
 
   alsa:
     name: Build alsa + firmware
-    if: github.event.inputs.component == 'all' || github.event.inputs.component == 'alsa'
+    if: ${{ github.event_name == 'push' || github.event.inputs.component == 'all' || github.event.inputs.component == 'alsa' }}
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
