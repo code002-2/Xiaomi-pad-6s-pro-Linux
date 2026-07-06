@@ -234,8 +234,13 @@ jobs:
 
           wget -O source.tar.gz \
             https://github.com/alghiffaryfa19/sheng-sensors-file/archive/199754bb37ae6d4706bd8d4b23e9e6fec2d959cc.tar.gz || {
-            echo "Error: Failed to download sensor files" >&2
-            exit 1
+            echo "Download failed (rate limit?), retrying after 10s..."
+            sleep 10
+            wget -O source.tar.gz \
+              https://github.com/alghiffaryfa19/sheng-sensors-file/archive/199754bb37ae6d4706bd8d4b23e9e6fec2d959cc.tar.gz || {
+              echo "Error: Failed to download sensor files" >&2
+              exit 1
+            }
           }
           tar -xf source.tar.gz
           echo "Extracted contents:" && ls -la
