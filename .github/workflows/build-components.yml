@@ -69,6 +69,7 @@ jobs:
           find deb -type f -exec chmod 644 {} \;
           dpkg-deb --build deb
           mv deb.deb fastrpc_1.0.2-1_arm64.deb
+          mv fastrpc_1.0.2-1_arm64.deb "$GITHUB_WORKSPACE/"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -129,6 +130,7 @@ jobs:
           find deb -type f -exec chmod 644 {} \;
           dpkg-deb --build deb
           mv deb.deb libssc_0.3.0-1_arm64.deb
+          mv libssc_0.3.0-1_arm64.deb "$GITHUB_WORKSPACE/"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -194,6 +196,7 @@ jobs:
           } > deb/DEBIAN/control
           dpkg-deb --build deb
           mv deb.deb iio-sensor-proxy_99993.9-6_arm64.deb
+          mv iio-sensor-proxy_99993.9-6_arm64.deb "$GITHUB_WORKSPACE/"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -246,6 +249,7 @@ jobs:
           find deb -type f -exec chmod 644 {} \;
           dpkg-deb --build deb
           mv deb.deb sheng-sensors_20240917-1_arm64.deb
+          mv sheng-sensors_20240917-1_arm64.deb "$GITHUB_WORKSPACE/"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -317,6 +321,7 @@ jobs:
           } > sheng-devauth/DEBIAN/control
 
           dpkg-deb --build sheng-devauth
+          mv sheng-devauth.deb "$GITHUB_WORKSPACE/"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
