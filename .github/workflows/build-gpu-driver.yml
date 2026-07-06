@@ -89,15 +89,15 @@ jobs:
           DESTDIR=$(pwd)/debian ninja -C builddir/ install
           mkdir -p debian/DEBIAN
           DEB_VERSION="0.0.0+git${{ env.MESA_COMMIT }}"
-          cat > debian/DEBIAN/control <<EOF
-          Package: mesa-freedreno-turnip
-          Version: ${DEB_VERSION}
-          Architecture: arm64
-          Maintainer: GitHub Actions <actions@github.com>
-          Description: Freedreno (OpenGL) and Turnip (Vulkan) drivers for Qualcomm Adreno GPUs
-           Built from Mesa commit ${{ env.MESA_COMMIT }}.
-          Depends: libc6, libdrm2, libx11-6, libxext6, libxdamage1, libxcb-glx0, libxcb-shm0, libxcb-dri2-0, libxcb-dri3-0, libxcb-present0, libxshmfence1, libxxf86vm1, libxrandr2, libxfixes3, libwayland-client0, libvulkan1
-          EOF
+          {
+            echo "Package: mesa-freedreno-turnip"
+            echo "Version: ${DEB_VERSION}"
+            echo "Architecture: arm64"
+            echo "Maintainer: GitHub Actions <actions@github.com>"
+            echo "Description: Freedreno (OpenGL) and Turnip (Vulkan) drivers for Qualcomm Adreno GPUs"
+            echo " Built from Mesa commit ${{ env.MESA_COMMIT }}."
+            echo "Depends: libc6, libdrm2, libx11-6, libxext6, libxdamage1, libxcb-glx0, libxcb-shm0, libxcb-dri2-0, libxcb-dri3-0, libxcb-present0, libxshmfence1, libxxf86vm1, libxrandr2, libxfixes3, libwayland-client0, libvulkan1"
+          } > debian/DEBIAN/control
           cd debian
           find usr -type f -exec md5sum {} \; > DEBIAN/md5sums
           cd ..
