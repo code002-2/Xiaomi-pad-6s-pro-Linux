@@ -38,7 +38,7 @@ CHANNEL="${KERNEL_CHANNEL:-mainline}"
 case "$CHANNEL" in
     stable)
         KERNEL_REPO="ianchb/sm8550-mainline"
-        KERNEL_BRANCH="sheng-7.0.12"
+        KERNEL_BRANCH="sheng-7.1.3"
         ;;
     *)
         KERNEL_REPO="code002-2/sm8550-mainline"
