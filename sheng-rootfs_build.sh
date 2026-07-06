@@ -146,7 +146,10 @@ EOF
                     }
                 done
                 cp gnome-shell-mobile.deb mutter-mobile.deb gsd-mobile.deb "$ROOTDIR/tmp/"
-                chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --allow-downgrades -o Dpkg::Options::=\"--force-overwrite\" /tmp/*.deb" || true
+                chroot "$ROOTDIR" bash -c "export DEBIAN_FRONTEND=noninteractive && apt-get install -y --allow-downgrades -o Dpkg::Options::=\"--force-overwrite\" /tmp/*.deb" || {
+                    echo "错误: 安装 GNOME Mobile 平板优化包失败" >&2
+                    exit 1
+                }
                 chroot "$ROOTDIR" apt-mark hold gnome-shell mutter gnome-settings-daemon
 
                 # Use common library for autologin
@@ -186,4 +189,4 @@ EOF
     done
 done
 
-echo "✅ Debian 镜像已打包完毕！"
+echo "[OK] Debian image packaging complete!"

@@ -94,8 +94,8 @@ chroot "$ROOTDIR" dnf -y install --exclude=kernel-core \
     NetworkManager wpa_supplicant dialog qrtr
 
 # Step 4: Desktop environment
-echo "正在安装 ${TARGET_DE^^} 桌面环境..."
-if [ "$TARGET_DE" = "kde" ]; then
+echo "正在安装 ${DE^^} 桌面环境..."
+if [ "$DE" = "kde" ]; then
     chroot "$ROOTDIR" dnf -y install @kde-desktop --exclude=kernel-core
     chroot "$ROOTDIR" dnf -y install sddm
 else

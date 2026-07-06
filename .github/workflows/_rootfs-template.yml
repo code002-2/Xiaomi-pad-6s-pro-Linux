@@ -125,7 +125,7 @@ jobs:
           KERNEL_CHANNEL="${{ inputs.kernel_channel || inputs.kernel_channel_default }}"
           echo "Downloading kernel bundle for channel=${KERNEL_CHANNEL} version=${KERNEL_VER}"
           gh release download "kernel-bundle-${KERNEL_CHANNEL}-${KERNEL_VER}" \
-            --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
+            --pattern "*.deb" --repo "${{ github.repository }}" --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

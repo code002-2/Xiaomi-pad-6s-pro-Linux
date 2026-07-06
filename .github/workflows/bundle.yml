@@ -40,19 +40,19 @@ jobs:
         gh release download "kernel-${CHANNEL}-${KERNEL_VER}" \
           --pattern "*.deb" \
           --repo "${{ github.repository }}" \
-          --clobber || true
+          --clobber || { echo "Error: Failed to download kernel packages" >&2; exit 1; }
 
         echo "Download sheng_devauth"
         gh release download "sheng_devauth" \
           --pattern "*.deb" \
           --repo "${{ github.repository }}" \
-          --clobber || true
+          --clobber || { echo "Error: Failed to download sheng_devauth" >&2; exit 1; }
 
         echo "Download sensor packages"
         gh release download "sensors" \
           --pattern "*.deb" \
           --repo "${{ github.repository }}" \
-          --clobber || true
+          --clobber || { echo "Error: Failed to download sensors" >&2; exit 1; }
 
         echo "Final bundle:"
         ls -lah

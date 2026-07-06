@@ -61,7 +61,7 @@ cp ../sm8550.config .config
 
 # --- Compile ---
 make -j"$(nproc)" ARCH=arm64 CC="ccache clang" LLVM=1
-_kernel_version="$(make kernelrelease -s)"
+_kernel_version="$(make -s ARCH=arm64 kernelrelease)"
 
 # --- Update DEBIAN control ---
 sed -i "s/Version:.*/Version: ${_kernel_version}/" ../linux-xiaomi-sheng/DEBIAN/control

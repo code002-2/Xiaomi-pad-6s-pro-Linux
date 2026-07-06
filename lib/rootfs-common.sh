@@ -184,13 +184,13 @@ detect_kernel_module_dir() {
     local rootdir="$1"
     # Try /usr/lib/modules first (usr-merged systems: Arch, Fedora, modern Debian)
     local moddir
-    moddir=$(ls -1t "$rootdir/usr/lib/modules/" 2>/dev/null | head -n 1)
+    moddir=$(ls -1 "$rootdir/usr/lib/modules/" 2>/dev/null | sort -V | tail -n 1)
     if [ -n "$moddir" ]; then
         echo "$moddir"
         return 0
     fi
     # Fall back to /lib/modules (older Debian/Ubuntu)
-    moddir=$(ls -1t "$rootdir/lib/modules/" 2>/dev/null | head -n 1)
+    moddir=$(ls -1 "$rootdir/lib/modules/" 2>/dev/null | sort -V | tail -n 1)
     if [ -n "$moddir" ]; then
         echo "$moddir"
         return 0

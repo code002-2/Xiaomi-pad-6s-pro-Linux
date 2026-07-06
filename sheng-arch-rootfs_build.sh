@@ -29,8 +29,8 @@ fi
 
 DISTRO=$1
 KERNEL=$2
-TARGET_DE=${3:-gnome}
-TARGET_MODE=${4:-all}
+TARGET_MODE=${3:-all}
+TARGET_DE=${4:-gnome}
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
 DESKTOPS=()

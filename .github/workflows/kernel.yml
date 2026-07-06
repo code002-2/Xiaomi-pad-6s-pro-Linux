@@ -18,7 +18,6 @@ on:
     paths:
       - 'sheng-kernel_build.sh'
       - '.github/workflows/kernel.yml'
-      - 'sm8550.config'
 
 permissions:
   contents: write
@@ -67,14 +66,14 @@ jobs:
           chmod +x sheng-kernel_build.sh
           export KERNEL_CHANNEL="${{ inputs.channel }}"
           bash sheng-kernel_build.sh
-          echo "✅ 内核编译完成"
+          echo "Kernel compilation complete"
           ccache --show-stats || true
 
       - name: 收集编译产物
         id: collect_artifacts
         run: |
           PKG_COUNT=$(ls -1 *.deb 2>/dev/null | wc -l)
-          echo "📦 共找到 $PKG_COUNT 个 Debian 包文件"
+          echo "Found $PKG_COUNT Debian package(s)"
           echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
 
       - name: 上传 .deb 驱动包

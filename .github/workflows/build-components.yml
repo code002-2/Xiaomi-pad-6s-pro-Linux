@@ -67,6 +67,7 @@ jobs:
             tag: sheng_devauth
             release: sheng_devauth
             version: 1.0
+            rel: 1
             sources: map220v/sheng_devauth
             build_depends: build-essential dpkg-dev
             deb_depends: ''
@@ -115,7 +116,10 @@ jobs:
 
           mkdir -p stage/usr/lib/systemd/system
           wget -O adsprpcd-sensorspd.service \
-            https://raw.githubusercontent.com/alghiffaryfa19/sheng-sensors-patch/refs/heads/main/fastrpc-1.0.2/adsprpcd-sensorspd.service
+            https://raw.githubusercontent.com/alghiffaryfa19/sheng-sensors-patch/refs/heads/main/fastrpc-1.0.2/adsprpcd-sensorspd.service || {
+            echo "Error: Failed to download adsprpcd-sensorspd.service" >&2
+            exit 1
+          }
           cp adsprpcd-sensorspd.service stage/usr/lib/systemd/system/
 
           mkdir -p deb/DEBIAN
@@ -149,8 +153,11 @@ EOF
           git clone https://codeberg.org/${{ matrix.sources }}.git source
           cd source
           wget -O wait_for_qmi_service.patch \
-            https://raw.githubusercontent.com/alghiffaryfa19/sheng-sensors-patch/refs/heads/main/libssc-git/wait_for_qmi_service.patch
-          patch -Np1 < wait_for_qmi_service.patch || true
+            https://raw.githubusercontent.com/alghiffaryfa19/sheng-sensors-patch/refs/heads/main/libssc-git/wait_for_qmi_service.patch || {
+            echo "Error: Failed to download wait_for_qmi_service.patch" >&2
+            exit 1
+          }
+          patch -Np1 < wait_for_qmi_service.patch
 
           meson setup build --prefix=/usr
           meson compile -C build
@@ -184,13 +191,19 @@ EOF
           pip3 install --upgrade meson
 
           # Download libssc dependency
-          gh release download "libssc" --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
+          gh release download "libssc" --pattern "*.deb" --repo "${{ github.repository }}" --clobber
           if ls *.deb >/dev/null 2>&1; then
             sudo dpkg -i *.deb
             sudo ldconfig
+          else
+            echo "Error: Failed to download libssc dependency" >&2
+            exit 1
           fi
 
-          wget https://gitlab.freedesktop.org/${{ matrix.sources }}/-/archive/${{ matrix.version }}/iio-sensor-proxy-${{ matrix.version }}.tar.gz
+          wget https://gitlab.freedesktop.org/${{ matrix.sources }}/-/archive/${{ matrix.version }}/iio-sensor-proxy-${{ matrix.version }}.tar.gz || {
+            echo "Error: Failed to download iio-sensor-proxy source" >&2
+            exit 1
+          }
           tar -xf iio-sensor-proxy-${{ matrix.version }}.tar.gz
           cd iio-sensor-proxy-${{ matrix.version }}
 
@@ -221,7 +234,10 @@ EOF
           sudo apt install -y ${{ matrix.build_depends }}
 
           wget -O source.tar.gz \
-            https://github.com/${{ matrix.sources }}/archive/${{ matrix.commit }}.tar.gz
+            https://github.com/${{ matrix.sources }}/archive/${{ matrix.commit }}.tar.gz || {
+            echo "Error: Failed to download sensor files" >&2
+            exit 1
+          }
           tar -xf source.tar.gz
 
           mkdir -p deb/DEBIAN
@@ -281,14 +297,14 @@ EOF
           chmod 0755 sheng-devauth/DEBIAN/prerm
 
           cat > sheng-devauth/DEBIAN/control <<EOF
-          Package: sheng-devauth
-          Version: ${{ matrix.version }}
-          Section: misc
-          Priority: optional
-          Architecture: arm64
-          Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
-          Description: ${{ matrix.deb_desc }}
-          EOF
+Package: sheng-devauth
+Version: ${{ matrix.version }}
+Section: misc
+Priority: optional
+Architecture: arm64
+Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>
+Description: ${{ matrix.deb_desc }}
+EOF
 
           dpkg-deb --build sheng-devauth
 
