@@ -222,6 +222,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build sensors
         run: |
+          set -x
           sudo apt update
           sudo apt install -y wget dpkg-dev
 
@@ -231,9 +232,11 @@ jobs:
             exit 1
           }
           tar -xf source.tar.gz
+          echo "Extracted contents:" && ls -la
 
           mkdir -p deb/DEBIAN
           cp -a sheng-sensors-file-199754bb37ae6d4706bd8d4b23e9e6fec2d959cc/. deb/
+          echo "deb contents:" && ls -la deb/
           {
             echo "Package: sheng-sensors"
             echo "Version: 20240917-1"
