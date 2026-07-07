@@ -142,7 +142,6 @@ if command -v ukify &>/dev/null; then
         echo "正在构建 EFI 引导镜像 (initramfs: $INITRAMFS)..."
         ukify build \
             --linux="arch/$ARCH/boot/Image.gz" \
-            --os-type=linux \
             --cmdline="root=PARTLABEL=linux rw rootwait console=tty0" \
             --initrd="$INITRAMFS" \
             --output="bootaa64.efi"
