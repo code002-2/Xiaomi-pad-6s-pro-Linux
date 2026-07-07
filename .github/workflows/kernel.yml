@@ -47,7 +47,7 @@ jobs:
         id: cache-ccache
         with:
           path: /home/runner/.ccache
-          key: ${{ runner.os }}-ccache-${{ inputs.channel }}-${{ inputs.kernel_version }}-${{ github.sha }}
+          key: ${{ runner.os }}-ccache-${{ inputs.channel }}-${{ inputs.kernel_version }}-${{ hashFiles('sm8550.config') }}
           restore-keys: |
             ${{ runner.os }}-ccache-${{ inputs.channel }}-${{ inputs.kernel_version }}-
             ${{ runner.os }}-ccache-${{ inputs.channel }}-
