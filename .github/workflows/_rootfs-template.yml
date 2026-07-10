@@ -104,15 +104,21 @@ jobs:
           KERNEL_CHANNEL="${{ inputs.kernel_channel || inputs.kernel_channel_default }}"
           echo "Downloading kernel bundle for channel=${KERNEL_CHANNEL} version=${KERNEL_VER}"
 
-          # Verify the kernel bundle release exists before attempting download
-          if ! gh release view "kernel-bundle-${KERNEL_CHANNEL}-${KERNEL_VER}" \
+          # Try channel-prefixed tag first, fall back to version-only tag
+          BUNDLE_TAG="kernel-bundle-${KERNEL_CHANNEL}-${KERNEL_VER}"
+          if ! gh release view "$BUNDLE_TAG" \
               --repo "${{ github.repository }}" > /dev/null 2>&1; then
-            echo "错误: 内核 Bundle 发布 'kernel-bundle-${KERNEL_CHANNEL}-${KERNEL_VER}' 不存在！" >&2
-            echo "请先通过 'Build Kernel' + 'Build Kernel Bundle' workflow 构建内核。" >&2
-            exit 1
+            BUNDLE_TAG="kernel-bundle-${KERNEL_VER}"
+            if ! gh release view "$BUNDLE_TAG" \
+                --repo "${{ github.repository }}" > /dev/null 2>&1; then
+              echo "错误: 内核 Bundle 发布不存在！" >&2
+              echo "尝试过的 tags: $BUNDLE_TAG, kernel-bundle-${KERNEL_CHANNEL}-${KERNEL_VER}" >&2
+              echo "请先通过 'Build Kernel' + 'Build Kernel Bundle' workflow 构建内核。" >&2
+              exit 1
+            fi
           fi
 
-          gh release download "kernel-bundle-${KERNEL_CHANNEL}-${KERNEL_VER}" \
+          gh release download "$BUNDLE_TAG" \
             --pattern "*.deb" --repo "${{ github.repository }}" --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
