@@ -66,11 +66,9 @@ cp ../sm8550.config .config
 make -j"$(nproc)" ARCH=arm64 CC="ccache clang" LLVM=1
 _kernel_version="$(make -s ARCH=arm64 kernelrelease)"
 
-# --- Update DEBIAN control ---
-sed -i "s/Version:.*/Version: ${_kernel_version}/" ../linux-xiaomi-sheng/DEBIAN/control
-
+# --- Update DEBIAN control (deferred until package dir is populated) ---
+_PKG_VERSION="${_kernel_version}"
 PKGDIR=../linux-xiaomi-sheng
-ARCH=arm64
 
 # --- Install kernel images ---
 mkdir -p "$PKGDIR/boot"
@@ -167,6 +165,12 @@ usr_merge linux-xiaomi-sheng alsa-xiaomi-sheng
 
 # --- Build .deb packages ---
 echo "开始构建deb..."
+
+# Update DEBIAN control version now that the package dir is populated
+if [ -f "../linux-xiaomi-sheng/DEBIAN/control" ]; then
+    sed -i "s/Version:.*/Version: ${_PKG_VERSION}/" ../linux-xiaomi-sheng/DEBIAN/control
+fi
+
 dpkg-deb --root-owner-group --build linux-xiaomi-sheng
 dpkg-deb --root-owner-group --build firmware-xiaomi-sheng
 dpkg-deb --root-owner-group --build alsa-xiaomi-sheng

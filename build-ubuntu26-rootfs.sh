@@ -44,8 +44,12 @@ if [[ ! "$DESKTOP_ENV" =~ ^(gnome|kde|xfce)$ ]]; then
 fi
 
 if [[ ! "$BOOT_MODE" =~ ^(dual|single)$ ]]; then
-    echo "Error: boot_mode must be dual or single"
-    exit 1
+    if [ "$BOOT_MODE" = "all" ]; then
+        BOOT_MODE="dual"
+    else
+        echo "Error: boot_mode must be dual or single (got: $BOOT_MODE)"
+        exit 1
+    fi
 fi
 
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
