@@ -31,6 +31,23 @@
   programs.bash.loginShellInit = ''
     if [ "$(tty)" = "/dev/tty1" ]; then
       echo "Starting niri compositor..." >&2
+
+      # Dump input device info for diagnostics
+      mkdir -p /tmp/niri-diag
+      echo "=== $(date) ===" > /tmp/niri-diag/devices.log
+      echo "--- input events ---" >> /tmp/niri-diag/devices.log
+      ls -la /dev/input/event* >> /tmp/niri-diag/devices.log 2>&1
+      echo "--- by-path ---" >> /tmp/niri-diag/devices.log
+      ls -la /dev/input/by-path/ >> /tmp/niri-diag/devices.log 2>&1
+      echo "--- by-id ---" >> /tmp/niri-diag/devices.log
+      ls -la /dev/input/by-id/ >> /tmp/niri-diag/devices.log 2>&1
+      echo "--- libinput ---" >> /tmp/niri-diag/devices.log
+      libinput list-devices >> /tmp/niri-diag/devices.log 2>&1
+      echo "--- usb devices ---" >> /tmp/niri-diag/devices.log
+      lsusb >> /tmp/niri-diag/devices.log 2>&1
+      echo "--- kernel modules (hid/usb) ---" >> /tmp/niri-diag/devices.log
+      lsmod | grep -iE "hid|usb" >> /tmp/niri-diag/devices.log 2>&1
+
       if ! ls /dev/dri/card* >/dev/null 2>&1; then
         echo "ERROR: No DRM device found at /dev/dri/" >&2
       elif ! systemctl is-active --quiet seatd 2>/dev/null; then
