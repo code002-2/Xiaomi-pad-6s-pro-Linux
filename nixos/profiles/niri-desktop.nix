@@ -20,8 +20,6 @@
   # Auto-login on tty1 so bash loginShellInit can exec niri
   services.getty.autologinUser = lib.mkForce vars.username;
 
-  users.users.${vars.username}.extraGroups = [ "video" "render" "input" ];
-
   environment.systemPackages = with pkgs; [
     niri
     foot
@@ -31,7 +29,15 @@
   # Auto-start niri on the autologin tty (getty tty1)
   programs.bash.loginShellInit = ''
     if [ "$(tty)" = "/dev/tty1" ]; then
-      exec niri-session
+      echo "Starting niri compositor..." >&2
+      if ! ls /dev/dri/card* >/dev/null 2>&1; then
+        echo "ERROR: No DRM device found at /dev/dri/" >&2
+      elif ! systemctl is-active --quiet seatd 2>/dev/null; then
+        echo "ERROR: seatd is not running" >&2
+        echo "  status: $(systemctl is-active seatd 2>&1)" >&2
+      else
+        exec niri-session
+      fi
     fi
   '';
 }
