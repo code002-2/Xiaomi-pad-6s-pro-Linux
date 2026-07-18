@@ -8,5 +8,5 @@ Restart=on-failure
 RestartSec=5s
 
 [Install]
-WantedBy=sysinit.target
+WantedBy=multi-user.target
 

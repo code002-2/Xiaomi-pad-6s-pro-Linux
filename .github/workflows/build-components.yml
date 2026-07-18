@@ -1,0 +1,403 @@
+name: Build Component DEBs (ARM64)
+
+# NOTE: push trigger below is for CI verification only; use workflow_dispatch for production builds.
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Component to build (all, fastrpc, libssc, iio, sensors, devauth, alsa)'
+        required: true
+        type: choice
+        options: [all, fastrpc, libssc, iio, sensors, devauth, alsa]
+        default: 'all'
+  push:
+    branches: [main, master, sheng]
+    paths:
+      - '.github/workflows/build-components.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  fastrpc:
+    name: Build fastrpc
+    if: ${{ github.event_name == 'push' || github.event.inputs.component == 'all' || github.event.inputs.component == 'fastrpc' }}
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build fastrpc
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential autoconf automake libtool pkg-config wget unzip libyaml-dev
+
+          wget https://github.com/qualcomm/fastrpc/archive/refs/tags/v1.0.2.zip
+          unzip v1.0.2.zip
+
+          cd fastrpc-1.0.2
+          autoreconf -is
+          ./configure --prefix=/usr
+          make -j$(nproc)
+
+          mkdir -p stage
+          make DESTDIR=$PWD/stage install
+
+          mkdir -p stage/usr/lib/systemd/system
+          wget -O adsprpcd-sensorspd.service \
+            https://raw.githubusercontent.com/alghiffaryfa19/sheng-sensors-patch/refs/heads/main/fastrpc-1.0.2/adsprpcd-sensorspd.service || {
+            echo "Error: Failed to download adsprpcd-sensorspd.service" >&2
+            exit 1
+          }
+          cp adsprpcd-sensorspd.service stage/usr/lib/systemd/system/
+
+          mkdir -p deb/DEBIAN
+          cp -r stage/usr deb/
+          {
+            echo "Package: fastrpc"
+            echo "Version: 1.0.2-1"
+            echo "Section: libs"
+            echo "Priority: optional"
+            echo "Architecture: arm64"
+            echo "Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>"
+            echo "Depends: libyaml-0-2, systemd"
+            echo "Description: Qualcomm FastRPC userspace library"
+            echo " FastRPC implementation for Qualcomm DSP communication."
+          } > deb/DEBIAN/control
+          find deb -type d -exec chmod 755 {} \;
+          find deb -type f -name "*.sh" -exec chmod 755 {} \;
+          find deb -type f -exec chmod 644 {} \;
+          dpkg-deb --build deb
+          mv deb.deb fastrpc_1.0.2-1_arm64.deb
+          mv fastrpc_1.0.2-1_arm64.deb "$GITHUB_WORKSPACE/"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fastrpc-deb
+          path: '*.deb'
+          if-no-files-found: error
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          update: true
+          tag_name: fastrpc
+          name: "fastrpc"
+          files: "*.deb"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  libssc:
+    name: Build libssc
+    if: ${{ github.event_name == 'push' || github.event.inputs.component == 'all' || github.event.inputs.component == 'libssc' }}
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build libssc
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential ninja-build pkg-config python3-pip libglib2.0-dev libprotobuf-c-dev libqmi-glib-dev libmbim-glib-dev linux-libc-dev protobuf-compiler protobuf-c-compiler
+          pip3 install --upgrade meson
+
+          git clone https://codeberg.org/DylanVanAssche/libssc.git source
+          cd source
+          wget -O wait_for_qmi_service.patch \
+            https://raw.githubusercontent.com/alghiffaryfa19/sheng-sensors-patch/refs/heads/main/libssc-git/wait_for_qmi_service.patch || {
+            echo "Error: Failed to download wait_for_qmi_service.patch" >&2
+            exit 1
+          }
+          patch -Np1 < wait_for_qmi_service.patch
+
+          meson setup build --prefix=/usr
+          meson compile -C build
+          DESTDIR=$PWD/stage meson install -C build
+
+          mkdir -p deb/DEBIAN deb/usr
+          cp -r stage/usr/* deb/usr/
+          {
+            echo "Package: libssc"
+            echo "Version: 0.3.0-1"
+            echo "Section: libs"
+            echo "Priority: optional"
+            echo "Architecture: arm64"
+            echo "Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>"
+            echo "Depends: libglib2.0-0, libprotobuf-c1, libqmi-glib5"
+            echo "Description: Library to expose Qualcomm Sensor Core sensors"
+            echo " libssc userspace library for Qualcomm SSC."
+          } > deb/DEBIAN/control
+          find deb -type d -exec chmod 755 {} \;
+          find deb -type f -name "*.sh" -exec chmod 755 {} \;
+          find deb -type f -exec chmod 644 {} \;
+          dpkg-deb --build deb
+          mv deb.deb libssc_0.3.0-1_arm64.deb
+          mv libssc_0.3.0-1_arm64.deb "$GITHUB_WORKSPACE/"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libssc-deb
+          path: '*.deb'
+          if-no-files-found: error
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          update: true
+          tag_name: libssc
+          name: "libssc"
+          files: "*.deb"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  iio-sensor-proxy:
+    name: Build iio-sensor-proxy
+    if: ${{ github.event_name == 'push' || github.event.inputs.component == 'all' || github.event.inputs.component == 'iio' }}
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build iio-sensor-proxy
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential ninja-build pkg-config wget dpkg-dev python3-pip libglib2.0-dev libgudev-1.0-dev libpolkit-gobject-1-dev libsystemd-dev libdbus-1-dev systemd libqmi-glib-dev libmbim-glib-dev linux-libc-dev protobuf-compiler protobuf-c-compiler
+          pip3 install --upgrade meson
+
+          # Download libssc dependency
+          gh release download "libssc" --pattern "*.deb" --repo "${{ github.repository }}" --clobber
+          if ls *.deb >/dev/null 2>&1; then
+            sudo dpkg -i *.deb
+            sudo ldconfig
+          else
+            echo "Error: Failed to download libssc dependency" >&2
+            exit 1
+          fi
+
+          wget https://gitlab.freedesktop.org/hadess/iio-sensor-proxy/-/archive/3.9/iio-sensor-proxy-3.9.tar.gz || {
+            echo "Error: Failed to download iio-sensor-proxy source" >&2
+            exit 1
+          }
+          tar -xf iio-sensor-proxy-3.9.tar.gz
+          cd iio-sensor-proxy-3.9
+
+          meson setup output --prefix=/usr -Db_lto=true -Dssc-support=enabled -Dsystemdsystemunitdir=/usr/lib/systemd/system
+          meson compile -C output
+          DESTDIR=$PWD/stage meson install --no-rebuild -C output
+
+          mkdir -p deb/DEBIAN
+          cp -r stage/usr deb/
+          {
+            echo "Package: iio-sensor-proxy"
+            echo "Version: 99993.9-6"
+            echo "Section: misc"
+            echo "Priority: optional"
+            echo "Architecture: arm64"
+            echo "Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>"
+            echo "Depends: dbus, libglib2.0-0, libgudev-1.0-0, libpolkit-gobject-1-0"
+            echo "Description: IIO sensors to D-Bus proxy (SSC patched)"
+            echo " iio-sensor-proxy with Qualcomm Sensor Core support."
+          } > deb/DEBIAN/control
+          dpkg-deb --build deb
+          mv deb.deb iio-sensor-proxy_99993.9-6_arm64.deb
+          mv iio-sensor-proxy_99993.9-6_arm64.deb "$GITHUB_WORKSPACE/"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iio-deb
+          path: '*.deb'
+          if-no-files-found: error
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          update: true
+          tag_name: iio_sensor_patched
+          name: "iio_sensor_patched"
+          files: "*.deb"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  sensors:
+    name: Build sensors
+    if: ${{ github.event_name == 'push' || github.event.inputs.component == 'all' || github.event.inputs.component == 'sensors' }}
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build sensors
+        run: |
+          set -x
+          sudo apt update
+          sudo apt install -y wget dpkg-dev
+
+          wget -q -O source.tar.gz \
+            https://github.com/alghiffaryfa19/sheng-sensors-file/archive/199754bb37ae6d4706bd8d4b23e9e6fec2d959cc.tar.gz || {
+            echo "Download failed, retrying after 10s..."
+            sleep 10
+            wget -q -O source.tar.gz \
+              https://github.com/alghiffaryfa19/sheng-sensors-file/archive/199754bb37ae6d4706bd8d4b23e9e6fec2d959cc.tar.gz || {
+              echo "Error: Failed to download sensor files" >&2; exit 1; }; }
+          tar -xf source.tar.gz
+          mkdir -p deb/DEBIAN
+          cp -a sheng-sensors-file-199754bb37ae6d4706bd8d4b23e9e6fec2d959cc/usr deb/
+          {
+            echo "Package: sheng-sensors"
+            echo "Version: 20240917-1"
+            echo "Section: misc"
+            echo "Priority: optional"
+            echo "Architecture: arm64"
+            echo "Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>"
+            echo "Description: Sensor files for Xiaomi Pad 6s Pro"
+            echo " Proprietary sensor configuration files."
+          } > deb/DEBIAN/control
+          find deb -type d -exec chmod 755 {} \;
+          find deb -type f -exec chmod 644 {} \;
+          dpkg-deb -Zgzip --build deb
+          mv deb.deb sheng-sensors_20240917-1_arm64.deb
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sensors-deb
+          path: '*.deb'
+          if-no-files-found: error
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: sensors
+          name: "sensors"
+          files: "*.deb"
+          fail_on_unmatched_globs: true
+          update: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  devauth:
+    name: Build devauth
+    if: ${{ github.event_name == 'push' || github.event.inputs.component == 'all' || github.event.inputs.component == 'devauth' }}
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build devauth
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential dpkg-dev
+
+          git clone https://github.com/map220v/sheng_devauth.git source
+          cd source
+          make
+
+          mkdir -p sheng-devauth/usr/bin sheng-devauth/DEBIAN
+          chmod 0755 xiaomi_devauth
+          cp xiaomi_devauth sheng-devauth/usr/bin/
+
+          {
+            echo '#!/bin/sh'
+            echo 'set -e'
+            echo 'if command -v systemctl >/dev/null 2>&1; then'
+            echo '  systemctl daemon-reload || true'
+            echo '  systemctl enable sheng-devauth.service || true'
+            echo '  systemctl start sheng-devauth.service || true'
+            echo 'fi'
+            echo 'exit 0'
+          } > sheng-devauth/DEBIAN/postinst
+          chmod 0755 sheng-devauth/DEBIAN/postinst
+
+          {
+            echo '#!/bin/sh'
+            echo 'set -e'
+            echo 'if command -v systemctl >/dev/null 2>&1; then'
+            echo '  systemctl stop sheng-devauth.service || true'
+            echo '  systemctl disable sheng-devauth.service || true'
+            echo 'fi'
+            echo 'exit 0'
+          } > sheng-devauth/DEBIAN/prerm
+          chmod 0755 sheng-devauth/DEBIAN/prerm
+
+          {
+            echo "Package: sheng-devauth"
+            echo "Version: 1.0"
+            echo "Section: misc"
+            echo "Priority: optional"
+            echo "Architecture: arm64"
+            echo "Maintainer: Xiaomi Pad 6s Pro Linux Port <github@code002-2>"
+            echo "Description: Xiaomi keyboard authentication service"
+            echo " Service used in pair with kernel driver to authenticate Xiaomi devices."
+          } > sheng-devauth/DEBIAN/control
+
+          dpkg-deb --build sheng-devauth
+          mv sheng-devauth.deb "$GITHUB_WORKSPACE/"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: devauth-deb
+          path: '*.deb'
+          if-no-files-found: error
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          update: true
+          tag_name: sheng_devauth
+          name: "sheng_devauth"
+          files: "*.deb"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  alsa:
+    name: Build alsa + firmware
+    if: ${{ github.event_name == 'push' || github.event.inputs.component == 'all' || github.event.inputs.component == 'alsa' }}
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build alsa + firmware
+        run: |
+          sudo apt install -y wget git dpkg-dev
+
+          # Build firmware package
+          TMPFW=$(mktemp -d)
+          git clone --depth 1 https://github.com/lzxcr/linux-firmware-sheng.git "$TMPFW/fw"
+          mkdir -p firmware-xiaomi-sheng/usr/lib
+          if [ -d "$TMPFW/fw/lib" ]; then
+            cp -r "$TMPFW/fw/lib"/* firmware-xiaomi-sheng/usr/lib/
+          else
+            cp -r "$TMPFW/fw"/* firmware-xiaomi-sheng/usr/lib/ || true
+          fi
+          rm -rf "$TMPFW"
+          dpkg-deb --root-owner-group --build firmware-xiaomi-sheng
+
+          # Build ALSA package
+          TMPSA=$(mktemp -d)
+          git clone --depth 1 https://github.com/map220v/alsa-ucm-conf.git "$TMPSA/alsa"
+          mkdir -p alsa-xiaomi-sheng/usr/share/alsa/ucm2
+          if [ -d "$TMPSA/alsa/ucm2" ]; then
+            cp -r "$TMPSA/alsa/ucm2"/* alsa-xiaomi-sheng/usr/share/alsa/ucm2/
+          else
+            cp -r "$TMPSA/alsa"/* alsa-xiaomi-sheng/usr/share/alsa/ucm2/ || true
+          fi
+          rm -rf "$TMPSA"
+          dpkg-deb --root-owner-group --build alsa-xiaomi-sheng
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: alsa-deb
+          path: '*.deb'
+          if-no-files-found: error
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          update: true
+          tag_name: alsa
+          name: "alsa"
+          files: "*.deb"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

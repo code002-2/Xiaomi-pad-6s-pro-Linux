@@ -18,7 +18,10 @@ on:
     paths:
       - 'sheng-kernel_build.sh'
       - '.github/workflows/kernel.yml'
-      - 'sm8550.config'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.channel || 'mainline' }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -44,7 +47,7 @@ jobs:
         id: cache-ccache
         with:
           path: /home/runner/.ccache
-          key: ${{ runner.os }}-ccache-${{ inputs.channel }}-${{ inputs.kernel_version }}-${{ github.sha }}
+          key: ${{ runner.os }}-ccache-${{ inputs.channel }}-${{ inputs.kernel_version }}-${{ hashFiles('sm8550.config') }}
           restore-keys: |
             ${{ runner.os }}-ccache-${{ inputs.channel }}-${{ inputs.kernel_version }}-
             ${{ runner.os }}-ccache-${{ inputs.channel }}-
@@ -52,7 +55,7 @@ jobs:
       - name: 部署 LLVM 交叉编译环境
         run: |
           sudo apt update
-          sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils
+          sudo apt install -y build-essential flex bison libssl-dev libelf-dev bc ccache clang llvm lld wget xz-utils systemd-ukify systemd-boot-efi
           mkdir -p /home/runner/.ccache
           ccache --set-config=max_size=10G
           ccache --set-config=cache_dir=/home/runner/.ccache
@@ -65,15 +68,16 @@ jobs:
           export CCACHE_MAXSIZE=10G
           export PATH="/usr/lib/ccache:$PATH"
           chmod +x sheng-kernel_build.sh
-          export KERNEL_CHANNEL="${{ inputs.channel }}"; bash sheng-kernel_build.sh
-          echo "✅ 内核编译完成"
+          export KERNEL_CHANNEL="${{ inputs.channel }}"
+          bash sheng-kernel_build.sh
+          echo "Kernel compilation complete"
           ccache --show-stats || true
 
       - name: 收集编译产物
         id: collect_artifacts
         run: |
           PKG_COUNT=$(ls -1 *.deb 2>/dev/null | wc -l)
-          echo "📦 共找到 $PKG_COUNT 个 Debian 包文件"
+          echo "Found $PKG_COUNT Debian package(s)"
           echo "pkg_count=$PKG_COUNT" >> $GITHUB_OUTPUT
 
       - name: 上传 .deb 驱动包
@@ -84,6 +88,14 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+      - name: 上传 EFI 引导镜像
+        uses: actions/upload-artifact@v4
+        with:
+          name: efi_boot-${{ inputs.channel }}
+          path: bootaa64.efi
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: 上传启动镜像 (boot.img)
         uses: actions/upload-artifact@v4
         with:
@@ -91,25 +103,26 @@ jobs:
           path: |
             boot_sheng_singleboot.img
             boot_sheng_dualboot.img
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: 自动发布 GitHub Release
+        uses: softprops/action-gh-release@v2
         if: steps.collect_artifacts.outputs.pkg_count > 0 && github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v1
         with:
           tag_name: kernel-${{ inputs.channel }}-${{ inputs.kernel_version }}
           name: "Kernel ${{ inputs.channel }} v${{ inputs.kernel_version }}"
           body: |
             **小米Pad6spro ${{ inputs.channel }} 内核 v${{ inputs.kernel_version }}**
-            
+
             | 项目 | 详情 |
             |------|------|
             | 通道 | ${{ inputs.channel }} |
             | 内核版本 | ${{ inputs.kernel_version }} |
             | 架构 | ARM64 (sm8550) |
-          draft: false
-          prerelease: ${{ inputs.channel == 'stable' }}
           files: |
             *.deb
             *.img
+            bootaa64.efi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -5,6 +5,7 @@ on:
     workflows: ["Build Kernel"]
     types:
       - completed
+    branches: [main, master]
   workflow_dispatch:
     inputs:
       kernel_version:
@@ -18,59 +19,64 @@ on:
         options: [mainline, stable]
         default: "mainline"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.channel || 'mainline' }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
 jobs:
   bundle:
+    # Only run when the triggering workflow completed successfully
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: write
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
     - name: Download all source releases
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         KERNEL_VER="${{ github.event.inputs.kernel_version || '7.1' }}"
         CHANNEL="${{ github.event.inputs.channel || 'mainline' }}"
 
         mkdir bundle && cd bundle
 
-        echo "⬇️ Download kernel packages"
+        echo "Download kernel packages"
         gh release download "kernel-${CHANNEL}-${KERNEL_VER}" \
           --pattern "*.deb" \
           --repo "${{ github.repository }}" \
-          --clobber || true
+          --clobber || { echo "Error: Failed to download kernel packages" >&2; exit 1; }
 
-        echo "⬇️ Download sheng_devauth"
+        echo "Download sheng_devauth"
         gh release download "sheng_devauth" \
           --pattern "*.deb" \
           --repo "${{ github.repository }}" \
-          --clobber || true
+          --clobber || { echo "Error: Failed to download sheng_devauth" >&2; exit 1; }
 
-        echo "⬇️ Download sensor"
-        gh release download "sensor" \
+        echo "Download sensor packages"
+        gh release download "sensors" \
           --pattern "*.deb" \
           --repo "${{ github.repository }}" \
-          --clobber || true
+          --clobber || { echo "Error: Failed to download sensors" >&2; exit 1; }
 
-        echo "📂 Final bundle:"
+        echo "Final bundle:"
         ls -lah
 
         COUNT=$(ls *.deb 2>/dev/null | wc -l)
         if [ "$COUNT" -lt 5 ]; then
-          echo "❌ Not enough packages (found $COUNT, need >= 5)"
+          echo "Not enough packages (found $COUNT, need >= 5)"
           exit 1
         fi
-        echo "✅ Bundle validated: $COUNT packages"
-
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        echo "Bundle validated: $COUNT packages"
 
     - name: Create bundle release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
-        tag_name: kernel-bundle-${{ github.event.inputs.kernel_version }}
-        name: Kernel Bundle ${{ github.event.inputs.kernel_version }}
+        tag_name: "kernel-bundle-${{ github.event.inputs.channel || 'mainline' }}-${{ github.event.inputs.kernel_version || '7.1' }}"
+        name: "Kernel Bundle ${{ github.event.inputs.channel || 'mainline' }} ${{ github.event.inputs.kernel_version || '7.1' }}"
         files: bundle/*.deb
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

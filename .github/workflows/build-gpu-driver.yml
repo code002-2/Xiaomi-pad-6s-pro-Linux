@@ -19,12 +19,17 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
 jobs:
   build-mesa-freedreno-turnip:
     name: Build Mesa (Freedreno/Turnip) .deb
     runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,7 +37,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install --no-install-recommends -y \
             git python3-pip python3-setuptools python3-mako \
             ninja-build pkg-config \
             libdrm-dev libx11-dev libxext-dev libxdamage-dev \
@@ -83,17 +88,16 @@ jobs:
           mkdir -p debian/usr/lib/aarch64-linux-gnu/
           DESTDIR=$(pwd)/debian ninja -C builddir/ install
           mkdir -p debian/DEBIAN
-          # 构造符合 Debian 规范的版本号：以数字开头，使用 0.0.0+git<commit>
           DEB_VERSION="0.0.0+git${{ env.MESA_COMMIT }}"
-          cat > debian/DEBIAN/control <<EOF
-          Package: mesa-freedreno-turnip
-          Version: ${DEB_VERSION}
-          Architecture: arm64
-          Maintainer: GitHub Actions <actions@github.com>
-          Description: Freedreno (OpenGL) and Turnip (Vulkan) drivers for Qualcomm Adreno GPUs
-           Built from Mesa commit ${{ env.MESA_COMMIT }}.
-          Depends: libc6, libdrm2, libx11-6, libxext6, libxdamage1, libxcb-glx0, libxcb-shm0, libxcb-dri2-0, libxcb-dri3-0, libxcb-present0, libxshmfence1, libxxf86vm1, libxrandr2, libxfixes3, libwayland-client0, libvulkan1
-          EOF
+          {
+            echo "Package: mesa-freedreno-turnip"
+            echo "Version: ${DEB_VERSION}"
+            echo "Architecture: arm64"
+            echo "Maintainer: GitHub Actions <actions@github.com>"
+            echo "Description: Freedreno (OpenGL) and Turnip (Vulkan) drivers for Qualcomm Adreno GPUs"
+            echo " Built from Mesa commit ${{ env.MESA_COMMIT }}."
+            echo "Depends: libc6, libdrm2, libx11-6, libxext6, libxdamage1, libxcb-glx0, libxcb-shm0, libxcb-dri2-0, libxcb-dri3-0, libxcb-present0, libxshmfence1, libxxf86vm1, libxrandr2, libxfixes3, libwayland-client0, libvulkan1"
+          } > debian/DEBIAN/control
           cd debian
           find usr -type f -exec md5sum {} \; > DEBIAN/md5sums
           cd ..
@@ -105,20 +109,21 @@ jobs:
           name: mesa-freedreno-turnip
           path: mesa-source/mesa-freedreno-turnip_*.deb
           retention-days: 14
+          if-no-files-found: error
 
       - name: Create Release and upload .deb
+        uses: softprops/action-gh-release@v2
         if: ${{ !github.event.inputs.skip_release }}
-        uses: softprops/action-gh-release@v1
         with:
-          tag_name: mesa-freedreno-turnip-${{ github.event.inputs.mesa_version }}-${{ env.MESA_COMMIT }}
+          tag_name: mesa-freedreno-turnip-${{ github.event.inputs.mesa_version }}-${{ env.MESA_COMMIT }}-${{ github.run_id }}
           name: "Mesa Freedreno/Turnip Driver - ${{ github.event.inputs.mesa_version }}"
           body: |
             Built from Mesa commit ${{ env.MESA_COMMIT }}
-            
+
             **包含驱动**:
             - Freedreno (OpenGL ES / Desktop OpenGL)
             - Turnip (Vulkan)
-            
+
             **安装方法**:
             ```bash
             sudo dpkg -i mesa-freedreno-turnip_*.deb

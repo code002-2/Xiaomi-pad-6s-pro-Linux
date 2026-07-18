@@ -1,0 +1,33 @@
+diff -ura libssc/src/libssc-client.c libssc_p/src/libssc-client.c
+--- libssc/src/libssc-client.c	2026-02-06 11:52:58.295547853 +0000
++++ libssc_p/src/libssc-client.c	2026-02-06 11:50:13.413216510 +0000
+@@ -17,6 +17,7 @@
+  */
+ 
+ #include "libssc-client-private.h"
++#include <unistd.h>
+ 
+ enum {
+ 	SIGNAL_REPORT,
+@@ -377,12 +378,15 @@
+ 	}
+ 
+ 	/* Find QRTR node for SSC service */
+-	for (GList *l = qrtr_bus_peek_nodes (priv->bus); l != NULL; l = l->next) {
+-		node = l->data;
+-
+-		if (node && qrtr_node_lookup_port (node, QMI_SERVICE_SSC) >= 0) {
+-			found = TRUE;
+-			break;
++	for (int attempt = 0; attempt < 5; attempt++) {
++		sleep(1);
++		for (GList *l = qrtr_bus_peek_nodes (priv->bus); l != NULL; l = l->next) {
++			node = l->data;
++
++			if (node && qrtr_node_lookup_port (node, QMI_SERVICE_SSC) >= 0) {
++				found = TRUE;
++				break;
++			}
+ 		}
+ 	}
+ 

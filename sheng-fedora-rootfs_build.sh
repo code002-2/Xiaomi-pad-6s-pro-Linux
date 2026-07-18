@@ -1,12 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
+# =============================================================================
+# sheng-fedora-rootfs_build.sh — Fedora 44 rootfs builder (refactored)
+# =============================================================================
 source "$(dirname "$0")/lib/rootfs-common.sh"
 
 # --- Distro-specific configuration ---
 IMAGE_SIZE="8G"
 UUID="ee8d3593-59b1-480e-a3b6-4fefb17ee7d8"
 FEDORA_VERSION="44"
+FEDORA_CONTAINER_URL="https://download.fedoraproject.org/pub/fedora/linux/releases/${FEDORA_VERSION}/Container/aarch64/images/Fedora-Container-Base-Generic-${FEDORA_VERSION}-1.7.aarch64.oci.tar.xz"
 
 # --- Password configuration ---
 ROOT_PASS="${ROOT_PASS:-1234}"
@@ -14,159 +18,169 @@ USER_PASS="${USER_PASS:-luser}"
 USER_NAME="${USER_NAME:-luser}"
 
 # --- Argument parsing ---
-if [ $# -lt 2 ] || [ $# -gt 5 ]; then
-    echo "用法: $0 <distro_name> <kernel_version> [boot_mode] [desktop_env]"; echo "示例: $0 fedora 7.1 all gnome"
-    exit 1
-fi
-if [ "$(id -u)" -ne 0 ]; then echo "请使用root权限运行"; exit 1; fi
+validate_args 2 4 $# '<distro_name> <kernel_version> [boot_mode] [desktop_env]  (e.g. fedora 7.1 all gnome)'
+validate_root
 
 DISTRO=$1
 KERNEL=$2
 TARGET_MODE=${3:-all}
 TARGET_DE=${4:-gnome}
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-ROOTFS_IMG="fedora_desktop_${TIMESTAMP}.img"
+TIMESTAMP=$(generate_timestamp)
 
-echo "=========================================="
-echo "开始构建纯净桌面版 Fedora ${FEDORA_VERSION} ARM RootFS"
-echo "内核版本: $KERNEL"
-echo "=========================================="
+mapfile -t BOOTMODES < <(parse_boot_modes "$TARGET_MODE") || exit 1
+mapfile -t DESKTOPS < <(parse_desktops "$TARGET_DE") || exit 1
 
-# Step 1: Create image
-create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
+# --- Main build loop ---
+for DE in "${DESKTOPS[@]}"; do
+    for MODE in "${BOOTMODES[@]}"; do
+        echo ""
+        echo "=========================================="
+        echo "开始构建: Fedora ${FEDORA_VERSION} | 桌面: ${DE^^} | 模式: $MODE"
+        echo "=========================================="
 
-# Step 2: Docker extraction
-echo "正在通过 Docker 提取 Fedora ${FEDORA_VERSION} 基础根文件系统..."
-docker pull --platform linux/arm64 "fedora:${FEDORA_VERSION}"
-docker create --name fedora-temp "fedora:${FEDORA_VERSION}"
-docker export fedora-temp | tar -x -C "$ROOTDIR/"
-docker rm fedora-temp
+        ROOTFS_IMG="fedora_${DE}_${MODE}_${TIMESTAMP}.img"
 
-setup_chroot_mounts "$ROOTDIR"
-setup_dns "$ROOTDIR" 8.8.8.8 1.1.1.1
+        # Pre-flight checks (only tools we actually install in the template)
+        preflight_checks 10240
 
-# Step 3: Base packages
-echo "正在安装编译工具..."
-chroot "$ROOTDIR" dnf -y install git gcc make kernel-headers
+        # Step 1: Create image
+        create_image "$IMAGE_SIZE" "$ROOTFS_IMG" "$UUID"
+        setup_chroot_mounts "$ROOTDIR"
+        trap_teardown "$ROOTDIR"
 
-echo "正在更新 Fedora 系统并安装基础组件..."
-chroot "$ROOTDIR" dnf -y update --exclude=kernel-core
-chroot "$ROOTDIR" dnf -y install --exclude=kernel-core \
-    systemd sudo vim wget curl tar xz pciutils findutils \
-    NetworkManager wpa_supplicant dialog qrtr
+        # Step 2: Extract Fedora base rootfs from OCI container image
+        echo "正在提取 Fedora ${FEDORA_VERSION} 基础根文件系统..."
+        OCI_TAR_XZ="fedora-${FEDORA_VERSION}-container.oci.tar.xz"
+        OCI_TAR="fedora-${FEDORA_VERSION}-container.oci.tar"
 
-# Step 4: Desktop environment
-echo "正在安装 ${TARGET_DE^^} 桌面环境..."
-if [ "$TARGET_DE" = "kde" ]; then
-    chroot "$ROOTDIR" dnf -y install @kde-desktop --exclude=kernel-core
-    chroot "$ROOTDIR" dnf -y install sddm
-else
-    chroot "$ROOTDIR" dnf -y install @gnome-desktop --exclude=kernel-core
-    chroot "$ROOTDIR" dnf -y install gdm
-fi
-
-# Step 5: Kernel injection
-echo "正在扫描并注入本地内核与系统固件包..."
-if ls *.deb 1> /dev/null 2>&1; then
-    for pkg in *.deb; do
-        echo "   -> 正在提取并覆盖注入 $pkg ..."
-        dpkg-deb --fsys-tarfile "$pkg" | tar -x --keep-directory-symlink -C "$ROOTDIR/"
-    done
-
-    KERNEL_MODULE_DIR=$(ls -1t "$ROOTDIR/usr/lib/modules/" | head -n 1)
-    if [ -n "$KERNEL_MODULE_DIR" ]; then
-        echo "   动态识别到真实内核版本目录: $KERNEL_MODULE_DIR"
-        chroot "$ROOTDIR" /usr/sbin/depmod -a "$KERNEL_MODULE_DIR" || true
-
-        echo "   正在安装 dracut 并生成初始内存盘..."
-        chroot "$ROOTDIR" dnf -y install dracut
-        chroot "$ROOTDIR" dracut -N --kver "$KERNEL_MODULE_DIR" --force "/boot/initramfs-linux.img"
-
-        if [ -f "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" ]; then
-            echo "   正在适配 Bootloader 内核命名..."
-            cp "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" "$ROOTDIR/boot/Image"
-            cp "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" "$ROOTDIR/boot/vmlinuz-linux"
+        if [ ! -f "$OCI_TAR_XZ" ]; then
+            echo "下载 Fedora ${FEDORA_VERSION} OCI 容器镜像..."
+            wget -nv -O "$OCI_TAR_XZ" "$FEDORA_CONTAINER_URL" || {
+                echo "错误: 下载 Fedora OCI 镜像失败，尝试备用地址..." >&2
+                # Try TUNA mirror as fallback
+                wget -nv -O "$OCI_TAR_XZ" "https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/${FEDORA_VERSION}/Container/aarch64/images/Fedora-Container-Base-Generic-${FEDORA_VERSION}-1.7.aarch64.oci.tar.xz" || {
+                    echo "错误: 下载 Fedora OCI 镜像失败" >&2
+                    exit 1
+                }
+            }
         fi
-    fi
-fi
 
-if ls *.tar.gz 1> /dev/null 2>&1; then
-    for tarball in *.tar.gz; do
-        tar -xz --keep-directory-symlink -f "$tarball" -C "$ROOTDIR/"
+        # Decompress xz
+        echo "解压 OCI 镜像..."
+        xz -dk "$OCI_TAR_XZ"
+
+        # Extract OCI tar to get layer files
+        echo "提取 OCI 层..."
+        OCI_EXTRACT_DIR=$(mktemp -d)
+        tar -xf "$OCI_TAR" -C "$OCI_EXTRACT_DIR"
+
+        # Find all layer tars and extract them in order
+        LAYER_FILES=$(find "$OCI_EXTRACT_DIR" -name "*.tar" -type f | sort)
+        if [ -z "$LAYER_FILES" ]; then
+            echo "错误: OCI 镜像中没有找到层文件" >&2
+            rm -rf "$OCI_EXTRACT_DIR"
+            exit 1
+        fi
+
+        # Extract each layer into ROOTDIR
+        for layer in $LAYER_FILES; do
+            echo "  提取层: $(basename "$layer")"
+            tar -xf "$layer" -C "$ROOTDIR/" --keep-directory-symlink
+        done
+        rm -rf "$OCI_EXTRACT_DIR"
+        rm -f "$OCI_TAR"
+
+        setup_dns "$ROOTDIR" 8.8.8.8 1.1.1.1
+
+        # Step 3: Base packages
+        echo "正在安装编译工具..."
+        chroot "$ROOTDIR" dnf -y install git gcc make kernel-headers
+
+        echo "正在更新 Fedora 系统并安装基础组件..."
+        chroot "$ROOTDIR" dnf -y update --exclude=kernel-core
+        chroot "$ROOTDIR" dnf -y install --exclude=kernel-core \
+            systemd sudo vim wget curl tar xz pciutils findutils \
+            NetworkManager wpa_supplicant dialog qrtr
+
+        # Step 4: Desktop environment
+        echo "正在安装 ${DE^^} 桌面环境..."
+        if [ "$DE" = "kde" ]; then
+            chroot "$ROOTDIR" dnf -y install @kde-desktop --exclude=kernel-core
+            chroot "$ROOTDIR" dnf -y install sddm
+        else
+            chroot "$ROOTDIR" dnf -y install @gnome-desktop --exclude=kernel-core
+            chroot "$ROOTDIR" dnf -y install gdm
+        fi
+
+        # Step 5: Kernel injection
+        echo "正在扫描并注入本地内核与系统固件包..."
+        if inject_deb_kernel "$ROOTDIR"; then
+            KERNEL_MODULE_DIR=$(detect_kernel_module_dir "$ROOTDIR")
+            if [ -n "$KERNEL_MODULE_DIR" ]; then
+                echo "   动态识别到真实内核版本目录: $KERNEL_MODULE_DIR"
+                chroot "$ROOTDIR" /usr/sbin/depmod -a "$KERNEL_MODULE_DIR" || true
+
+                echo "   正在安装 dracut 并生成初始内存盘..."
+                chroot "$ROOTDIR" dnf -y install dracut
+                chroot "$ROOTDIR" dracut -N --kver "$KERNEL_MODULE_DIR" --force "/boot/initramfs-${KERNEL_MODULE_DIR}.img"
+
+                if [ -f "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" ]; then
+                    echo "   正在适配 Bootloader 内核命名..."
+                    cp "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" "$ROOTDIR/boot/Image"
+                    cp "$ROOTDIR/boot/vmlinuz-$KERNEL_MODULE_DIR" "$ROOTDIR/boot/vmlinuz-linux"
+                fi
+            fi
+        else
+            echo "错误: 当前目录下未找到任何 .deb 内核包，无法生成可启动 rootfs！" >&2
+            exit 1
+        fi
+
+        # tar.gz firmware injection (if present)
+        tar_files=( *.tar.gz )
+        if [ ${#tar_files[@]} -gt 0 ] && [ -f "${tar_files[0]}" ]; then
+            for tarball in "${tar_files[@]}"; do
+                tar -xz --keep-directory-symlink -f "$tarball" -C "$ROOTDIR/"
+            done
+        fi
+
+        # Step 6: Users & hostname — 使用公共库
+        setup_users "$ROOTDIR" "$ROOT_PASS" "$USER_NAME" "$USER_PASS" "wheel,audio,video,input"
+        echo "fedora-sheng" > "$ROOTDIR/etc/hostname"
+        echo "%wheel ALL=(ALL:ALL) NOPASSWD: ALL" > "$ROOTDIR/etc/sudoers.d/wheel"
+        chmod 440 "$ROOTDIR/etc/sudoers.d/wheel"
+
+        # Step 7: Hardware quirks
+        echo "正在注入 Fedora 底层自愈补丁..."
+        setup_getty_ttyMSM0 "$ROOTDIR"
+        chroot "$ROOTDIR" systemctl enable systemd-resolved NetworkManager
+        configure_touchscreen "$ROOTDIR"
+
+        # SELinux disabled
+        mkdir -p "$ROOTDIR/etc/selinux"
+        echo "SELINUX=disabled" > "$ROOTDIR/etc/selinux/config"
+        echo "SELINUXTYPE=targeted" >> "$ROOTDIR/etc/selinux/config"
+
+        # Desktop autologin — 使用公共库
+        setup_autologin "$ROOTDIR" "$DE" "$USER_NAME"
+        chroot "$ROOTDIR" systemctl set-default graphical.target
+
+        # WiFi fix — 使用公共库
+        echo "正在预配置高通 WiFi 固件修复..."
+        fix_wifi_firmware "$ROOTDIR"
+
+        # QRTR service — 使用公共库统一创建
+        setup_qrtr_service "$ROOTDIR"
+
+        # Step 8: fstab & cleanup
+        generate_fstab "$ROOTDIR" "$MODE"
+        chroot "$ROOTDIR" dnf clean all
+        teardown_mounts "$ROOTDIR"
+
+        # Step 9: Pack
+        apply_fs_uuid "$UUID" "$ROOTFS_IMG"
+        echo "正在转换为 Sparse 格式加速刷机..."
+        pack_sparse_image "$ROOTFS_IMG" "fedora_${DE}_${MODE}_${TIMESTAMP}.7z"
+
+        echo "Fedora ${FEDORA_VERSION} 版本构建完成！"
     done
-fi
-
-# Step 6: Users & hostname
-chroot "$ROOTDIR" bash -c "echo 'root:${ROOT_PASS}' | chpasswd"
-echo "fedora-sheng" > "$ROOTDIR/etc/hostname"
-chroot "$ROOTDIR" useradd -m -s /bin/bash "$USER_NAME"
-chroot "$ROOTDIR" bash -c "echo '${USER_NAME}:${USER_PASS}' | chpasswd"
-chroot "$ROOTDIR" usermod -aG wheel,audio,video,input "$USER_NAME"
-echo "%wheel ALL=(ALL:ALL) NOPASSWD: ALL" > "$ROOTDIR/etc/sudoers.d/wheel"
-chmod 440 "$ROOTDIR/etc/sudoers.d/wheel"
-
-# Step 7: Hardware quirks
-echo "正在注入 Fedora 底层自愈补丁..."
-setup_getty_ttyMSM0 "$ROOTDIR"
-chroot "$ROOTDIR" systemctl enable systemd-resolved NetworkManager
-configure_touchscreen "$ROOTDIR"
-
-# SELinux disabled
-mkdir -p "$ROOTDIR/etc/selinux"
-echo "SELINUX=disabled" > "$ROOTDIR/etc/selinux/config"
-echo "SELINUXTYPE=targeted" >> "$ROOTDIR/etc/selinux/config"
-
-# Desktop autologin config
-if [ "$TARGET_DE" = "kde" ]; then
-    mkdir -p "$ROOTDIR/etc/sddm.conf.d"
-    cat > "$ROOTDIR/etc/sddm.conf.d/autologin.conf" <<AUTHEOF
-[Autologin]
-User=$USER_NAME
-Session=plasma
-AUTHEOF
-    chroot "$ROOTDIR" systemctl enable sddm
-else
-    mkdir -p "$ROOTDIR/etc/gdm"
-    cat > "$ROOTDIR/etc/gdm/custom.conf" <<AUTHEOF2
-[daemon]
-AutomaticLoginEnable=True
-AutomaticLogin=$USER_NAME
-AUTHEOF2
-    chroot "$ROOTDIR" systemctl enable gdm
-fi
-chroot "$ROOTDIR" systemctl set-default graphical.target
-
-# WiFi fix
-echo "正在预配置高通 WiFi 固件修复..."
-FW_DIR="$ROOTDIR/usr/lib/firmware/ath12k/WCN7850/hw2.0"
-if [ -f "$FW_DIR/board-2.bin" ]; then
-    cp "$FW_DIR/board-2.bin" "$FW_DIR/board.bin"
-    echo "   board.bin 伪装成功！"
-fi
-
-# QRTR force service
-cat <<'EOF' > "$ROOTDIR/etc/systemd/system/qrtr-force.service"
-[Unit]
-Description=Qualcomm IPC Router Service (QRTR)
-After=network.target
-
-[Service]
-ExecStart=/usr/bin/qrtr-ns -f
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-chroot "$ROOTDIR" systemctl enable qrtr-force.service
-
-# Step 8: fstab & cleanup
-generate_fstab "$ROOTDIR" "dual"
-chroot "$ROOTDIR" dnf clean all
-teardown_mounts "$ROOTDIR"
-
-# Step 9: Pack
-apply_fs_uuid "$UUID" "$ROOTFS_IMG"
-echo "正在转换为 Sparse 格式加速刷机..."
-pack_sparse_image "$ROOTFS_IMG" "fedora_desktop_${TIMESTAMP}.7z"
-
-echo "🎉 Fedora ${FEDORA_VERSION} 版本构建圆满成功！"
+done

@@ -1,0 +1,38 @@
+# 确保 shell 脚本始终使用 LF 行尾（POSIX 兼容）
+*.sh text eol=lf
+
+# 构建脚本（可能无后缀名）
+sheng-kernel_build.sh text eol=lf diff=bash
+sheng-rootfs_build.sh text eol=lf diff=bash
+sheng-arch-rootfs_build.sh text eol=lf diff=bash
+sheng-fedora-rootfs_build.sh text eol=lf diff=bash
+build-ubuntu26-rootfs.sh text eol=lf diff=bash
+
+# lib 下的 shell 脚本
+/lib/rootfs-common.sh text eol=lf diff=bash
+
+# CI 工作流 YAML
+.github/workflows/*.yml text
+
+# 自动检测文本文件
+*.cfg text
+*.conf text
+*.config text
+*.md text
+*.txt text
+
+# 二进制文件（不得进行行尾转换）
+*.img binary
+*.7z binary
+*.deb binary
+*.tar.gz binary
+*.zip binary
+*.dtb binary
+*.dtbo binary
+*.ko binary
+*.jpg binary
+*.png binary
+*.ico binary
+
+# Git 冲突标记样式
+*.sh conflict-marker-size=8
