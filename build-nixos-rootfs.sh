@@ -157,6 +157,10 @@ FSTABEOF
 
     tune2fs -U "$FILESYSTEM_UUID" "$OUT_DIR/$ROOTFS_IMG" >/dev/null
 
+    echo "  Removing uninit_bg and rebuilding all block group metadata"
+    tune2fs -O ^uninit_bg "$OUT_DIR/$ROOTFS_IMG" 2>/dev/null || true
+    e2fsck -fy "$OUT_DIR/$ROOTFS_IMG" 2>&1 || echo "  WARNING: e2fsck -fy failed"
+
     echo "  Verifying rootfs integrity"
     e2fsck -fn "$OUT_DIR/$ROOTFS_IMG" || echo "  WARNING: e2fsck reported issues"
 
