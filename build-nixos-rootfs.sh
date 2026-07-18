@@ -111,38 +111,48 @@ for MODE in "${BOOT_MODES[@]}"; do
 
     ROOTFS_IMG="nixos-sheng-${MODE}-${TIMESTAMP}.img"
 
-    echo "  Copying base rootfs image"
+    echo "  Extracting make_ext4fs source image"
+    SOURCE_IMG="${ROOTFS_IMG}.source"
     case "$ROOTFS_SOURCE" in
         *.zst)
             command -v zstd >/dev/null 2>&1 || { echo "Error: zstd required to decompress" >&2; exit 1; }
-            zstd -dc "$ROOTFS_SOURCE" > "$OUT_DIR/$ROOTFS_IMG"
+            zstd -dc "$ROOTFS_SOURCE" > "$OUT_DIR/$SOURCE_IMG"
             ;;
         *)
-            cp "$ROOTFS_SOURCE" "$OUT_DIR/$ROOTFS_IMG"
+            cp "$ROOTFS_SOURCE" "$OUT_DIR/$SOURCE_IMG"
             ;;
     esac
-    chmod +w "$OUT_DIR/$ROOTFS_IMG"
 
-    echo "  Repairing ext4 bitmap inconsistencies from make_ext4fs"
-    e2fsck -fp "$OUT_DIR/$ROOTFS_IMG" || echo "  WARNING: e2fsck -fp found unfixable issues, image may fail to mount r/w"
+    echo "  Mounting source and creating native ext4 image"
+    SRC_MNT=$(mktemp -d)
+    mount -o loop,ro "$OUT_DIR/$SOURCE_IMG" "$SRC_MNT"
+
+    # Create fresh ext4 with native mkfs.ext4, bypassing make_ext4fs incompatibility
+    SOURCE_SIZE="$(stat -c%s "$OUT_DIR/$SOURCE_IMG")"
+    if [ "$IMAGE_SIZE" != "auto" ]; then
+        TARGET_SIZE="$(numfmt --from=iec "$IMAGE_SIZE")"
+    else
+        # Add 256MB buffer for native ext4 metadata overhead vs make_ext4fs
+        TARGET_SIZE=$((SOURCE_SIZE + 268435456))
+    fi
+    truncate -s "$TARGET_SIZE" "$OUT_DIR/$ROOTFS_IMG"
+    mkfs.ext4 -L "$PARTLABEL" -U "$FILESYSTEM_UUID" -d "$SRC_MNT" "$OUT_DIR/$ROOTFS_IMG"
+
+    umount "$SRC_MNT"
+    rmdir "$SRC_MNT"
+    rm -f "$OUT_DIR/$SOURCE_IMG"
 
     if [ "$IMAGE_SIZE" != "auto" ]; then
         echo "  Resizing to ${IMAGE_SIZE}"
-        e2fsck -fp "$OUT_DIR/$ROOTFS_IMG" || true
-        CURRENT_SIZE="$(stat -c%s "$OUT_DIR/$ROOTFS_IMG")"
         DESIRED_SIZE="$(numfmt --from=iec "$IMAGE_SIZE")"
-        if [ "$DESIRED_SIZE" -lt "$CURRENT_SIZE" ]; then
-            echo "  Shrinking filesystem to ${IMAGE_SIZE} before truncating"
+        if [ "$DESIRED_SIZE" -lt "$TARGET_SIZE" ]; then
             resize2fs -f "$OUT_DIR/$ROOTFS_IMG" "$IMAGE_SIZE" || { echo "Error: resize2fs failed" >&2; exit 1; }
             truncate -s "$IMAGE_SIZE" "$OUT_DIR/$ROOTFS_IMG"
-        else
-            truncate -s "$IMAGE_SIZE" "$OUT_DIR/$ROOTFS_IMG"
-            resize2fs -f "$OUT_DIR/$ROOTFS_IMG" || { echo "Error: resize2fs failed" >&2; exit 1; }
         fi
+    else
+        echo "  Shrinking to minimum size"
+        resize2fs -fM "$OUT_DIR/$ROOTFS_IMG" || true
     fi
-
-    echo "  Setting filesystem label to ${PARTLABEL}"
-    tune2fs -L "$PARTLABEL" "$OUT_DIR/$ROOTFS_IMG" 2>/dev/null || true
 
     echo "  Fixing fstab for ${PARTLABEL}"
     MNT_DIR=$(mktemp -d)
@@ -154,12 +164,6 @@ PARTLABEL=${PARTLABEL} / ext4 defaults,noatime,errors=remount-ro 0 1
 FSTABEOF
     umount "$MNT_DIR"
     rmdir "$MNT_DIR"
-
-    tune2fs -U "$FILESYSTEM_UUID" "$OUT_DIR/$ROOTFS_IMG" >/dev/null
-
-    echo "  Removing uninit_bg and rebuilding all block group metadata"
-    tune2fs -O ^uninit_bg "$OUT_DIR/$ROOTFS_IMG" 2>/dev/null || true
-    e2fsck -fy "$OUT_DIR/$ROOTFS_IMG" 2>&1 || echo "  WARNING: e2fsck -fy failed"
 
     echo "  Verifying rootfs integrity"
     e2fsck -fn "$OUT_DIR/$ROOTFS_IMG" || echo "  WARNING: e2fsck reported issues"
