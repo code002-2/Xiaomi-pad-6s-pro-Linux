@@ -24,6 +24,7 @@
     niri
     foot
     fuzzel
+    wvkbd
   ];
 
   # Auto-start niri on the autologin tty (getty tty1)
@@ -39,5 +40,39 @@
         exec niri-session
       fi
     fi
+  '';
+
+  environment.etc."xdg/niri/config.kdl".text = ''
+    // Auto-start terminal and on-screen keyboard
+    spawn-at-startup "foot"
+    spawn-at-startup "wvkbd-mobintl"
+
+    // Input: use libinput defaults, tap-to-click for touchscreen
+    input {
+        touch {
+            tap
+        }
+        touchpad {
+            tap
+        }
+        keyboard {
+            xkb-layout "us"
+        }
+    }
+
+    // Keyboard shortcuts (Mod = Super/Win key)
+    binds {
+        Mod+Return { spawn "foot"; }
+        Mod+T { spawn "foot"; }
+        Mod+D { spawn "fuzzel"; }
+        Mod+Q { close-window; }
+        Mod+H { focus-column-left; }
+        Mod+L { focus-column-right; }
+        Mod+J { focus-window-down; }
+        Mod+K { focus-window-up; }
+        Mod+1 { switch-to-workspace 1; }
+        Mod+2 { switch-to-workspace 2; }
+        Mod+3 { switch-to-workspace 3; }
+    }
   '';
 }
