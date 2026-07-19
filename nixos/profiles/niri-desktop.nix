@@ -102,7 +102,7 @@
         echo "ERROR: seatd is not running" >&2
         echo "  status: $(systemctl is-active seatd 2>&1)" >&2
       else
-        exec niri --session
+        exec niri --session 2>> /tmp/niri-diag/niri-stderr.log
       fi
     fi
   '';
@@ -110,7 +110,7 @@
   environment.etc."xdg/niri/config.kdl".text = ''
     spawn-at-startup "kitty"
     spawn-at-startup "wvkbd-mobintl"
-    spawn-at-startup "noctalia-shell"
+    spawn-at-startup "waybar"
 
     prefer-no-csd
     screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
@@ -482,7 +482,6 @@
     [main]
     font=monospace:size=14
     terminal=kitty
-    prompt=
 
     width=40
     lines=10
