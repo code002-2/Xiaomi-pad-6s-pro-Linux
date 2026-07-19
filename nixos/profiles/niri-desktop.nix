@@ -27,6 +27,8 @@
     fuzzel
     wvkbd
     waybar
+    noctalia-qs
+    noctalia-shell
     mpvpaper
     fastfetch
     eza
@@ -108,7 +110,7 @@
   environment.etc."xdg/niri/config.kdl".text = ''
     spawn-at-startup "kitty"
     spawn-at-startup "wvkbd-mobintl"
-    spawn-at-startup "waybar"
+    spawn-at-startup "noctalia-shell"
 
     prefer-no-csd
     screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
@@ -243,6 +245,32 @@
         default-floating-position x=20 y=20 relative-to="bottom-right"
     }
 
+    // Noctalia shell layer rules
+    layer-rule {
+        match namespace="^noctalia-wallpaper*"
+        place-within-backdrop true
+    }
+
+    layer-rule {
+        match namespace="^quickshell$"
+        place-within-backdrop true
+    }
+
+    layer-rule {
+        match namespace="^mpvpaper$"
+        place-within-backdrop true
+    }
+
+    layer-rule {
+        match namespace="^noctalia-bar-bar$"
+        opacity 1.0
+        geometry-corner-radius 0
+        shadow { off; }
+        background-effect {
+            blur false
+        }
+    }
+
     animations {
         workspace-switch {
             spring damping-ratio=0.8 stiffness=523 epsilon=0.0001
@@ -280,6 +308,14 @@
         Mod+Tab repeat=false { toggle-overview; }
         Mod+Return           { spawn "kitty"; }
         Mod+T                { spawn "kitty"; }
+
+        // Noctalia shell bindings (if available)
+        Mod+R                { spawn "noctalia-shell" "msg" "panel-toggle" "launcher"; }
+        Mod+X                { spawn "noctalia-shell" "msg" "panel-toggle" "session"; }
+        Mod+I                { spawn "noctalia-shell" "msg" "settings-toggle"; }
+        Mod+V                { spawn "noctalia-shell" "msg" "panel-toggle" "clipboard"; }
+
+        // Fallback launcher
         Mod+D                { spawn "fuzzel"; }
         Mod+Q                { close-window; }
         Mod+Shift+E          { quit; }
