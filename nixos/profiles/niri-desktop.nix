@@ -29,6 +29,7 @@
     waybar
     noctalia-qs
     noctalia-shell
+    swaybg
     mpvpaper
     fastfetch
     eza
@@ -110,6 +111,7 @@
   environment.etc."xdg/niri/config.kdl".text = ''
     spawn-at-startup "kitty"
     spawn-at-startup "wvkbd-mobintl"
+    spawn-at-startup "swaybg" "-c" "#1a1b26"
     spawn-at-startup "waybar"
 
     prefer-no-csd
@@ -150,7 +152,7 @@
             proportion 0.5
             proportion 0.66667
         }
-        background-color "#202020"
+        background-color "transparent"
 
         shadow {
             on
@@ -379,7 +381,7 @@
   environment.etc."xdg/waybar/config".text = builtins.toJSON {
     layer = "top";
     position = "bottom";
-    height = 36;
+    height = 32;
     margin-top = 0;
     margin-bottom = 0;
     margin-left = 0;
@@ -430,52 +432,59 @@
 
   environment.etc."xdg/waybar/style.css".text = ''
     * {
-        font-family: "monospace";
-        font-size: 13px;
+        font-family: "JetBrainsMono Nerd Font", "monospace";
+        font-size: 12px;
         min-height: 0;
     }
 
     window#waybar {
-        background-color: #101010;
-        color: #cccccc;
-        border-top: 1px solid #0078d4;
+        background-color: rgba(24, 24, 37, 0.85);
+        color: #cdd6f4;
+        border-radius: 0;
+    }
+
+    #workspaces {
+        padding: 2px 6px;
     }
 
     #workspaces button {
-        padding: 0 6px;
+        padding: 3px 6px;
         background: transparent;
-        color: #888888;
+        color: #585b70;
         border: none;
-        border-bottom: 2px solid transparent;
+        border-radius: 8px;
+        margin: 0 2px;
     }
 
     #workspaces button.active {
-        color: #ffffff;
-        border-bottom: 2px solid #0078d4;
+        color: #cdd6f4;
+        background: #313244;
     }
 
     #workspaces button:hover {
-        background: #2a2a2a;
-        color: #ffffff;
+        background: #45475a;
+        color: #cdd6f4;
     }
 
     #custom-start {
-        color: #0078d4;
+        color: #cba6f7;
         font-weight: bold;
         padding: 0 12px;
+        font-size: 14px;
     }
 
     #clock {
-        color: #cccccc;
+        color: #cdd6f4;
+        padding: 0 10px;
     }
 
     #battery, #network, #cpu, #memory, #tray {
         padding: 0 8px;
-        color: #999999;
+        color: #a6adc8;
     }
 
-    #battery.warning { color: #e5c07b; }
-    #battery.critical { color: #e06c75; }
+    #battery.warning { color: #f9e2af; }
+    #battery.critical { color: #f38ba8; }
   '';
 
   environment.etc."xdg/fuzzel/fuzzel.ini".text = ''
