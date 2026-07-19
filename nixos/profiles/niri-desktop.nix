@@ -10,7 +10,7 @@ let
   wallpaperSync = pkgs.writeShellScriptBin "wallpaper-sync" ''
     set -euo pipefail
     WALLPAPER_DIR="/etc/wallpapers"
-    REPO_URL="https://github.com/ech678/NyxNiri.git"
+    REPO_TARBALL="https://github.com/ech678/NyxNiri/archive/79894f443f5b21bb16077f628a35d9c47301b15d.tar.gz"
     WORK_DIR="/tmp/nyx-niri-wallpapers"
 
     if [ -d "$WALLPAPER_DIR" ] && [ -n "$(ls -A "$WALLPAPER_DIR" 2>/dev/null)" ]; then
@@ -21,12 +21,11 @@ let
     rm -rf "$WORK_DIR"
     mkdir -p "$WORK_DIR"
 
-    git clone --depth 1 --filter=blob:none --sparse "$REPO_URL" "$WORK_DIR"
-    cd "$WORK_DIR"
-    git sparse-checkout set Wallpapers
+    curl -sL --connect-timeout 30 --max-time 120 "$REPO_TARBALL" |
+      tar xz -C "$WORK_DIR" --strip-components=2 "NyxNiri-79894f443f5b21bb16077f628a35d9c47301b15d/Wallpapers/"
 
     mkdir -p "$WALLPAPER_DIR"
-    cp -r Wallpapers/* "$WALLPAPER_DIR"/
+    cp -r "$WORK_DIR"/* "$WALLPAPER_DIR"/
 
     rm -rf "$WORK_DIR"
     echo "Wallpapers synced successfully: $(find "$WALLPAPER_DIR" -type f | wc -l) files"
@@ -162,7 +161,6 @@ in
     libnotify
     procps
     gnused
-    git
     mpvpaper
     fastfetch
     eza
