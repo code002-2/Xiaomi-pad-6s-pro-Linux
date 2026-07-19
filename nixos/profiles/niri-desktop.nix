@@ -23,7 +23,9 @@ let
 
     mkdir -p "$HOME/.cache"
 
-    mapfile -t walls < <(find "$WALLPAPER_DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) | sort)
+    mapfile -t walls < <(find "$WALLPAPER_DIR" -type f \
+      \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \
+         -o -iname "*.mp4" -o -iname "*.webm" -o -iname "*.mkv" \) | sort)
     TOTAL=''${#walls[@]}
 
     if [ "$TOTAL" -eq 0 ]; then
@@ -63,8 +65,20 @@ let
     echo "$CURRENT_INDEX" > "$STATE_FILE"
     WALLPAPER="''${walls[$CURRENT_INDEX]}"
 
+    # Stop any running wallpaper process
     pkill swaybg 2>/dev/null || true
-    swaybg -i "$WALLPAPER" -m fill &
+    pkill mpvpaper 2>/dev/null || true
+    sleep 0.1
+
+    EXT="''${WALLPAPER##*.}"
+    case "''${EXT,,}" in
+      mp4|webm|mkv)
+        mpvpaper -o "no-audio loop" '*' "$WALLPAPER" &
+        ;;
+      *)
+        swaybg -i "$WALLPAPER" -m fill &
+        ;;
+    esac
     notify-send "Wallpaper" "$(basename "$WALLPAPER")" --app-name="wallpaper-switch"
   '';
 
@@ -82,10 +96,20 @@ let
       echo 0 > "$STATE_FILE"
     fi
 
-    mapfile -t walls < <(find "$WALLPAPER_DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) | sort)
+    mapfile -t walls < <(find "$WALLPAPER_DIR" -type f \
+      \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \
+         -o -iname "*.mp4" -o -iname "*.webm" -o -iname "*.mkv" \) | sort)
     if [ "''${#walls[@]}" -gt 0 ]; then
       WALL="''${walls[$(( INDEX % ''${#walls[@]} ))]}"
-      swaybg -i "$WALL" -m fill &
+      EXT="''${WALL##*.}"
+      case "''${EXT,,}" in
+        mp4|webm|mkv)
+          mpvpaper -o "no-audio loop" '*' "$WALL" &
+          ;;
+        *)
+          swaybg -i "$WALL" -m fill &
+          ;;
+      esac
     fi
   '';
 in
