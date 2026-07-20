@@ -9,7 +9,7 @@
 let
   wallpaperSync = pkgs.writeShellScriptBin "wallpaper-sync" ''
     set -euo pipefail
-    WALLPAPER_DIR="/etc/wallpapers"
+    WALLPAPER_DIR="/var/lib/wallpapers"
     REPO_TARBALL="https://github.com/ech678/NyxNiri/archive/79894f443f5b21bb16077f628a35d9c47301b15d.tar.gz"
     WORK_DIR="/tmp/nyx-niri-wallpapers"
 
@@ -34,7 +34,7 @@ let
   wallpaperSwitch = pkgs.writeShellScriptBin "wallpaper-switch" ''
     set -euo pipefail
 
-    WALLPAPER_DIR="/etc/wallpapers"
+    WALLPAPER_DIR="/var/lib/wallpapers"
     STATE_FILE="$HOME/.cache/wallpaper-state"
     ACTION="''${1:-next}"
 
@@ -101,7 +101,7 @@ let
 
   wallpaperLaunch = pkgs.writeShellScriptBin "wallpaper-launch" ''
     set -euo pipefail
-    WALLPAPER_DIR="/etc/wallpapers"
+    WALLPAPER_DIR="/var/lib/wallpapers"
     STATE_FILE="$HOME/.cache/wallpaper-state"
 
     mkdir -p "$HOME/.cache"
@@ -553,13 +553,15 @@ in
     }
   '';
 
-  # Wallpaper sync on first boot (one-shot, shallow clone from NyxNiri)
+  # Wallpaper sync on first boot (one-shot, downloads from NyxNiri GitHub)
   systemd.services.wallpaper-sync = {
     description = "Sync NyxNiri wallpapers on first boot";
     wantedBy = [ "multi-user.target" ];
-    before = [ "display-manager.service" ];
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
     serviceConfig = {
       Type = "oneshot";
+      ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p /var/lib/wallpapers";
       ExecStart = "${wallpaperSync}/bin/wallpaper-sync";
       RemainAfterExit = true;
     };
