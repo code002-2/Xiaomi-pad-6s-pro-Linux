@@ -168,6 +168,10 @@ in
     bat
     jq
     inotify-tools
+    glmark2
+    vkmark
+    vulkan-tools
+    mesa-demos
   ];
 
   fonts.packages = with pkgs; [
