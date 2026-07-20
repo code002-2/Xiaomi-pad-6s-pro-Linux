@@ -202,15 +202,15 @@ in
   # kmscon conflicts with the compositor owning the display
   services.kmscon.enable = lib.mkForce false;
 
-  # seatd manages DRM/input device access without a display manager
-  services.seatd.enable = true;
+  # logind manages DRM/input device access (compatible with niri --session)
   security.polkit.enable = true;
 
-  # Ensure getty@tty1 starts AFTER seatd so DRM/input devices are ready
-  systemd.services."getty@tty1" = {
-    after = [ "seatd.service" ];
-    requires = [ "seatd.service" ];
-  };
+  # Allow user session to manage DRM and input devices via logind
+  services.logind.extraConfig = ''
+    HandlePowerKey=ignore
+    IdleAction=ignore
+  '';
+  users.users.${vars.username}.extraGroups = [ "video" "input" "render" ];
 
   # Auto-login on tty1 so bash loginShellInit can exec niri
   services.getty.autologinUser = lib.mkForce vars.username;
