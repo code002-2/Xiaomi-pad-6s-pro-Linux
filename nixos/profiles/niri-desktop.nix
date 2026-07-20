@@ -7,29 +7,14 @@
 { config, lib, pkgs, vars, ... }:
 
 let
-  wallpaperSync = pkgs.writeShellScriptBin "wallpaper-sync" ''
-    set -euo pipefail
-    WALLPAPER_DIR="/var/lib/wallpapers"
-    REPO_TARBALL="https://github.com/ech678/NyxNiri/archive/79894f443f5b21bb16077f628a35d9c47301b15d.tar.gz"
-    WORK_DIR="/tmp/nyx-niri-wallpapers"
+  nyxNiriWallpapers = pkgs.fetchzip {
+    name = "nyx-niri-wallpapers";
+    url = "https://github.com/ech678/NyxNiri/archive/79894f443f5b21bb16077f628a35d9c47301b15d.tar.gz";
+    hash = "sha256-Jj5cKMJJCIZlC2gUKTWe9CHZCm7HpcWlJ5OCfQxw4+k=";
+    stripRoot = false;
+  };
 
-    if [ -d "$WALLPAPER_DIR" ] && [ -n "$(ls -A "$WALLPAPER_DIR" 2>/dev/null)" ]; then
-      echo "Wallpapers already synced, skipping."
-      exit 0
-    fi
-
-    rm -rf "$WORK_DIR"
-    mkdir -p "$WORK_DIR"
-
-    curl -sL --connect-timeout 30 --max-time 120 "$REPO_TARBALL" |
-      tar xz -C "$WORK_DIR" --strip-components=2 "NyxNiri-79894f443f5b21bb16077f628a35d9c47301b15d/Wallpapers/"
-
-    mkdir -p "$WALLPAPER_DIR"
-    cp -r "$WORK_DIR"/* "$WALLPAPER_DIR"/
-
-    rm -rf "$WORK_DIR"
-    echo "Wallpapers synced successfully: $(find "$WALLPAPER_DIR" -type f | wc -l) files"
-  '';
+  wallpaperStorePath = "${nyxNiriWallpapers}/NyxNiri-79894f443f5b21bb16077f628a35d9c47301b15d/Wallpapers";
 
   wallpaperSwitch = pkgs.writeShellScriptBin "wallpaper-switch" ''
     set -euo pipefail
@@ -64,14 +49,8 @@ let
         CURRENT_INDEX=$(( (CURRENT_INDEX - 1 + TOTAL) % TOTAL ))
         ;;
       pick)
-        CHOICE=$(printf '%s\n' "''${walls[@]}" | sed "s|$WALLPAPER_DIR/||" | fuzzel --dmenu --prompt="Wallpaper: ")
-        if [ -z "$CHOICE" ]; then exit 0; fi
-        WALLPAPER="$WALLPAPER_DIR/$CHOICE"
-        for i in "''${!walls[@]}"; do
-          if [ "''${walls[$i]}" = "$WALLPAPER" ]; then
-            CURRENT_INDEX=$i; break
-          fi
-        done
+        noctalia msg panel-toggle wallpaper
+        exit 0
         ;;
       *)
         echo "Usage: wallpaper-switch {next|prev|pick}"
@@ -129,6 +108,85 @@ let
       esac
     fi
   '';
+
+  noctaliaPkg = pkgs.stdenv.mkDerivation {
+    pname = "noctalia";
+    version = "5.0.0-beta.3";
+
+    src = pkgs.fetchzip {
+      name = "noctalia-source";
+      url = "https://github.com/noctalia-dev/noctalia/archive/v5.0.0-beta.3.tar.gz";
+      hash = "sha256-8iAeWIjw2OMfsBCtaGcmR14lgBX0MOoaBaSyBwieBsA=";
+    };
+
+    postPatch = ''
+      sed -i "s/'-march=native', '-mtune=native',//" meson.build
+      # Fix sdbus-cpp API change: PollData.eventFd renamed
+      substituteInPlace src/dbus/system_bus_poll_source.h \
+        --replace-fail "pd.eventFd" "pd.fd"
+    '';
+
+    postFixup = ''
+      wrapProgram $out/bin/noctalia \
+        --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.git ]}
+    '';
+
+    nativeBuildInputs = with pkgs; [
+      meson
+      ninja
+      pkg-config
+      wayland-scanner
+      jemalloc
+      makeWrapper
+    ];
+
+    buildInputs = with pkgs; [
+      wayland
+      wayland-protocols
+      libGL
+      libglvnd
+      freetype
+      fontconfig
+      cairo
+      pango
+      harfbuzz
+      libxkbcommon
+      sdbus-cpp_2
+      systemd
+      pipewire
+      pam
+      curl
+      libwebp
+      glib
+      polkit
+      librsvg
+      libqalculate
+      libxml2
+      md4c
+      (stb.overrideAttrs (_: {
+        version = "unstable-2025-10-26";
+        src = pkgs.fetchzip {
+          name = "stb-source";
+          url = "https://github.com/nothings/stb/archive/f1c79c02822848a9bed4315b12c8c8f3761e1296.tar.gz";
+          hash = "sha256-BlyXJtAI7WqXCTT3ylww8zoG0hBxaojJnQDvdQOXJPE=";
+        };
+      }))
+      nlohmann_json
+      tomlplusplus
+      wireplumber
+    ];
+
+    mesonBuildType = "release";
+    ninjaFlags = [ "-v" ];
+
+    meta = with pkgs.lib; {
+      description = "A desktop shell for Wayland compositors";
+      homepage = "https://github.com/noctalia-dev/noctalia";
+      license = licenses.mit;
+      platforms = platforms.linux;
+      mainProgram = "noctalia";
+    };
+  };
 in
 
 {
@@ -155,12 +213,7 @@ in
     niri
     foot
     kitty
-    fuzzel
     wvkbd
-    waybar
-    noctalia-qs
-    noctalia-shell
-    wallpaperSync
     wallpaperSwitch
     wallpaperLaunch
     swaybg
@@ -178,6 +231,7 @@ in
     vkmark
     vulkan-tools
     mesa-demos
+    noctaliaPkg
   ];
 
   fonts.packages = with pkgs; [
@@ -279,33 +333,33 @@ in
   '';
 
   environment.etc."xdg/niri/config.kdl".text = ''
+    // ==========================================
+    // NyxNiri V2 niri config — adapted for tablet
+    // ==========================================
+
     spawn-at-startup "kitty"
     spawn-at-startup "wvkbd-mobintl"
     spawn-at-startup "wallpaper-launch"
-    spawn-at-startup "waybar"
+    spawn-at-startup "noctalia"
 
     prefer-no-csd
     screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
 
+    // --- Input ---
     input {
-        touch {
-            tap
-        }
-        touchpad {
-            tap
-            natural-scroll
-        }
         keyboard {
             xkb-layout "us"
         }
+        touch {
+            tap true
+        }
+        touchpad {
+            tap true
+            natural-scroll true
+        }
     }
 
-    cursor {
-        xcursor-theme "Adwaita"
-        xcursor-size 24
-    }
-
-    // Blur settings from NyxNiri / glassy-niri
+    // --- Layout & Visual Effects ---
     blur {
         passes 3
         offset 2.3
@@ -314,56 +368,28 @@ in
     }
 
     layout {
+        background-color "transparent"
         gaps 12
         center-focused-column "never"
-        default-column-width { proportion 0.5; }
         preset-column-widths {
             proportion 0.33333
             proportion 0.5
             proportion 0.66667
         }
-        background-color "transparent"
-
-        shadow {
-            on
-            softness 10
-            spread 4
-            offset x=0 y=0
-            color "#00000070"
-        }
-
-        focus-ring {
-            off
-            width 0
-        }
-
-        tab-indicator {
-            active-color "#60cdff"
-            inactive-color "#3b3b3b"
-        }
-
-        border {
-            on
-            width 1
-            active-color "#0078d4"
-            inactive-color "#383838"
-        }
-
-        insert-hint {
-            on
-            color "#0078d480"
-        }
+        default-column-width { proportion 0.5; }
+        focus-ring { off; width 0; }
+        shadow { on; softness 10; spread 4; offset x=0 y=0; color "#00000070"; }
+        tab-indicator { active-color "#60cdff"; inactive-color "#3b3b3b"; }
+        insert-hint { color "#0078d480"; }
     }
 
-    // Global window appearance
+    // --- Global Window Rules ---
     window-rule {
         geometry-corner-radius 12
         clip-to-geometry true
         draw-border-with-background false
         opacity 0.95
-        background-effect {
-            blur true
-        }
+        background-effect { blur true; }
     }
 
     window-rule {
@@ -371,12 +397,60 @@ in
         opacity 0.88
     }
 
-    // Overview backdrop
+    // --- Layer Rules ---
+    layer-rule {
+        match namespace="^mpvpaper$"
+        place-within-backdrop true
+    }
+
+    layer-rule {
+        match namespace="^noctalia-bar-"
+        opacity 1.0
+        geometry-corner-radius 0
+        shadow { off; }
+        background-effect { blur false; }
+    }
+
+    layer-rule {
+        match namespace="^noctalia-wallpaper-"
+        place-within-backdrop true
+    }
+
+    // --- Overview ---
     overview {
         backdrop-color "#20202090"
     }
 
-    // Alt+Tab window switcher
+    // --- Environment ---
+    environment {
+        XDG_CURRENT_DESKTOP "niri"
+        XDG_SESSION_TYPE "wayland"
+        ELECTRON_OZONE_PLATFORM_HINT "auto"
+        QT_QPA_PLATFORM "wayland"
+        QT_QPA_PLATFORMTHEME "gtk3"
+        QT_WAYLAND_DISABLE_WINDOWDECORATION "1"
+    }
+
+    // --- Cursor ---
+    cursor {
+        xcursor-theme "Adwaita"
+        xcursor-size 24
+    }
+
+    // --- Animations ---
+    animations {
+        workspace-switch { spring damping-ratio=0.8 stiffness=523 epsilon=0.0001; }
+        window-open { duration-ms 150; curve "ease-out-expo"; }
+        window-close { duration-ms 150; curve "ease-out-quad"; }
+        horizontal-view-movement { spring damping-ratio=0.85 stiffness=423 epsilon=0.0001; }
+        window-movement { spring damping-ratio=0.75 stiffness=323 epsilon=0.0001; }
+        window-resize { spring damping-ratio=0.85 stiffness=423 epsilon=0.0001; }
+        config-notification-open-close { spring damping-ratio=0.65 stiffness=923 epsilon=0.001; }
+        screenshot-ui-open { duration-ms 200; curve "ease-out-quad"; }
+        overview-open-close { spring damping-ratio=0.85 stiffness=800 epsilon=0.0001; }
+    }
+
+    // --- Alt+Tab Switcher ---
     recent-windows {
         binds {
             Alt+Tab         { next-window scope="output"; }
@@ -384,11 +458,11 @@ in
         }
         highlight {
             corner-radius 12
-            active-color "#60cdff"
+            active-color "#b6c7e7"
         }
     }
 
-    // Floating windows
+    // --- Floating Windows ---
     window-rule {
         match app-id=r"^org\.gnome\.Nautilus$"
         match app-id=r"^org\.gnome\.Calculator$"
@@ -406,7 +480,7 @@ in
         open-floating false
     }
 
-    // Picture-in-Picture floating
+    // Picture-in-Picture
     window-rule {
         match title="画中画"
         match title="Picture-in-Picture"
@@ -417,88 +491,27 @@ in
         default-floating-position x=20 y=20 relative-to="bottom-right"
     }
 
-    // Noctalia shell layer rules
-    layer-rule {
-        match namespace="^noctalia-wallpaper*"
-        place-within-backdrop true
-    }
+    hotkey-overlay { skip-at-startup }
 
-    layer-rule {
-        match namespace="^quickshell$"
-        place-within-backdrop true
-    }
-
-    layer-rule {
-        match namespace="^mpvpaper$"
-        place-within-backdrop true
-    }
-
-    layer-rule {
-        match namespace="^noctalia-bar-bar$"
-        opacity 1.0
-        geometry-corner-radius 0
-        shadow { off; }
-        background-effect {
-            blur false
-        }
-    }
-
-    animations {
-        workspace-switch {
-            spring damping-ratio=0.8 stiffness=523 epsilon=0.0001
-        }
-        window-open {
-            duration-ms 150
-            curve "ease-out-expo"
-        }
-        window-close {
-            duration-ms 150
-            curve "ease-out-quad"
-        }
-        horizontal-view-movement {
-            spring damping-ratio=0.85 stiffness=423 epsilon=0.0001
-        }
-        window-movement {
-            spring damping-ratio=0.75 stiffness=323 epsilon=0.0001
-        }
-        window-resize {
-            spring damping-ratio=0.85 stiffness=423 epsilon=0.0001
-        }
-        config-notification-open-close {
-            spring damping-ratio=0.65 stiffness=923 epsilon=0.001
-        }
-        screenshot-ui-open {
-            duration-ms 200
-            curve "ease-out-quad"
-        }
-        overview-open-close {
-            spring damping-ratio=0.85 stiffness=800 epsilon=0.0001
-        }
-    }
-
+    // ==========================================
+    // Keybindings
+    // ==========================================
     binds {
         Mod+Tab repeat=false { toggle-overview; }
         Mod+Return           { spawn "kitty"; }
         Mod+T                { spawn "kitty"; }
-
-        // Noctalia shell bindings (if available)
-        Mod+R                { spawn "noctalia-shell" "msg" "panel-toggle" "launcher"; }
-        Mod+X                { spawn "noctalia-shell" "msg" "panel-toggle" "session"; }
-        Mod+I                { spawn "noctalia-shell" "msg" "settings-toggle"; }
-        Mod+V                { spawn "noctalia-shell" "msg" "panel-toggle" "clipboard"; }
-
-        // Fallback launcher
-        Mod+D                { spawn "fuzzel"; }
         Mod+Q                { close-window; }
         Mod+Shift+E          { quit; }
-
         Mod+Shift+R          { spawn "niri" "msg" "action" "load-config-file"; }
 
+        // Launcher via noctalia
+        Mod+D                { spawn "noctalia" "msg" "launcher" "toggle"; }
+
+        // Movement
         Mod+H                { focus-column-left; }
         Mod+L                { focus-column-right; }
         Mod+J                { focus-window-down; }
         Mod+K                { focus-window-up; }
-
         Mod+Shift+H          { move-column-left; }
         Mod+Shift+L          { move-column-right; }
         Mod+Shift+J          { move-window-down; }
@@ -507,13 +520,10 @@ in
         Mod+F                { maximize-column; }
         Mod+Shift+F          { fullscreen-window; }
         Mod+Space            { switch-preset-column-width; }
-
         Mod+Comma            { consume-window-into-column; }
         Mod+Period           { expel-window-from-column; }
 
-        Mod+Minus            { set-column-width "-10%"; }
-        Mod+Equal            { set-column-width "+10%"; }
-
+        // Workspaces
         Mod+1                { focus-workspace 1; }
         Mod+2                { focus-workspace 2; }
         Mod+3                { focus-workspace 3; }
@@ -523,184 +533,148 @@ in
         Mod+Shift+2          { move-column-to-workspace 2; }
         Mod+Shift+3          { move-column-to-workspace 3; }
 
+        // Scroll navigation
         Mod+WheelScrollDown  cooldown-ms=150 { focus-workspace-down; }
         Mod+WheelScrollUp    cooldown-ms=150 { focus-workspace-up; }
 
+        // Screenshot & overlay
         Mod+S                { screenshot; }
         Mod+Slash            { show-hotkey-overlay; }
 
-        XF86AudioRaiseVolume { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }
-        XF86AudioLowerVolume { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }
-        XF86AudioMute        { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
-
-        // Wallpaper switcher — cycle or pick from fuzzel
+        // Wallpaper switcher
         Mod+Ctrl+N           { spawn "wallpaper-switch" "next"; }
         Mod+Ctrl+P           { spawn "wallpaper-switch" "prev"; }
         Mod+Ctrl+W           { spawn "wallpaper-switch" "pick"; }
-    }
 
-    environment {
-        XDG_CURRENT_DESKTOP "niri"
-        XDG_SESSION_TYPE "wayland"
-        ELECTRON_OZONE_PLATFORM_HINT "auto"
-        QT_QPA_PLATFORM "wayland"
-        QT_QPA_PLATFORMTHEME "gtk3"
-        QT_WAYLAND_DISABLE_WINDOWDECORATION "1"
-    }
-
-    hotkey-overlay {
-        skip-at-startup
+        // Audio
+        XF86AudioRaiseVolume { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }
+        XF86AudioLowerVolume { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }
+        XF86AudioMute        { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
     }
   '';
 
-  # Wallpaper sync on first boot (one-shot, downloads from NyxNiri GitHub)
+  system.activationScripts.niriSetup = ''
+    mkdir -p /home/${vars.username}/.config/niri /home/${vars.username}/.config/noctalia
+    chown ${vars.username}:users /home/${vars.username}/.config
+    chown -R ${vars.username}:users /home/${vars.username}/.config/niri /home/${vars.username}/.config/noctalia
+  '';
+
+  # Symlink noctalia config into user home on activation
+  system.activationScripts.noctaliaConfig = ''
+    mkdir -p /home/${vars.username}/.config/noctalia
+    ln -sf /etc/xdg/noctalia/config.toml /home/${vars.username}/.config/noctalia/config.toml
+    chown -R ${vars.username}:users /home/${vars.username}/.config/noctalia
+  '';
+
+  # Copy wallpapers from read-only Nix store to writable /var/lib on boot
   systemd.services.wallpaper-sync = {
-    description = "Sync NyxNiri wallpapers on first boot";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p /var/lib/wallpapers";
-      ExecStart = "${wallpaperSync}/bin/wallpaper-sync";
-      RemainAfterExit = true;
-    };
+    before = [ "getty@tty1.service" "getty@tty2.service" "getty@tty3.service" ];
+    script = ''
+      mkdir -p /var/lib/wallpapers
+      cp -r ${wallpaperStorePath}/* /var/lib/wallpapers/
+      chown -R ${vars.username}:users /var/lib/wallpapers
+    '';
+    serviceConfig.Type = "oneshot";
+    serviceConfig.RemainAfterExit = true;
   };
 
-  environment.etc."xdg/waybar/config".text = builtins.toJSON {
-    layer = "top";
-    position = "bottom";
-    height = 32;
-    margin-top = 0;
-    margin-bottom = 0;
-    margin-left = 0;
-    margin-right = 0;
-    spacing = 4;
-    modules-left = [ "custom/start" "niri/workspaces" ];
-    modules-center = [ "clock" ];
-    modules-right = [ "tray" "battery" "network" "cpu" "memory" ];
+  environment.etc."xdg/noctalia/config.toml".text = ''
+    # Noctalia V5 — tablet config for sheng
 
-    "custom/start" = {
-      format = " niri ";
-      tooltip = false;
-      on-click = "fuzzel";
-    };
+    [shell]
+    corner_radius_scale     = 1.0
+    font_family             = "JetBrains Mono"
+    time_format             = "{:%H:%M}"
+    offline_mode            = false
+    telemetry_enabled       = false
+    clipboard_enabled       = true
+    clipboard_history_max_entries = 100
+    clipboard_auto_paste    = "auto"
 
-    "niri/workspaces" = {
-      format = "{icon}";
-      on-click = "activate";
-    };
+    [shell.animation]
+    enabled = true
+    speed   = 1.0
 
-    tray = { spacing = 8; };
+    [shell.shadow]
+    direction = "down"
+    alpha     = 0.55
 
-    battery = {
-      format = "{capacity}%";
-      format-icons = ["10" "20" "30" "40" "50" "60" "70" "80" "90" "100"];
-      states = {
-        warning = 20;
-        critical = 10;
-      };
-      format-warning = "{capacity}%";
-      format-critical = "{capacity}%";
-    };
+    [shell.panel]
+    transparency_mode  = "glass"
+    borders            = true
+    shadow             = true
+    launcher_placement = "centered"
 
-    network = {
-      format-wifi = " {essid}";
-      format-ethernet = " eth";
-      format-disconnected = " down";
-      tooltip-format = "{ipaddr}";
-    };
+    [shell.launcher]
+    categories      = true
+    show_icons      = true
+    sort_by_usage   = true
 
-    cpu = { format = " cpu {usage}%"; };
-    memory = { format = " mem {used:0.1f}G"; };
-    clock = {
-      format = "{:%H:%M  %m/%d}";
-      tooltip-format = "{:%Y-%m-%d %A}";
-    };
-  };
+    [theme]
+    mode   = "dark"
+    source = "builtin"
+    builtin = "Catppuccin"
 
-  environment.etc."xdg/waybar/style.css".text = ''
-    * {
-        font-family: "JetBrainsMono Nerd Font", "monospace";
-        font-size: 12px;
-        min-height: 0;
-    }
+    [wallpaper]
+    enabled       = true
+    fill_mode     = "crop"
+    transition    = ["fade"]
+    transition_duration = 800
+    directory     = "/var/lib/wallpapers"
 
-    window#waybar {
-        background-color: rgba(24, 24, 37, 0.85);
-        color: #cdd6f4;
-        border-radius: 0;
-    }
+    [notification]
+    enable_daemon      = true
+    show_app_name      = true
+    show_actions       = true
+    layer              = "top"
+    offset_x           = 20
+    offset_y           = 8
 
-    #workspaces {
-        padding: 2px 6px;
-    }
+    [osd]
+    position = "top_center"
+    offset_x = 20
+    offset_y = 8
 
-    #workspaces button {
-        padding: 3px 6px;
-        background: transparent;
-        color: #585b70;
-        border: none;
-        border-radius: 8px;
-        margin: 0 2px;
-    }
+    [lockscreen]
+    enabled         = true
+    blurred_desktop = true
 
-    #workspaces button.active {
-        color: #cdd6f4;
-        background: #313244;
-    }
+    [bar.main]
+    position           = "top"
+    thickness          = 38
+    background_opacity = 0.79
+    radius             = 14
+    margin_h           = 10
+    margin_v           = 6
+    padding            = 12
+    widget_spacing     = 4
+    scale              = 1.0
+    shadow             = true
+    auto_hide          = false
+    reserve_space      = true
+    capsule            = true
+    capsule_radius     = 14.0
 
-    #workspaces button:hover {
-        background: #45475a;
-        color: #cdd6f4;
-    }
+    start  = ["launcher", "workspaces"]
+    center = ["clock"]
+    end    = ["media", "tray", "network", "volume", "battery", "wallpaper", "session"]
 
-    #custom-start {
-        color: #cba6f7;
-        font-weight: bold;
-        padding: 0 12px;
-        font-size: 14px;
-    }
+    [widget.clock]
+    format = "{:%H:%M}"
+    tooltip_format = "{:%A, %B %d, %Y}"
+    scale = 1.0
+    font_weight = 600
 
-    #clock {
-        color: #cdd6f4;
-        padding: 0 10px;
-    }
+    [idle.behavior.lock]
+    timeout = 600
+    action = "lock"
+    enabled = false
 
-    #battery, #network, #cpu, #memory, #tray {
-        padding: 0 8px;
-        color: #a6adc8;
-    }
-
-    #battery.warning { color: #f9e2af; }
-    #battery.critical { color: #f38ba8; }
-  '';
-
-  environment.etc."xdg/fuzzel/fuzzel.ini".text = ''
-    [main]
-    font=monospace:size=14
-    terminal=kitty
-
-    width=40
-    lines=10
-    horizontal-pad=20
-    vertical-pad=20
-    inner-pad=10
-
-    line-height=28
-    layer=overlay
-
-    icon-theme=Adwaita
-    fields=filename,name
-
-    [colors]
-    background=1e1e2edd
-    text=cdd6f4ff
-    match=89b4faff
-    selection=45475aff
-    selection-text=cdd6f4ff
-    selection-match=89b4faff
-    border=0078d4ff
+    [idle.behavior.screen-off]
+    timeout = 660
+    action = "screen_off"
+    enabled = false
   '';
 
   programs.bash.interactiveShellInit = ''
