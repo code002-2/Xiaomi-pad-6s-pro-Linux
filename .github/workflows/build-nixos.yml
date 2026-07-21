@@ -85,7 +85,7 @@ jobs:
       - name: Fast validate (eval only, no build)
         run: |
           nix --extra-experimental-features "nix-command flakes" \
-            eval "./nixos#nixosConfigurations.sheng.config.system.build.toplevel.drvPath" \
+            eval ".#nixosConfigurations.sheng.config.system.build.toplevel.drvPath" \
             --fallback
         working-directory: nixos
 
