@@ -77,13 +77,6 @@ jobs:
       - name: Enable Nix cache
         uses: DeterminateSystems/magic-nix-cache-action@v13
 
-      - name: Setup Cachix
-        uses: cachix/cachix-action@v15
-        with:
-          name: sheng-nixos
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          signingKey: 'sheng-nixos.cachix.org-1:Fmh9Hj8bzBWAGqTLGvFYgQhy1P7Q6tT5UfsvHfLw3ME='
-
       - name: Update flake lock (drivers/firmware only, kernel pinned)
         run: |
           nix flake lock --update-input shengFirmware --update-input shengFingerprint --update-input shengThp --update-input shengPenStatus --update-input shengAlsaUcm
@@ -114,11 +107,6 @@ jobs:
             USER_PASS="${{ github.event.inputs.user_password || '1' }}" \
             ROOT_PASS="${{ github.event.inputs.root_password || '123456' }}" \
             ./build-nixos-rootfs.sh
-
-      - name: Push to Cachix cache
-        run: |
-          cachix push sheng-nixos \
-            $(nix eval "./nixos#nixosConfigurations.sheng.config.system.build.toplevel.drvPath" --raw)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
