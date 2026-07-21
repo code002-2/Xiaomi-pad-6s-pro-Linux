@@ -302,28 +302,11 @@ in
       done
 
       if ! $DRM_READY; then
-        echo "ERROR: No DRM device found at /dev/dri/ after 10 attempts" >&2
-        echo "ERROR: No DRM device after 10 attempts" >> /tmp/niri-diag/devices.log
+        echo "ERROR: No DRM device found at /dev/dri/ after 30 attempts" >&2
+        echo "ERROR: No DRM device after 30 attempts" >> /tmp/niri-diag/devices.log
       fi
 
-      # Wait for seatd
-      SEATD_READY=false
-      for i in $(seq 1 10); do
-        if systemctl is-active --quiet seatd 2>/dev/null; then
-          SEATD_READY=true
-          break
-        fi
-        echo "Waiting for seatd (attempt $i/10)..." >> /tmp/niri-diag/devices.log
-        sleep 0.5
-      done
-
-      if ! $SEATD_READY; then
-        echo "ERROR: seatd is not running after 10 attempts" >&2
-        echo "ERROR: seatd not running after 10 attempts" >> /tmp/niri-diag/devices.log
-        echo "  systemctl status: $(systemctl is-active seatd 2>&1 || true)" >> /tmp/niri-diag/devices.log
-      fi
-
-      if $DRM_READY && $SEATD_READY; then
+      if $DRM_READY; then
         exec niri --session 2>> /tmp/niri-diag/niri-stderr.log
       else
         echo "Falling back to shell. Run 'niri --session' to start manually." >&2
