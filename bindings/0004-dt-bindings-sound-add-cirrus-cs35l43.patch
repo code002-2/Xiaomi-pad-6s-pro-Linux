@@ -1,0 +1,181 @@
+From 48199dbcf421c2a1fd1682929d4c29bd4a8337c4 Mon Sep 17 00:00:00 2001
+From: Tianyuan Jiang <code_0002@163.com>
+Date: Wed, 22 Jul 2026 06:00:36 +0000
+Subject: [PATCH 4/8] dt-bindings: sound: add cirrus,cs35l43
+
+Add binding for Cirrus Logic CS35L43 boosted mono Class D audio
+amplifier with DSP, connected via I2C. Used on Xiaomi Pad 6S Pro
+(sheng) with 6 speaker channels.
+
+Signed-off-by: Tianyuan Jiang <code_0002@163.com>
+---
+ .../bindings/sound/cirrus,cs35l43.yaml        | 157 ++++++++++++++++++
+ 1 file changed, 157 insertions(+)
+ create mode 100644 Documentation/devicetree/bindings/sound/cirrus,cs35l43.yaml
+
+diff --git a/Documentation/devicetree/bindings/sound/cirrus,cs35l43.yaml b/Documentation/devicetree/bindings/sound/cirrus,cs35l43.yaml
+new file mode 100644
+index 000000000..674ca1af5
+--- /dev/null
++++ b/Documentation/devicetree/bindings/sound/cirrus,cs35l43.yaml
+@@ -0,0 +1,157 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/sound/cirrus,cs35l43.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: Cirrus Logic CS35L43 Speaker Amplifier
++
++maintainers:
++  - Tianyuan Jiang <code_0002@163.com>
++
++description: |
++  CS35L43 is a boosted mono Class D amplifier with DSP speaker
++  protection and equalization, connected via I2C.
++
++allOf:
++  - $ref: dai-common.yaml#
++
++properties:
++  compatible:
++    const: cirrus,cs35l43
++
++  reg:
++    maxItems: 1
++
++  interrupts:
++    maxItems: 1
++
++  reset-gpios:
++    maxItems: 1
++
++  '#sound-dai-cells':
++    const: 0
++
++  sound-name-prefix:
++    $ref: /schemas/types.yaml#/definitions/string
++    description:
++      Prefix for the speaker name in ALSA controls.
++
++  cirrus,dsp-part-name:
++    $ref: /schemas/types.yaml#/definitions/string
++    description:
++      Name of the DSP firmware part to load.
++
++  cirrus,asp-sdout-hiz:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      Audio serial port SDOUT Hi-Z control.
++      0 = Logic 0 during unused slots
++      1 = Hi-Z during unused slots but logic 0 while disabled
++      2 = Logic 0 during unused slots but Hi-Z while disabled
++      3 = Hi-Z during unused slots and while disabled
++    minimum: 0
++    maximum: 3
++    default: 2
++
++  cirrus,gpio2-src-sel:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      Configures the function of the GPIO2 pin.
++      0 = High Impedance
++      1 = GPIO
++      2 = Open Drain INTB
++      3 = MCLK input
++      4 = Push-pull INTB (active low)
++      5 = Push-pull INT (active high)
++    minimum: 0
++    maximum: 5
++
++  cirrus,bst-ipk-ma:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      Boost-converter peak current limit in mA.
++
++  cirrus,vpbr-enable:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      Enable voice processing battery replacement feature.
++    minimum: 0
++    maximum: 1
++
++  cirrus,vpbr-thld:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      VPBR threshold setting.
++    minimum: 0
++    maximum: 15
++
++  cirrus,vpbr-max-att:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      VPBR maximum attenuation setting.
++    minimum: 0
++    maximum: 15
++
++  cirrus,vpbr-atk-vol:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      VPBR attack volume setting.
++    minimum: 0
++    maximum: 15
++
++  cirrus,vpbr-atk-rate:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      VPBR attack rate setting.
++    minimum: 0
++    maximum: 15
++
++  cirrus,vpbr-wait:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      VPBR wait time setting.
++    minimum: 0
++    maximum: 15
++
++  cirrus,vpbr-rel-rate:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      VPBR release rate setting.
++    minimum: 0
++    maximum: 15
++
++required:
++  - compatible
++  - reg
++  - '#sound-dai-cells'
++
++unevaluatedProperties: false
++
++examples:
++  - |
++    #include <dt-bindings/gpio/gpio.h>
++    #include <dt-bindings/interrupt-controller/irq.h>
++
++    i2c {
++        #address-cells = <1>;
++        #size-cells = <0>;
++
++        cs35l43: speaker-amp@40 {
++            compatible = "cirrus,cs35l43";
++            reg = <0x40>;
++            #sound-dai-cells = <0>;
++            interrupt-parent = <&tlmm>;
++            interrupts = <98 IRQ_TYPE_LEVEL_LOW>;
++            reset-gpios = <&tlmm 90 (GPIO_ACTIVE_LOW | GPIO_OPEN_DRAIN)>;
++            sound-name-prefix = "TRL";
++            cirrus,dsp-part-name = "trl-cs35l43";
++            cirrus,asp-sdout-hiz = <3>;
++            cirrus,gpio2-src-sel = <4>;
++            cirrus,bst-ipk-ma = <4000>;
++            cirrus,vpbr-enable = <1>;
++            cirrus,vpbr-thld = <8>;
++            cirrus,vpbr-max-att = <3>;
++            cirrus,vpbr-atk-vol = <5>;
++        };
++    };
+-- 
+2.39.5
+

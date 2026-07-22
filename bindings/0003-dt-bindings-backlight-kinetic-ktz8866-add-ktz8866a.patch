@@ -1,0 +1,40 @@
+From c88164024828a5a95b319982a38abccc2ce8280a Mon Sep 17 00:00:00 2001
+From: Tianyuan Jiang <code_0002@163.com>
+Date: Wed, 22 Jul 2026 06:00:06 +0000
+Subject: [PATCH 3/8] dt-bindings: backlight: kinetic,ktz8866: add ktz8866a
+
+Add kinetic,ktz8866a compatible for the KTZ8866A variant, used on
+Xiaomi Pad 6S Pro (sheng) backlight.
+
+Signed-off-by: Tianyuan Jiang <code_0002@163.com>
+---
+ .../devicetree/bindings/leds/backlight/kinetic,ktz8866.yaml | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/leds/backlight/kinetic,ktz8866.yaml b/Documentation/devicetree/bindings/leds/backlight/kinetic,ktz8866.yaml
+index c914e1276..ae17b1381 100644
+--- a/Documentation/devicetree/bindings/leds/backlight/kinetic,ktz8866.yaml
++++ b/Documentation/devicetree/bindings/leds/backlight/kinetic,ktz8866.yaml
+@@ -4,7 +4,7 @@
+ $id: http://devicetree.org/schemas/leds/backlight/kinetic,ktz8866.yaml#
+ $schema: http://devicetree.org/meta-schemas/core.yaml#
+ 
+-title: Kinetic Technologies KTZ8866 backlight
++title: Kinetic Technologies KTZ8866/KTZ8866A backlight
+ 
+ maintainers:
+   - Jianhua Lu <lujianhua000@gmail.com>
+@@ -19,7 +19,9 @@ allOf:
+ 
+ properties:
+   compatible:
+-    const: kinetic,ktz8866
++    enum:
++      - kinetic,ktz8866
++      - kinetic,ktz8866a
+ 
+   reg:
+     maxItems: 1
+-- 
+2.39.5
+

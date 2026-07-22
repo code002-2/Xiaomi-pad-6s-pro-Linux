@@ -1,0 +1,38 @@
+From e296df92e9fd5147da0c8e761d42be78a8576213 Mon Sep 17 00:00:00 2001
+From: Tianyuan Jiang <code_0002@163.com>
+Date: Wed, 22 Jul 2026 05:59:33 +0000
+Subject: [PATCH 1/8] dt-bindings: vendor-prefixes: add fpc and nanosic
+
+Add vendor prefixes for Fingerprint Cards AB (fpc) and Nanosic Inc.
+(nanosic), used on Xiaomi Pad 6S Pro (sheng) device.
+
+Signed-off-by: Tianyuan Jiang <code_0002@163.com>
+---
+ Documentation/devicetree/bindings/vendor-prefixes.yaml | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/vendor-prefixes.yaml b/Documentation/devicetree/bindings/vendor-prefixes.yaml
+index 396044f36..51a3dd4e5 100644
+--- a/Documentation/devicetree/bindings/vendor-prefixes.yaml
++++ b/Documentation/devicetree/bindings/vendor-prefixes.yaml
+@@ -618,6 +618,8 @@ patternProperties:
+     description: Shenzhen Frida LCD Co., Ltd.
+   "^friendlyarm,.*":
+     description: Guangzhou FriendlyARM Computer Tech Co., Ltd
++  "^fpc,.*":
++    description: Fingerprint Cards AB
+   "^fsl,.*":
+     description: Freescale Semiconductor
+   "^fujitsu,.*":
+@@ -1142,6 +1144,8 @@ patternProperties:
+     description: MYIR Tech Limited
+   "^national,.*":
+     description: National Semiconductor
++  "^nanosic,.*":
++    description: Nanosic Inc.
+   "^neardi,.*":
+     description: Shanghai Neardi Technology Co., Ltd.
+   "^nec,.*":
+-- 
+2.39.5
+

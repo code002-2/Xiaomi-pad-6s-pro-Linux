@@ -1,0 +1,29 @@
+From 1b5561f8a99f67706199b331ecb4bee01a4304eb Mon Sep 17 00:00:00 2001
+From: Tianyuan Jiang <code_0002@163.com>
+Date: Wed, 22 Jul 2026 06:02:21 +0000
+Subject: [PATCH 7/8] dt-bindings: soc: qcom: pmic-glink: add
+ xiaomi,sm8550-pmic-glink
+
+Add Xiaomi Pad 6S Pro (sheng) specific pmic-glink compatible,
+falling back to qcom,sm8550-pmic-glink.
+
+Signed-off-by: Tianyuan Jiang <code_0002@163.com>
+---
+ Documentation/devicetree/bindings/soc/qcom/qcom,pmic-glink.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/soc/qcom/qcom,pmic-glink.yaml b/Documentation/devicetree/bindings/soc/qcom/qcom,pmic-glink.yaml
+index 2db4288a8..3aa703a1b 100644
+--- a/Documentation/devicetree/bindings/soc/qcom/qcom,pmic-glink.yaml
++++ b/Documentation/devicetree/bindings/soc/qcom/qcom,pmic-glink.yaml
+@@ -49,6 +49,7 @@ properties:
+               - qcom,sm8650-pmic-glink
+               - qcom,sm8750-pmic-glink
+               - qcom,x1e80100-pmic-glink
++              - xiaomi,sm8550-pmic-glink
+           - const: qcom,sm8550-pmic-glink
+           - const: qcom,pmic-glink
+ 
+-- 
+2.39.5
+

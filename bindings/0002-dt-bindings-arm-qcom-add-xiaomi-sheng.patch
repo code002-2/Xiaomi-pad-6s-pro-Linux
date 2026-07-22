@@ -1,0 +1,27 @@
+From fbd964d07066c03d86414e45cd7976ccbb535bce Mon Sep 17 00:00:00 2001
+From: Tianyuan Jiang <code_0002@163.com>
+Date: Wed, 22 Jul 2026 05:59:49 +0000
+Subject: [PATCH 2/8] dt-bindings: arm: qcom: add xiaomi,sheng
+
+Document the Xiaomi Pad 6S Pro (sheng) board based on SM8550.
+
+Signed-off-by: Tianyuan Jiang <code_0002@163.com>
+---
+ Documentation/devicetree/bindings/arm/qcom.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/arm/qcom.yaml b/Documentation/devicetree/bindings/arm/qcom.yaml
+index 50cc18a6e..d7fb90da2 100644
+--- a/Documentation/devicetree/bindings/arm/qcom.yaml
++++ b/Documentation/devicetree/bindings/arm/qcom.yaml
+@@ -1103,6 +1103,7 @@ properties:
+               - qcom,sm8550-qrd
+               - samsung,q5q
+               - sony,pdx234
++              - xiaomi,sheng
+           - const: qcom,sm8550
+ 
+       - items:
+-- 
+2.39.5
+
