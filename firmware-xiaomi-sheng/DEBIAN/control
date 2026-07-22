@@ -1,7 +1,0 @@
-Package: firmware-xiaomi-sheng
-Version: 1.0
-Architecture: arm64
-Maintainer: map220v
-Conflicts: linux-firmware
-Replaces: linux-firmware
-Description: Firmware blobs & Configs for Xiaomi Pad 6s Pro
