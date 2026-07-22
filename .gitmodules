@@ -1,0 +1,3 @@
+[submodule "armada-sheng"]
+	path = armada-sheng
+	url = https://github.com/code002-2/armada-sheng.git
