@@ -40,7 +40,7 @@
 | 发行版 | 桌面环境 | 状态 | 构建仓库 |
 |--------|---------|------|---------|
 | Debian 13 (Trixie) | GNOME, KDE | 稳定 | [ianchb/debian-sheng](https://github.com/ianchb/debian-sheng) |
-| Ubuntu 26.04 / 25.10 | GNOME, KDE | 测试 | [code002-2/ubuntu-sheng](https://github.com/code002-2/ubuntu-sheng) |
+| Ubuntu 26.10 / 26.04 / 25.10 | GNOME, KDE | 测试 | [code002-2/ubuntu-sheng](https://github.com/code002-2/ubuntu-sheng) |
 | Arch Linux ARM | GNOME, KDE | 测试 | [code002-2/archlinux-sheng](https://github.com/code002-2/archlinux-sheng) |
 | Fedora 44 | GNOME, KDE | 实验 | [mumuxiao722/fedora-sheng](https://github.com/mumuxiao722/fedora-sheng) |
 | NixOS 25.05 | GNOME | 实验 | [DotRedstone/nixos-sheng](https://github.com/DotRedstone/nixos-sheng) |

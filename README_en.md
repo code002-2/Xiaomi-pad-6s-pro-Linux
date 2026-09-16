@@ -40,7 +40,7 @@ If you are not comfortable modifying your tablet or its partition table, or if b
 | Distribution | Desktop | Status | Build repository |
 |--------|---------|------|---------|
 | Debian 13 (Trixie) | GNOME, KDE | Stable | [ianchb/debian-sheng](https://github.com/ianchb/debian-sheng) |
-| Ubuntu 26.04 / 25.10 | GNOME, KDE | Testing | [code002-2/ubuntu-sheng](https://github.com/code002-2/ubuntu-sheng) |
+| Ubuntu 26.10 / 26.04 / 25.10 | GNOME, KDE | Testing | [code002-2/ubuntu-sheng](https://github.com/code002-2/ubuntu-sheng) |
 | Arch Linux ARM | GNOME, KDE | Testing | [code002-2/archlinux-sheng](https://github.com/code002-2/archlinux-sheng) |
 | Fedora 44 | GNOME, KDE | Experimental | [mumuxiao722/fedora-sheng](https://github.com/mumuxiao722/fedora-sheng) |
 | NixOS 25.05 | GNOME | Experimental | [DotRedstone/nixos-sheng](https://github.com/DotRedstone/nixos-sheng) |
