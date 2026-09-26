@@ -47,6 +47,10 @@ If you are not comfortable modifying your tablet or its partition table, or if b
 | postmarketOS | Plasma, GNOME, Plasma Mobile, Lomiri | Testing (unofficial) | [alghiffaryfa19/sheng-pmos-builds](https://github.com/alghiffaryfa19/sheng-pmos-builds) |
 | Armbian | GNOME / KDE / XFCE, … (minimal available) | Community maintained (CSC) | [armbian/build](https://github.com/armbian/build) |
 | Armada (SteamOS-like, with Steam / FEX / Proton) | KDE Plasma + Game Mode | Experimental (prototype) | [code002-2/armada-sheng](https://github.com/code002-2/armada-sheng) |
+| **SteamOS** (based on Valve's official Steam Frame image) | KDE Plasma | Testing (v0.3.0) | [code002-2/steamos-sheng](https://github.com/code002-2/steamos-sheng) |
+
+> The SteamOS build uses Valve's official Steam Frame recovery image (SteamOS holo, aarch64) as the base and injects sheng's kernel / firmware / device layer, so **flashing differs from the distributions above**:
+> `fastboot flash userdata rootfs.img` + `fastboot flash boot_b boot.img` — no manual repartitioning. See the [steamos-sheng repository](https://github.com/code002-2/steamos-sheng).
 
 ---
 
@@ -64,6 +68,7 @@ All installation, configuration and dual-boot steps live in the [`docs/`](docs/)
 | [🧩 Recommended GNOME extensions](docs/en/gnome-extensions.md) | Better touch experience on a tablet |
 | [🎮 Steam installation](docs/en/steam.md) | Native ARM64 Steam setup |
 | [🎮 Armada flashing guide](https://github.com/code002-2/armada-sheng/blob/main/docs/flashing-xiaomi-sheng.md) | Flashing Armada, a SteamOS-like system (Steam / FEX / Proton) |
+| [🎮 SteamOS flashing guide](https://github.com/code002-2/steamos-sheng) | Flashing SteamOS (Valve's official Steam Frame image as the base, KDE Plasma) |
 | [🐧 Armbian build guide](https://docs.armbian.com/Developer-Guide_Build-Preparation/) | Building images with [armbian/build](https://github.com/armbian/build) |
 
 ---
