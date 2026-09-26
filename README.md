@@ -49,8 +49,7 @@
 | Armada（SteamOS 类，含 Steam / FEX / Proton） | KDE Plasma + 游戏模式 | 实验（原型） | [code002-2/armada-sheng](https://github.com/code002-2/armada-sheng) |
 | **SteamOS**（Valve Steam Frame 官方镜像为底包） | KDE Plasma | 测试（v0.3.0） | [code002-2/steamos-sheng](https://github.com/code002-2/steamos-sheng) |
 
-> SteamOS 版直接用 Valve 的 Steam Frame 官方恢复镜像当底包（SteamOS holo，aarch64），再注入 sheng 的内核 / 固件 / 设备层，所以**刷写方式与上表其它发行版不同**：
-> `fastboot flash userdata rootfs.img` + `fastboot flash boot_b boot.img`，无需自己重分区。详见 [steamos-sheng 仓库说明](https://github.com/code002-2/steamos-sheng)。
+
 
 ---
 
